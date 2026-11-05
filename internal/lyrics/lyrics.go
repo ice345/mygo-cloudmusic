@@ -109,7 +109,9 @@ func parseYRC(yrc string) []Line {
 
 // Build makes the lines to show from what NetEase serves: the
 // word-timed lyrics where there are some, else the timed lines, with the
-// translation of each.
+// translation of each. A translation written against a timed line still
+// reaches the word-timed line that sings it, and two that one line sings
+// are joined, in the order they were written.
 func Build(lrc, translation, yrc string) []Line {
 	var lines []Line
 	if yrc != "" {
@@ -130,27 +132,67 @@ func Build(lrc, translation, yrc string) []Line {
 			lines[i].Words = SpreadWords(lines[i].Text, lines[i].At, end)
 		}
 	}
-	// Translations go to the line nearest their time: word-timed lines
-	// start a little off the timed lines the translation follows.
-	for _, t := range parseLRC(translation) {
-		if t.Text == "" {
-			continue
-		}
-		best, bestGap := -1, 1500*time.Millisecond
-		for i := range lines {
-			gap := lines[i].At - t.At
-			if gap < 0 {
-				gap = -gap
-			}
-			if gap < bestGap {
-				best, bestGap = i, gap
-			}
-		}
-		if best >= 0 && lines[best].Translation == "" {
-			lines[best].Translation = t.Text
-		}
+	for i, text := range extras(lines, translation) {
+		lines[i].Translation = text
 	}
 	return lines
+}
+
+// belongs returns the line an extra line at at belongs to, or -1: of the
+// two lines starting nearest it, no later than half a second after it,
+// the nearer that is still sung then. Word-timed lines start a few
+// hundred milliseconds off the timed lines extras are written against,
+// and some of them sing two.
+func belongs(lines []Line, at time.Duration) int {
+	i := sort.Search(len(lines), func(i int) bool { return lines[i].At > at+500*time.Millisecond }) - 1
+	best, bestGap := -1, time.Duration(0)
+	for _, k := range []int{i, i - 1} {
+		if k < 0 || k >= len(lines) {
+			continue
+		}
+		if lines[k].At-500*time.Millisecond > at || at >= lines[k].End+200*time.Millisecond {
+			continue
+		}
+		gap := lines[k].At - at
+		if gap < 0 {
+			gap = -gap
+		}
+		if best < 0 || gap < bestGap {
+			best, bestGap = k, gap
+		}
+	}
+	return best
+}
+
+// extras returns, for each of lines, the text of extra's timed lines that
+// belong to it, joined by spaces in their order. Lines of no letters or
+// digits, as "//", are none.
+func extras(lines []Line, extra string) []string {
+	out := make([]string, len(lines))
+	for _, t := range parseLRC(extra) {
+		if !textual(t.Text) {
+			continue
+		}
+		i := belongs(lines, t.At)
+		if i < 0 {
+			continue
+		}
+		if out[i] != "" {
+			out[i] += " "
+		}
+		out[i] += t.Text
+	}
+	return out
+}
+
+// textual reports whether s has a letter or a digit.
+func textual(s string) bool {
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // mergeLyrics pairs timed lines with their translations, without words'

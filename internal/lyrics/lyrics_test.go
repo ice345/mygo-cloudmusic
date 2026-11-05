@@ -100,3 +100,54 @@ func TestIsCredit(t *testing.T) {
 		}
 	}
 }
+
+// A word-timed line that sings two timed lines keeps both translations, in
+// order: the second one reached no line.
+func TestMergedLineTakesBothTranslations(t *testing.T) {
+	yrc := "[37450,4400](37450,4400,0)光も痛みも怒りも全部抱きしめて\n" +
+		"[43000,2000](43000,2000,0)次"
+	trans := "[00:37.64]光与痛与怒\n[00:39.84]全都 拥入怀中\n[00:43.00]下一行"
+	lines := Build("", trans, yrc)
+	if len(lines) != 2 {
+		t.Fatalf("lines %+v", lines)
+	}
+	if lines[0].Translation != "光与痛与怒 全都 拥入怀中" {
+		t.Errorf("merged %q", lines[0].Translation)
+	}
+	if lines[1].Translation != "下一行" {
+		t.Errorf("next %q", lines[1].Translation)
+	}
+}
+
+// Splitting one timed line in two gives its translation to the first half,
+// the half that is still sung then.
+func TestSplitLineKeepsTheEarlierTranslation(t *testing.T) {
+	yrc := "[71290,2000](71290,2000,0)歌と散れ\n[73330,1500](73330,1500,0)残響"
+	trans := "[01:11.49]与歌一同散去 残响"
+	lines := Build("", trans, yrc)
+	if len(lines) != 2 {
+		t.Fatalf("lines %+v", lines)
+	}
+	if lines[0].Translation != "与歌一同散去 残响" || lines[1].Translation != "" {
+		t.Errorf("translations %q %q", lines[0].Translation, lines[1].Translation)
+	}
+}
+
+// A word-timed line starting a little after its timed line still takes that
+// line's translation, and two timed lines a third of a second apart keep
+// their own.
+func TestLateLineStillTakesItsTranslation(t *testing.T) {
+	yrc := "[10270,3000](10270,3000,0)富士山下"
+	lines := Build("", "[00:10.00]富士山下", yrc)
+	if len(lines) != 1 || lines[0].Translation != "富士山下" {
+		t.Fatalf("late %+v", lines)
+	}
+	own := Build("[00:10.00]一\n[00:10.30]二", "[00:10.00]甲\n[00:10.30]乙", "")
+	if len(own) != 2 || own[0].Translation != "甲" || own[1].Translation != "乙" {
+		t.Fatalf("neighbours %+v", own)
+	}
+	marks := Build("[00:10.00]一", "[00:10.00]//\n[00:10.00]●●●", "")
+	if marks[0].Translation != "" {
+		t.Errorf("marks %q", marks[0].Translation)
+	}
+}
