@@ -465,39 +465,124 @@ type LyricTexts struct {
 	YRC, YTranslation, YReading string
 }
 
+// desktopLyrics and webLyrics fetch one song's lyrics. Tests swap them.
+var (
+	desktopLyrics = fetchDesktopLyrics
+	webLyrics     = fetchWebLyrics
+)
+
 // Lyrics returns a track's lyrics. The reading is how its lines are read
-// aloud, as NetEase writes it for the song's language. A failing call to
-// the desktop client's API still leaves the timed lines, the translation
-// and the reading from the web.
+// aloud, as NetEase writes it for the song's language. The desktop client's
+// API sends all six texts in one answer. The web's is asked only when that
+// call fails or sends no timed lines, and then a reading it leaves empty
+// keeps the desktop client's.
 func Lyrics(id int64) (LyricTexts, error) {
-	type text struct {
-		Lyric string `json:"lyric"`
+	desk, err := desktopLyrics(id)
+	if err == nil && strings.TrimSpace(desk.LRC) != "" {
+		return desk, nil
 	}
+	web, werr := webLyrics(id)
+	if werr != nil {
+		if err != nil {
+			return LyricTexts{}, err
+		}
+		return LyricTexts{}, werr
+	}
+	if err == nil {
+		web.YRC, web.YTranslation, web.YReading = desk.YRC, desk.YTranslation, desk.YReading
+		if strings.TrimSpace(web.Reading) == "" {
+			web.Reading = desk.Reading
+		}
+	}
+	return web, nil
+}
+
+type lyricText struct {
+	Lyric string `json:"lyric"`
+}
+
+// fetchDesktopLyrics asks the desktop client's API, which sends the timed
+// lines, the translation, the reading and the word-timed texts together.
+func fetchDesktopLyrics(id int64) (LyricTexts, error) {
 	var res struct {
-		Lrc     text `json:"lrc"`
-		Tlyric  text `json:"tlyric"`
-		Romalrc text `json:"romalrc"`
+		Lrc      lyricText `json:"lrc"`
+		Tlyric   lyricText `json:"tlyric"`
+		Romalrc  lyricText `json:"romalrc"`
+		Yrc      lyricText `json:"yrc"`
+		Ytlrc    lyricText `json:"ytlrc"`
+		Yromalrc lyricText `json:"yromalrc"`
+	}
+	data := map[string]any{"id": strconv.FormatInt(id, 10), "cp": false, "tv": 0, "lv": 0, "rv": 0, "kv": 0, "yv": 0, "ytv": 0, "yrv": 0}
+	if err := eapiPost("/api/song/lyric/v1", data, &res); err != nil {
+		return LyricTexts{}, err
+	}
+	return LyricTexts{
+		LRC: plainLRC(res.Lrc.Lyric), Translation: res.Tlyric.Lyric, Reading: res.Romalrc.Lyric,
+		YRC: res.Yrc.Lyric, YTranslation: res.Ytlrc.Lyric, YReading: res.Yromalrc.Lyric,
+	}, nil
+}
+
+// plainLRC turns the desktop client's credit lines into timed lines. The
+// client writes who made the song as JSON, one object a line, while the
+// lines that are sung are already timed lines, as the web sends all of them.
+func plainLRC(s string) string {
+	var b strings.Builder
+	for line := range strings.SplitSeq(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "{") {
+			line = creditLRC(line)
+			if line == "" {
+				continue
+			}
+		}
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+// creditLRC reads one JSON credit line, {"t": milliseconds, "c": [{"tx":
+// "作词: "}, {"tx": "姓名"}]}, as a timed line.
+func creditLRC(line string) string {
+	var row struct {
+		T int `json:"t"`
+		C []struct {
+			Tx string `json:"tx"`
+		} `json:"c"`
+	}
+	if json.Unmarshal([]byte(line), &row) != nil || len(row.C) == 0 {
+		return ""
+	}
+	var text strings.Builder
+	for _, c := range row.C {
+		text.WriteString(c.Tx)
+	}
+	if strings.TrimSpace(text.String()) == "" {
+		return ""
+	}
+	ms := row.T
+	if ms < 0 {
+		ms = 0
+	}
+	return fmt.Sprintf("[%02d:%02d.%03d]%s", ms/60000, (ms/1000)%60, ms%1000, text.String())
+}
+
+// fetchWebLyrics asks the web API for the timed lines, the translation and
+// the reading. It does not serve the word-timed texts.
+func fetchWebLyrics(id int64) (LyricTexts, error) {
+	var res struct {
+		Lrc     lyricText `json:"lrc"`
+		Tlyric  lyricText `json:"tlyric"`
+		Romalrc lyricText `json:"romalrc"`
 	}
 	q := url.Values{"id": {strconv.FormatInt(id, 10)}, "lv": {"1"}, "tv": {"-1"}, "rv": {"-1"}}
-	var out LyricTexts
 	if err := get("/api/song/lyric", q, &res); err != nil {
 		return LyricTexts{}, err
 	}
-	out.LRC, out.Translation, out.Reading = res.Lrc.Lyric, res.Tlyric.Lyric, res.Romalrc.Lyric
-	var words struct {
-		Romalrc  text `json:"romalrc"`
-		Yrc      text `json:"yrc"`
-		Ytlrc    text `json:"ytlrc"`
-		Yromalrc text `json:"yromalrc"`
-	}
-	data := map[string]any{"id": strconv.FormatInt(id, 10), "cp": false, "tv": 0, "lv": 0, "rv": 0, "kv": 0, "yv": 0, "ytv": 0, "yrv": 0}
-	if eapiPost("/api/song/lyric/v1", data, &words) == nil {
-		out.YRC, out.YTranslation, out.YReading = words.Yrc.Lyric, words.Ytlrc.Lyric, words.Yromalrc.Lyric
-		if out.Reading == "" {
-			out.Reading = words.Romalrc.Lyric
-		}
-	}
-	return out, nil
+	return LyricTexts{LRC: res.Lrc.Lyric, Translation: res.Tlyric.Lyric, Reading: res.Romalrc.Lyric}, nil
 }
 
 // Sized asks the image CDN for a picture of n×n pixels.

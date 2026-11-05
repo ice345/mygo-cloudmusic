@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -91,6 +93,61 @@ func TestRecentPlaysLive(t *testing.T) {
 	if plays[0].Track.ID == 0 || plays[0].Device == "" || plays[0].At.Year() < 2020 {
 		t.Fatalf("latest play %+v", plays[0])
 	}
+}
+
+var lrcStamp = regexp.MustCompile(`\[(\d+):(\d+)(?:\.(\d+))?\]`)
+
+// sameTimedLines reports whether two lyric answers sing the same lines.
+// The desktop client writes a credit's time with three decimals and no
+// space before its colon; the web writes two or three, and spaces around
+// the colon. Neither changes the line.
+func sameTimedLines(a, b string) bool {
+	as, bs := canonLines(a), canonLines(b)
+	if len(as) != len(bs) {
+		return false
+	}
+	for i := range as {
+		if as[i] != bs[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func canonLines(s string) []string {
+	var out []string
+	for line := range strings.SplitSeq(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		stamps := lrcStamp.FindAllStringSubmatchIndex(line, -1)
+		if len(stamps) == 0 {
+			out = append(out, line)
+			continue
+		}
+		var b strings.Builder
+		for _, m := range stamps {
+			min, _ := strconv.Atoi(line[m[2]:m[3]])
+			sec, _ := strconv.Atoi(line[m[4]:m[5]])
+			ms := (min*60 + sec) * 1000
+			if m[6] >= 0 {
+				f := line[m[6]:m[7]]
+				n, _ := strconv.Atoi(f)
+				scale := 1000
+				for range len(f) {
+					scale /= 10
+				}
+				ms += n * scale
+			}
+			b.WriteString(strconv.Itoa(ms))
+			b.WriteByte(' ')
+		}
+		text := strings.TrimSpace(line[stamps[len(stamps)-1][1]:])
+		b.WriteString(strings.Join(strings.Fields(text), ""))
+		out = append(out, b.String())
+	}
+	return out
 }
 
 // useSession signs in with the session kept at path.
@@ -279,20 +336,51 @@ func TestProgramCommentsLive(t *testing.T) {
 	}
 }
 
-// NetEase sends a reading with the timed lines, and, for a song whose
-// word-timed lines it has, a reading timed by those.
+// Credit lines match across the two answers when only the spaces and the
+// decimals differ, and a changed line does not.
+func TestSameTimedLinesIgnoresCreditSpacing(t *testing.T) {
+	web := "[00:00.00] 作词 : 某人\n[00:23.64]一句\n"
+	desk := "[00:00.000]作词: 某人\n[00:23.64]一句\n"
+	if !sameTimedLines(web, desk) {
+		t.Fatal("the credit did not match")
+	}
+	if sameTimedLines(web, "[00:00.000]作词: 某人\n[00:23.64]另一句\n") {
+		t.Fatal("a changed line matched")
+	}
+}
+
+// The desktop client's timed lines and translation match the web's, for
+// the songs whose readings the app relies on. NM_SESSION, when set, is a
+// signed-in session file, as the other live tests take it.
 func TestLyricTextsLive(t *testing.T) {
 	if os.Getenv("LIVE") == "" {
 		t.Skip()
 	}
+	if path := os.Getenv("NM_SESSION"); path != "" {
+		useSession(t, path)
+	}
+	for _, id := range []int64{536622304, 2120465975, 65766, 3427209483} {
+		web, werr := fetchWebLyrics(id)
+		desk, derr := fetchDesktopLyrics(id)
+		if werr != nil || derr != nil {
+			t.Errorf("%d: web %v, desktop %v", id, werr, derr)
+			continue
+		}
+		if web.Translation != desk.Translation || !sameTimedLines(web.LRC, desk.LRC) {
+			t.Errorf("%d: desktop timed lines or translation differ from the web", id)
+		}
+		if web.Reading != desk.Reading {
+			t.Errorf("%d: desktop reading differs from the web (desktop %d bytes, web %d)", id, len(desk.Reading), len(web.Reading))
+		}
+	}
 	for _, id := range []int64{536622304, 2120465975, 65766} {
 		texts, err := Lyrics(id)
-		if err != nil || texts.Reading == "" {
+		if err != nil || strings.TrimSpace(texts.Reading) == "" {
 			t.Errorf("%d: reading %q, %v", id, texts.Reading, err)
 		}
 	}
 	texts, err := Lyrics(3427209483)
-	if err != nil || texts.YReading == "" {
+	if err != nil || strings.TrimSpace(texts.YReading) == "" {
 		t.Errorf("3427209483: y reading %q, %v", texts.YReading, err)
 	}
 }
