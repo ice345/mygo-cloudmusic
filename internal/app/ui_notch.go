@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/lyrics"
 	"netease-music-mygo/internal/netease"
 	"netease-music-mygo/internal/player"
 )
@@ -32,6 +33,7 @@ type notch struct {
 	lastInside time.Time
 	passing    bool   // clicks pass through to what is under the window
 	neighbor   string // another app drawing at the notch, which this one makes way for
+	under      bool   // the pointer is over the lyrics, which fade and pass clicks
 	watched    bool   // the pointer's moves poll
 	unwatch    func() // stops them polling, nil while they don't
 	active     bool   // the app is active, when they go unseen over the menu bar
@@ -267,11 +269,36 @@ func (n *notch) target() (w, h float32) {
 		return 0, 0
 	case tr != nil && s.NotchActivity && s.Notch:
 		// Wings just wide enough for the cover and the levels, so they
-		// hide no more of the menu bar than they must.
-		return n.w0 + 2*max(0, n.h0-12) + 20, n.h0
+		// hide no more of the menu bar than they must. Lyrics, if on,
+		// grow the shell down, not out into the menu bar.
+		return n.w0 + 2*max(0, n.h0-12) + 20, n.h0 + n.strip()
 	default:
-		return n.w0, n.h0
+		return n.w0, n.h0 + n.strip()
 	}
+}
+
+// strip is how far the lyrics hang under the housing: nothing while the
+// card is open, while another app has the notch, or when there is no line
+// to show, including the outro.
+func (n *notch) strip() float32 {
+	if n.neighbor != "" || n.open || !n.a.settings.Notch {
+		return 0
+	}
+	switch n.a.settings.NotchLyrics {
+	case 1, 2, 3:
+	default:
+		return 0
+	}
+	lines, _ := n.a.pl.Lyrics()
+	if n.a.pl.Current() == nil || len(lines) == 0 {
+		return 0
+	}
+	pos := n.a.pl.Position()
+	cur := lyrics.Index(lines, pos)
+	if cur < 0 || pos >= lines[len(lines)-1].End {
+		return 0
+	}
+	return []float32{0, 28, 50, 72}[n.a.settings.NotchLyrics]
 }
 
 // cursorPoint is where the pointer is on the screen.
@@ -285,6 +312,7 @@ var notchNeighbor = otherNotchApp
 func (n *notch) poll() {
 	if n.neighbor != "" {
 		n.passing = true
+		n.under = false
 		if n.win != nil {
 			n.win.SetIgnoreMouseEvents(true)
 		}
@@ -294,11 +322,30 @@ func (n *notch) poll() {
 		return
 	}
 	pt := cursorPoint()
-	w, h := n.target()
+	w, _ := n.target()
 	x := n.screenX + (n.winW-w)/2
 	px, py := float32(pt.X), float32(pt.Y)
 	slack := float32(6)
-	inside := px >= x-slack && px <= x+w+slack && py >= n.screenY-slack && py <= n.screenY+h+slack
+	// Opening is the housing and the wings only. The lyrics hang below
+	// them, and a rest there must not open the player over the window.
+	// The housing's hit area usually reaches a little past its edge; that
+	// reach stops at the lyrics, whose top would otherwise count as the
+	// housing.
+	shell := n.screenY + n.h0
+	drop := n.strip()
+	bottom := shell + slack
+	if drop > 0 {
+		bottom = shell
+	}
+	inside := px >= x-slack && px <= x+w+slack && py >= n.screenY-slack && py <= bottom
+	hx := n.screenX + (n.winW-n.w0)/2
+	under := drop > 0 && px >= hx-slack && px <= hx+n.w0+slack && py > shell && py <= shell+drop+slack
+	if under != n.under {
+		n.under = under
+		if n.win != nil {
+			n.win.Invalidate()
+		}
+	}
 	if !n.real && !n.a.settings.NotchVirtual && !n.open && !n.hello {
 		// Without a notch, the pointer pressed against the top edge of
 		// the screen, about its middle, opens it.
@@ -423,6 +470,7 @@ func (n *notch) view(c *ui.Context) {
 			if a.settings.NotchActivity || !a.settings.Notch {
 				n.compact(c, tr, 1-open)
 			}
+			n.lyricStrip(c, w, 1-open)
 			n.helloRow(c, hello*(1-open), (w-notchHelloW)/2)
 			if open > 0.02 {
 				n.expanded(c, tr, open, (w-notchOpenW)/2)
@@ -562,6 +610,154 @@ func (n *notch) idle(c *ui.Context, open, left float32) {
 			a.showMain()
 		}
 	})
+}
+
+// A stripRow is one row of the lyrics under the notch.
+type stripRow struct {
+	line   *lyrics.Line
+	text   string
+	fill   bool
+	alpha  float32
+	size   float32
+	weight int
+}
+
+// lyricStrip draws the lines hanging under the housing, as wide as its
+// head, clipped by the shell. The pointer over them fades them.
+func (n *notch) lyricStrip(c *ui.Context, w, shown float32) {
+	if shown < 0.02 || n.strip() <= 0 {
+		return
+	}
+	lines, _ := n.a.pl.Lyrics()
+	pos := n.a.pl.Position()
+	cur := lyrics.Index(lines, pos)
+	if cur < 0 || cur >= len(lines) {
+		return
+	}
+	rows := n.stripRows(lines, cur, pos)
+	if len(rows) == 0 {
+		return
+	}
+	fade := float32(1)
+	if n.under {
+		fade = 0.2
+	}
+	wide := min(n.w0, w)
+	left := max(0, (w-wide)/2)
+	ui.Column(c.Key("lyrics")).Absolute().Top(n.h0).Left(left).Width(wide).Height(n.strip()).
+		Center().Gap(1).Padding(0, 8).Opacity(shown * fade).Children(func() {
+		for i, row := range rows {
+			n.stripLine(c.Key(i), row, pos, wide-16)
+		}
+	})
+	n.stripFrames(c, lines, cur, pos)
+}
+
+func (n *notch) stripRows(lines []lyrics.Line, cur int, pos time.Duration) []stripRow {
+	if n.inBreak(lines, cur, pos) {
+		return []stripRow{{line: &lines[cur+1], text: lines[cur+1].Text, alpha: 0.38, size: 13.5, weight: 600}}
+	}
+	current := stripRow{line: &lines[cur], text: lines[cur].Text, fill: true, alpha: 1, size: 13.5, weight: 600}
+	switch n.a.settings.NotchLyrics {
+	case 1:
+		return []stripRow{current}
+	case 2:
+		return n.withExtra([]stripRow{current}, lines, cur)
+	default:
+		var rows []stripRow
+		if cur > 0 {
+			rows = append(rows, stripRow{line: &lines[cur-1], text: lines[cur-1].Text, alpha: 0.55, size: 11.5, weight: 500})
+		}
+		rows = append(rows, current)
+		return n.withExtra(rows, lines, cur)
+	}
+}
+
+// withExtra adds the reading or the translation under the line sung, or
+// the next line when neither is on. One row of lyrics never shows them.
+func (n *notch) withExtra(rows []stripRow, lines []lyrics.Line, cur int) []stripRow {
+	if r := n.a.lyricReading(lines[cur]); r != "" {
+		return append(rows, stripRow{text: r, alpha: 0.55, size: 11.5, weight: 500})
+	}
+	if t := n.a.lyricTranslation(lines[cur]); t != "" {
+		return append(rows, stripRow{text: t, alpha: 0.55, size: 11.5, weight: 500})
+	}
+	if cur+1 < len(lines) {
+		return append(rows, stripRow{line: &lines[cur+1], text: lines[cur+1].Text, alpha: 0.55, size: 11.5, weight: 500})
+	}
+	return rows
+}
+
+// inBreak reports a gap of at least 5 seconds, a second after its last word.
+func (n *notch) inBreak(lines []lyrics.Line, cur int, pos time.Duration) bool {
+	if cur+1 >= len(lines) || lines[cur+1].At-lines[cur].End < 5*time.Second {
+		return false
+	}
+	last := lines[cur].End
+	if w := lines[cur].Words; len(w) > 0 {
+		last = w[len(w)-1].End
+	}
+	return pos >= last+time.Second
+}
+
+func (n *notch) stripLine(c *ui.Context, row stripRow, pos time.Duration, maxW float32) {
+	size := row.size
+	weight := row.weight
+	if tw, _ := c.MeasureText(0, ui.Span{Text: row.text, Size: size, Weight: weight}); tw > maxW && size > 11 {
+		size = 11
+	}
+	lang := ""
+	if row.line != nil {
+		lang = row.line.Lang
+	}
+	if row.fill && row.line != nil && len(row.line.Words) > 0 {
+		ui.RichText(c).FontSize(size).FontWeight(weight).SingleLine().MaxWidth(maxW).Lang(lang).Children(func() {
+			for i, wd := range row.line.Words {
+				lit := clamp01(float32((pos - wd.Start).Seconds() / max(0.05, (wd.End-wd.Start).Seconds())))
+				ui.Text(c.Key(i), wd.Text).TextColor(white.Alpha(0.38 + 0.62*lit))
+			}
+		})
+		return
+	}
+	ui.Text(c, row.text).FontSize(size).FontWeight(weight).SingleLine().MaxWidth(maxW).Lang(lang).
+		TextColor(white.Alpha(row.alpha))
+}
+
+// stripFrames asks for a frame while a word fills, and otherwise waits
+// until the next word or the next line.
+func (n *notch) stripFrames(c *ui.Context, lines []lyrics.Line, cur int, pos time.Duration) {
+	if !n.a.pl.Playing() {
+		return
+	}
+	l := lines[cur]
+	for _, w := range l.Words {
+		if pos >= w.Start && pos < w.End {
+			c.After(40 * time.Millisecond)
+			return
+		}
+	}
+	next := time.Duration(-1)
+	note := func(t time.Duration) {
+		if t > pos && (next < 0 || t-pos < next) {
+			next = t - pos
+		}
+	}
+	for _, w := range l.Words {
+		note(w.Start)
+	}
+	if cur+1 < len(lines) {
+		note(lines[cur+1].At)
+		if lines[cur+1].At-l.End >= 5*time.Second {
+			last := l.End
+			if len(l.Words) > 0 {
+				last = l.Words[len(l.Words)-1].End
+			}
+			note(last + time.Second)
+		}
+	}
+	if next > 0 {
+		c.After(next)
+	}
 }
 
 // syncWindows redraws both windows when what plays changed in one of

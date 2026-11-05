@@ -113,6 +113,26 @@ func (a *app) settingsView(c *ui.Context) {
 						a.changed()
 					}
 				})
+				row("刘海歌词", "在刘海下方显示正在唱的歌词，不会遮挡菜单栏", func() {
+					choice := s.NotchLyrics
+					if choice < 0 || choice > 3 {
+						choice = 0
+					}
+					labels := []string{"关", "1 行", "2 行", "3 行"}
+					// Unavailable while the notch is off: the strip has
+					// nowhere to hang.
+					if !s.Notch {
+						frozen := choice
+						ui.Box(c).Opacity(0.4).Children(func() {
+							segmented(c.Key("notch-lyrics"), &frozen, labels...)
+						})
+						return
+					}
+					if segmented(c.Key("notch-lyrics"), &choice, labels...) {
+						s.NotchLyrics = choice
+						a.changed()
+					}
+				})
 				row("播放时显示实时活动", "在刘海两侧显示封面与音频波形，可能遮挡刘海旁的菜单栏图标", func() {
 					if ui.Switch(c.Key("activity"), &s.NotchActivity).Label("播放时显示实时活动").Disabled(!s.Notch).Changed() {
 						a.changed()

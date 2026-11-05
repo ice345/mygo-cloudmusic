@@ -104,6 +104,41 @@ func TestBirdFrameBudget(t *testing.T) {
 	}
 }
 
+// The notch's lyrics ask for no frames between words.
+func TestNotchLyricFrames(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.settings.Notch = true
+	a.settings.NotchLyrics = 1
+	n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
+	a.notch = n
+	a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 20000}})
+	a.pl.SetLyrics([]lyrics.Line{{
+		At: 0, End: 6 * time.Second, Text: "风在吹",
+		Words: []lyrics.Word{
+			{Text: "风", Start: 0, End: time.Second},
+			{Text: "在", Start: 3 * time.Second, End: 4 * time.Second},
+			{Text: "吹", Start: 4 * time.Second, End: 5 * time.Second},
+		},
+	}})
+	a.pl.Hold(2 * time.Second)
+	tt := ui.NewTester(n.view, int(n.winW), int(n.winH))
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	asked := 0
+	for range 60 {
+		tt.Advance(time.Second / 60)
+		if tt.FramePending() {
+			asked++
+			tt.Frame()
+		}
+	}
+	if asked > 2 {
+		t.Errorf("between words: %d frames a second", asked)
+	}
+}
+
 // Another song's backdrop fades in over the last one's, which is then let
 // go, so that the backdrop stops asking for frames.
 func TestBackdropFadeEnds(t *testing.T) {

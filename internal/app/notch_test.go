@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/audio"
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/lyrics"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -134,6 +135,110 @@ func TestNotchMakesWay(t *testing.T) {
 	if !n.open {
 		t.Fatal("did not open once the other app quit")
 	}
+}
+
+// Resting the pointer on the lyrics under the notch opens nothing, and
+// clicks pass through to the window under them. Resting on the housing
+// still opens the player.
+func TestNotchLyricsPassThePointer(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.settings.Notch = true
+	a.settings.NotchLyrics = 1
+	n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
+	a.notch = n
+	a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 60000}})
+	a.pl.SetLyrics(lyrics.Build(lyrics.Source{LRC: "[00:00.00]风在吹\n[00:10.00]下一句"}))
+	a.pl.Hold(time.Second)
+	defer func(f func() mygo.Point) { cursorPoint = f }(cursorPoint)
+	// 14 is the middle of the line. 2 is its top, where the housing's hit
+	// area used to reach and open the player.
+	for _, dy := range []float32{14, 2} {
+		cursorPoint = func() mygo.Point {
+			return mygo.Point{X: int(n.screenX + n.winW/2), Y: int(n.screenY + n.h0 + dy)}
+		}
+		n.open = false
+		n.poll()
+		n.enteredAt = n.lastInside.Add(-time.Second)
+		n.poll()
+		if n.open || !n.passing || !n.under {
+			t.Fatalf("at %v under the housing: open %v, passing %v, over the lyrics %v", dy, n.open, n.passing, n.under)
+		}
+	}
+
+	cursorPoint = func() mygo.Point {
+		return mygo.Point{X: int(n.screenX + n.winW/2), Y: int(n.screenY + n.h0/2)}
+	}
+	n.open = false
+	n.poll()
+	n.enteredAt = n.lastInside.Add(-time.Second)
+	n.poll()
+	if !n.open || n.passing || n.under {
+		t.Fatalf("housing: open %v, passing %v, over the lyrics %v", n.open, n.passing, n.under)
+	}
+}
+
+// With NM_FRAMES set, saves the lyrics under the notch: one line filling,
+// two and three lines, the next line during a break, and the strip faded
+// under the pointer.
+func TestNotchLyricStripFrames(t *testing.T) {
+	dir := os.Getenv("NM_FRAMES")
+	if dir == "" {
+		t.Skip()
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	save := func(name string, n *notch) {
+		tt := ui.NewTester(n.view, int(n.winW), int(n.winH))
+		tt.SetDark(true)
+		tt.Advance(time.Second)
+		tt.Frame()
+		f, err := os.Create(filepath.Join(dir, name+".png"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		png.Encode(f, tt.Image())
+		f.Close()
+	}
+	lines := []lyrics.Line{
+		{At: 0, End: 3 * time.Second, Text: "上一句"},
+		{
+			At: 4 * time.Second, End: 8 * time.Second, Text: "风在吹", Lang: "zh",
+			Reading: "feng zai chui", Translation: "the wind blows",
+			Words: []lyrics.Word{
+				{Text: "风", Start: 4 * time.Second, End: 5 * time.Second},
+				{Text: "在", Start: 5 * time.Second, End: 6 * time.Second},
+				{Text: "吹", Start: 6 * time.Second, End: 7 * time.Second},
+			},
+		},
+		{At: 16 * time.Second, End: 20 * time.Second, Text: "下一句"},
+	}
+	for _, rows := range []int{1, 2, 3} {
+		a := newTestApp()
+		a.settings = defaultSettings()
+		a.settings.Notch = true
+		a.settings.NotchLyrics = rows
+		a.settings.LyricRoman = true
+		n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
+		a.notch = n
+		a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 30000}})
+		a.pl.SetLyrics(lines)
+		a.pl.Hold(5500 * time.Millisecond)
+		save(fmt.Sprintf("notch-lyrics-%d", rows), n)
+	}
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.settings.Notch = true
+	a.settings.NotchLyrics = 1
+	n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
+	a.notch = n
+	a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 30000}})
+	a.pl.SetLyrics(lines)
+	a.pl.Hold(9 * time.Second)
+	save("notch-lyrics-break", n)
+	n.under = true
+	save("notch-lyrics-under", n)
 }
 
 // With NM_FRAMES set, saves the notch as it greets, growing and grown, and

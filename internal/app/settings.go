@@ -23,6 +23,10 @@ type settings struct {
 	// NotchGreeted says the notch showed itself, once, as the first song
 	// played (greet).
 	NotchGreeted bool `json:"notchGreeted"`
+	// NotchLyrics is how many lines of the lyrics hang under the notch, 0
+	// to 3: they cover the top of the window under them, so the listener
+	// turns them on.
+	NotchLyrics int `json:"notchLyrics,omitempty"`
 	// Quality is the level of the streams: standard, higher, exhigh,
 	// lossless or hires.
 	Quality string `json:"quality"`
