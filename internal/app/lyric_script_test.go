@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -57,5 +59,48 @@ func TestLyricScript(t *testing.T) {
 	}
 	if !tt.HasText("風が吹く") || !tt.HasText("รักนะ") {
 		t.Fatalf("the lines themselves: %q", tt.Texts())
+	}
+}
+
+// Turning 翻译 off keeps the lit line a third of the way down, where it
+// was: the lines above it lost their translations, and it rose with them.
+func TestLyricRowsKeepTheLitLine(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	var lrc, trans string
+	for i := range 12 {
+		sec := (i + 1) * 10
+		stamp := fmt.Sprintf("[%02d:%02d.00]", sec/60, sec%60)
+		text := fmt.Sprintf("第%d句", i+1)
+		lrc += stamp + text + "\n"
+		trans += stamp + "译" + text + "\n"
+	}
+	tr := netease.Track{ID: 1, Name: "歌", Artists: []netease.Artist{{Name: "人"}}, Duration: 180000}
+	a.pl.Cue([]netease.Track{tr})
+	a.pl.SetLyrics(lyrics.Build(lyrics.Source{LRC: lrc, Translation: trans}))
+	a.pl.Hold(80 * time.Second) // the 8th line, 「第8句」
+	a.nowPlaying, a.npPane = true, paneLyrics
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	tt.Advance(time.Second)
+	tt.Frame()
+	r0, ok := tt.Find("第8句")
+	if !ok {
+		t.Fatal("the lit line is not shown")
+	}
+	if err := tt.Click("歌词显示"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("翻译"); err != nil {
+		t.Fatalf("%v; menu %q", err, tt.Menu())
+	}
+	tt.Advance(time.Second)
+	tt.Frame()
+	r1, ok := tt.Find("第8句")
+	if !ok {
+		t.Fatal("the lit line went away")
+	}
+	if d := math.Abs(float64(r1.Y - r0.Y)); d > 4 {
+		t.Fatalf("the lit line moved by %.1f", d)
 	}
 }

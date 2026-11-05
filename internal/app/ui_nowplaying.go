@@ -525,6 +525,9 @@ func (a *app) lyricsPane(c *ui.Context, tr *netease.Track, h float32) {
 	a.timedLines(c, scroll, lines, pos, cur, lag, linesStyle{size: 30, weight: 800, lineHeight: 1.25, quiet: quiet}, nil)
 }
 
+// lyricRows are which extra rows the lines are showing.
+type lyricRows struct{ translation, reading bool }
+
 // linesStyle is how timedLines sets its lines: the size, weight and
 // leading of their type; quiet nearly hides them, under a hot comment.
 type linesStyle struct {
@@ -606,6 +609,35 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 			foot()
 		}
 	})
+	// The rows under the lines change their height. The line sung stays
+	// where it was: the scroll takes up how far the new layout moved it.
+	// LayoutBounds lags the build that changed the rows, and a rebuild in
+	// the same event still reports the old one, so this waits for a box
+	// that has actually moved.
+	if rows := (lyricRows{a.settings.LyricTranslation, a.settings.LyricRoman}); rows != a.lyricRows {
+		a.lyricRows = rows
+		if active.Valid() {
+			if lb := active.LayoutBounds(); lb.H > 0 {
+				a.lyricPin, a.lyricPinOn, a.lyricReaim = lb.Y, true, 8
+				c.AnimationFrame()
+			}
+		}
+	} else if a.lyricReaim > 0 && a.lyricPinOn && active.Valid() {
+		lb := active.LayoutBounds()
+		a.lyricReaim--
+		if lb.H > 0 && lb.Y != a.lyricPin {
+			delta := lb.Y - a.lyricPin
+			a.lyricReaim, a.lyricPinOn = 0, false
+			box := scroll.Bounds()
+			target := a.lyricScroll.Y + delta
+			if box.H > 0 {
+				target = min(max(0, target), a.lyricScroll.MaxY)
+			}
+			a.lyricGlide.to(c, &a.lyricScroll, target)
+		} else if a.lyricReaim > 0 {
+			c.AnimationFrame()
+		}
+	}
 	// Bring the line sung to a third of the way down, once it changed.
 	if cur != a.lyricAt {
 		box := scroll.Bounds()

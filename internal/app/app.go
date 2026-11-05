@@ -108,10 +108,17 @@ type app struct {
 	lyricGlide  lyricGlide
 	lyricAt     int
 	lyricTrack  int64
-	queueList   ui.ListState
-	queueAt     int // the row of the queue pane last scrolled to, -1 while it is hidden
-	comments    commentState
-	tabCount    rollState // the count on the comments' tab, as it rolls
+	// lyricRows are the rows last laid out under the lines. When they
+	// change, lyricPin is where the line sung sat, and lyricReaim counts
+	// the frames waited until the new layout can be told from that.
+	lyricRows  lyricRows
+	lyricPin   float32
+	lyricPinOn bool
+	lyricReaim int
+	queueList  ui.ListState
+	queueAt    int // the row of the queue pane last scrolled to, -1 while it is hidden
+	comments   commentState
+	tabCount   rollState // the count on the comments' tab, as it rolls
 
 	fmMode        int    // the FM mode chosen, in fmModes
 	radioStarting string // the radio asked for its first songs, or ""
