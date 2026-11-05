@@ -139,6 +139,7 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 			// controls a slim bar at the foot.
 			reveal(npTabsRow(c, w), pointerIn).Children(func() {
 				a.paneTabs(c)
+				a.lyricScriptButton(c)
 				a.stageStyleButton(c)
 			})
 			a.stage(c, tr, accent)
@@ -160,7 +161,12 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 		// the controls.
 		side = max(coverSize, 280)
 		padX := npSideX(w)
-		reveal(npTabsRow(c, w), pointerIn).Children(func() { a.paneTabs(c) })
+		reveal(npTabsRow(c, w), pointerIn).Children(func() {
+			a.paneTabs(c)
+			if a.npPane == paneLyrics {
+				a.lyricScriptButton(c)
+			}
+		})
 		ui.Row(c).Grow(1).Padding(0, padX, 44, padX).Gap(72).AlignItems(ui.Stretch).Children(func() {
 			var coverTop float32
 			ui.Column(c).Width(side).Justify(ui.Center).Gap(0).Children(func() {
@@ -302,6 +308,67 @@ func (a *app) npTabs() []npTab {
 		return append(tabs, npTab{paneQueue, "待播清单"}, npTab{paneComments, "评论"})
 	}
 	return []npTab{{paneLyrics, "歌词"}, {paneStage, "律动"}, {paneQueue, "待播清单"}, {paneWall, "选歌"}, {paneComments, "评论"}}
+}
+
+// lyricReading is the line's reading while the listener wants it. A song
+// with none leaves this empty, so the row under the line is not built.
+func (a *app) lyricReading(l lyrics.Line) string {
+	if a.settings.LyricRoman {
+		return l.Reading
+	}
+	return ""
+}
+
+// lyricTranslation is the line's translation while the listener wants it.
+func (a *app) lyricTranslation(l lyrics.Line) string {
+	if a.settings.LyricTranslation {
+		return l.Translation
+	}
+	return ""
+}
+
+// lyricScriptButton chooses whether a line shows its translation and its
+// reading. It sits at the end of the tabs on the lyrics and the stage,
+// the same place on both, and opens the menu the stage's style does.
+// 音译 names the reading the song has, as 罗马音 or 粤拼, and stays 音译
+// when the song has none, so the choice holds for the next one.
+func (a *app) lyricScriptButton(c *ui.Context) {
+	label := "原文"
+	switch {
+	case a.settings.LyricTranslation && a.settings.LyricRoman:
+		label = "译·音"
+	case a.settings.LyricTranslation:
+		label = "译"
+	case a.settings.LyricRoman:
+		label = "音"
+	}
+	lines, _ := a.pl.Lyrics()
+	reading := "音译"
+	if name := lyrics.ReadingName(lines); name != "" {
+		reading = "音译（" + name + "）"
+	}
+	b := ui.ButtonBase(c.Key("lyric-script")).Padding(6, 14).Radius(999).AlignItems(ui.Center).
+		FocusRing(false).Label("歌词显示").Tooltip("翻译与音译")
+	bg, fg := ui.Transparent, white.Alpha(0.55)
+	if a.settings.LyricTranslation || a.settings.LyricRoman {
+		bg, fg = white.Alpha(0.14), white
+	} else if b.Hovered() {
+		bg, fg = white.Alpha(0.06), white.Alpha(0.8)
+	}
+	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
+	b.Children(func() {
+		ui.Text(c, label).FontSize(13).FontWeight(600).TextColor(fg)
+	})
+	b.Menu(func(m *ui.Menu) {
+		if m.Item("翻译").Checked(a.settings.LyricTranslation).Chosen() {
+			a.settings.LyricTranslation = !a.settings.LyricTranslation
+			a.settings.save()
+		}
+		if m.Item(reading).Checked(a.settings.LyricRoman).Chosen() {
+			a.settings.LyricRoman = !a.settings.LyricRoman
+			a.settings.save()
+		}
+	})
 }
 
 func (a *app) paneTabs(c *ui.Context) {
@@ -519,8 +586,11 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 						} else {
 							ui.Text(c, l.Text).FontSize(st.size).FontWeight(st.weight).LineHeight(st.lineHeight).LetterSpacing(-0.4).TextColor(white)
 						}
-						if l.Translation != "" {
-							ui.Text(c, l.Translation).FontSize(17).FontWeight(600).TextColor(white.Alpha(0.7))
+						if reading := a.lyricReading(l); reading != "" {
+							ui.Text(c, reading).FontSize(17).FontWeight(500).TextColor(white.Alpha(0.55))
+						}
+						if translation := a.lyricTranslation(l); translation != "" {
+							ui.Text(c, translation).FontSize(17).FontWeight(600).TextColor(white.Alpha(0.7))
 						}
 					})
 				})

@@ -34,6 +34,13 @@ type settings struct {
 	// LyricsStage shows lyrics on the stage, Folia's style, in Now
 	// Playing, rather than scrolling.
 	LyricsStage bool `json:"lyricsStage"`
+	// LyricTranslation shows a line's translation under it. A song with
+	// none shows nothing extra.
+	LyricTranslation bool `json:"lyricTranslation"`
+	// LyricRoman shows a line's reading, named for the song as 罗马音, 粤拼
+	// or 拼音. The listener turns it on, and the choice is kept for a song
+	// that has none.
+	LyricRoman bool `json:"lyricRoman,omitempty"`
 	// StageStyle is how the stage sets its lyrics (stageStyles): empty for
 	// Folia's classic, or the id of another of its visualizers.
 	StageStyle string `json:"stageStyle,omitempty"`
@@ -68,7 +75,7 @@ type settings struct {
 }
 
 func defaultSettings() settings {
-	return settings{NotchActivity: true, Quality: "exhigh", Appearance: "system", Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true}
+	return settings{NotchActivity: true, Quality: "exhigh", Appearance: "system", Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Captions: true, LyricTranslation: true}
 }
 
 func settingsPath() (string, error) {
