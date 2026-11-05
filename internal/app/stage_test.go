@@ -1,10 +1,19 @@
 package app
 
 import (
+	"image"
+	"image/draw"
+	"image/png"
+	"math"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
+
 	"netease-music-mygo/internal/lyrics"
+	"netease-music-mygo/internal/netease"
 )
 
 // Choosing a style from the stage's menu sets its lyrics in it, and
@@ -46,6 +55,99 @@ func TestStageSparksMenu(t *testing.T) {
 		if a.settings.StageSparks != want || a.settings.StageStyle != "tilt" {
 			t.Errorf("sparks %v in %q, want %v in tilt", a.settings.StageSparks, a.settings.StageStyle, want)
 		}
+	}
+}
+
+// Turning the translation and the reading off and on moves none of the
+// stage's words, in any style: under the line, they lifted it as they came.
+func TestStageWordsStayWhenTheCaptionChanges(t *testing.T) {
+	for _, style := range []string{"", "partita", "tilt"} {
+		a := newTestApp()
+		a.settings = defaultSettings()
+		a.settings.LyricRoman = true
+		a.settings.StageStyle = style
+		tr := netease.Track{ID: 3, Name: "風", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}
+		a.pl.Cue([]netease.Track{tr})
+		a.pl.SetLyrics(lyrics.Build(lyrics.Source{
+			LRC:         "[00:10.00]風が廊下を渡る\n[00:18.00]遠くで息をする",
+			Translation: "[00:10.00]风穿过走廊\n[00:18.00]远处有人呼吸",
+			Reading:     "[00:10.00]kaze ga fuku\n[00:18.00]tooku de iki o suru",
+		}))
+		a.nowPlaying, a.npPane = true, paneStage
+		a.pl.Hold(12 * time.Second) // the first word has settled
+		tt := ui.NewTester(a.view, 1200, 800)
+		tt.Frame()
+		r0, ok := tt.Find("風")
+		if !ok {
+			t.Fatalf("style %q: 風 is not shown", style)
+		}
+		a.settings.LyricTranslation, a.settings.LyricRoman = false, false
+		tt.Frame()
+		r1, ok := tt.Find("風")
+		if !ok {
+			t.Fatalf("style %q: 風 went away", style)
+		}
+		a.settings.LyricTranslation, a.settings.LyricRoman = true, true
+		tt.Frame()
+		r2, ok := tt.Find("風")
+		if !ok {
+			t.Fatalf("style %q: 風 went away", style)
+		}
+		for _, r := range []ui.Rect{r1, r2} {
+			if math.Abs(float64(r.X-r0.X)) > 0.5 || math.Abs(float64(r.Y-r0.Y)) > 0.5 ||
+				math.Abs(float64(r.W-r0.W)) > 0.5 || math.Abs(float64(r.H-r0.H)) > 0.5 {
+				t.Errorf("style %q: 風 moved from %v to %v", style, r0, r)
+			}
+		}
+	}
+}
+
+// With NM_FRAMES set, saves one frame of each stage style with a reading
+// and a translation along the foot.
+func TestStageCaptionFrames(t *testing.T) {
+	dir := os.Getenv("NM_FRAMES")
+	if dir == "" {
+		t.Skip()
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range stageStyles {
+		name := "caption.png"
+		if s.id != "" {
+			name = "caption-" + s.id + ".png"
+		}
+		a := newTestApp()
+		a.settings = defaultSettings()
+		a.settings.LyricRoman = true
+		a.settings.StageStyle = s.id
+		tr := netease.Track{ID: 3, Name: "風", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}
+		a.pl.Cue([]netease.Track{tr})
+		a.pl.SetLyrics(lyrics.Build(lyrics.Source{
+			LRC:         "[00:10.00]風が廊下を渡る\n[00:18.00]遠くで息をする",
+			Translation: "[00:10.00]风穿过长长的走廊，带着夜里的声音，一直走到听不见的地方\n[00:18.00]远处有人呼吸",
+			Reading:     "[00:10.00]kaze ga rouka o wataru yoru no oto o tsurete\n[00:18.00]tooku de iki o suru",
+		}))
+		a.nowPlaying, a.npPane = true, paneStage
+		a.pl.Hold(12500 * time.Millisecond)
+		tt := ui.NewTester(a.view, 1200, 800)
+		tt.SetDark(true)
+		tt.Advance(time.Second)
+		tt.Frame()
+		img := tt.Image()
+		b := img.Bounds()
+		crop := image.Rect(b.Min.X, b.Min.Y+b.Dy()/5, b.Max.X, b.Max.Y-b.Dy()/8)
+		out := image.NewRGBA(image.Rect(0, 0, crop.Dx(), crop.Dy()))
+		draw.Draw(out, out.Bounds(), img, crop.Min, draw.Src)
+		f, err := os.Create(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := png.Encode(f, out); err != nil {
+			f.Close()
+			t.Fatal(err)
+		}
+		f.Close()
 	}
 }
 

@@ -146,16 +146,77 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 				a.stageLine(c, &lines[cur], pos, f, w, h, 1, accent)
 			}
 
-			// The translation, and the line coming next, along the foot.
-			ui.Column(c).Absolute().Left(0).Right(0).Bottom(24).AlignItems(ui.Center).Gap(8).PassThrough().Children(func() {
-				if cur >= 0 && lines[cur].Translation != "" {
-					ui.Text(c.Key("translation"), lines[cur].Translation).FontSize(18).FontWeight(600).TextColor(white.Alpha(0.72)).TextAlign(ui.Center)
-				}
-				if cur+1 < len(lines) {
-					ui.Text(c.Key("next"), lines[cur+1].Text).FontSize(14).TextColor(white.Alpha(0.32)).TextAlign(ui.Center).SingleLine()
-				}
-			})
+			a.stageFoot(c, lines, cur, pos, w)
 		})
+	})
+}
+
+// stageFoot sets, along the foot of the stage, the reading and the
+// translation of the line sung, and under them the line coming next: in
+// one place and at one size whatever the style, as Folia's shared
+// subtitle does, so that turning them on or off, or a line without them,
+// moves none of the words above. One line's are there at a time: the
+// last line's go in the first 120 milliseconds of the next, whose come in
+// after them, and in a long break they go with their line.
+func (a *app) stageFoot(c *ui.Context, lines []lyrics.Line, cur int, pos time.Duration, w float32) {
+	var cap *lyrics.Line
+	shown, fading := float32(0), false
+	if cur >= 0 {
+		since := pos - lines[cur].At
+		longBreak := cur+1 < len(lines) && pos > lines[cur].End+time.Second && lines[cur+1].At-lines[cur].End > 4*time.Second
+		switch {
+		case since < 120*time.Millisecond && cur > 0:
+			cap = &lines[cur-1]
+			shown = 1 - float32(since)/float32(120*time.Millisecond)
+			fading = true
+		case longBreak:
+			cap = &lines[cur]
+			shown = 1 - float32(pos-lines[cur].End-time.Second)/float32(400*time.Millisecond)
+			shown = clamp01(shown)
+			fading = shown > 0 && shown < 1
+		default:
+			cap = &lines[cur]
+			shown = easeOutCubic(float32(since-120*time.Millisecond) / float32(250*time.Millisecond))
+			fading = since >= 120*time.Millisecond && since < 370*time.Millisecond
+		}
+	}
+	if fading && a.pl.Playing() {
+		c.AnimationFrame()
+	}
+	ui.Column(c.Key("foot")).Absolute().Left(0).Right(0).Bottom(24).AlignItems(ui.Center).Gap(8).PassThrough().Children(func() {
+		if cap != nil && shown > 0 {
+			a.stageCaption(c, cap, shown, w)
+		}
+		if next := cur + 1; next >= 0 && next < len(lines) {
+			ui.Text(c.Key("next"), lines[next].Text).FontSize(14).TextColor(white.Alpha(0.32)).TextAlign(ui.Center).SingleLine()
+		}
+	})
+}
+
+// stageCaption sets l's reading and translation as rows of the stage's
+// foot, shown as far in as shown: the first at the size the translation
+// always had there, the second a step quieter, as Folia stacks them.
+func (a *app) stageCaption(c *ui.Context, l *lyrics.Line, shown, w float32) {
+	reading, translation := a.lyricReading(*l), a.lyricTranslation(*l)
+	if reading == "" && translation == "" {
+		return
+	}
+	ui.Column(c.Key(l.At)).AlignItems(ui.Center).Gap(4).MaxWidth(w*0.72).Opacity(shown).Translate(0, 6*(1-shown)).Children(func() {
+		first := true
+		row := func(text string) {
+			size, weight, alpha := float32(18), 600, float32(0.72)
+			if !first {
+				size, weight, alpha = size*0.88, 500, alpha*0.82
+			}
+			first = false
+			ui.Text(c, text).FontSize(size).FontWeight(weight).TextColor(white.Alpha(alpha)).TextAlign(ui.Center).MaxLines(2)
+		}
+		if reading != "" {
+			row(reading)
+		}
+		if translation != "" {
+			row(translation)
+		}
 	})
 }
 
