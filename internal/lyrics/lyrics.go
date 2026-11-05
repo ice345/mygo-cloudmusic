@@ -25,6 +25,10 @@ type Line struct {
 	// Timed says the words carry their own times, as NetEase's word-timed
 	// lyrics give them; else they share the line's time evenly.
 	Timed bool
+	// Lang is the language the line is drawn in, as a BCP 47 tag, where
+	// it is not the app's: "ja" for Japanese, so that its Han characters
+	// draw as Japanese ones do, or "ko"; else "".
+	Lang string
 }
 
 // A Word is a word of a line, or a character of Chinese or Japanese,
@@ -178,7 +182,102 @@ func Build(s Source) []Line {
 			lines[i].Reading = r
 		}
 	}
+	setLang(lines)
 	return lines
+}
+
+// setLang marks lines of a Japanese song as ja, and a line of Hangul as ko.
+// Japanese is a property of the song: at least two sung lines, and at least
+// a fifth of them, carry kana. Credits are not sung.
+func setLang(lines []Line) {
+	ja := japaneseSong(lines)
+	for i := range lines {
+		switch {
+		case hasScript(lines[i].Text, unicode.Hangul):
+			lines[i].Lang = "ko"
+		case ja && (hasScript(lines[i].Text, unicode.Hiragana, unicode.Katakana) || hasScript(lines[i].Text, unicode.Han)):
+			lines[i].Lang = "ja"
+		}
+	}
+}
+
+// japaneseSong reports whether lines are a Japanese song.
+func japaneseSong(lines []Line) bool {
+	sung, kana := 0, 0
+	for _, l := range lines {
+		if IsCredit(l.Text) {
+			continue
+		}
+		sung++
+		if hasScript(l.Text, unicode.Hiragana, unicode.Katakana) {
+			kana++
+		}
+	}
+	need := sung / 5
+	if need < 2 {
+		need = 2
+	}
+	return kana >= need
+}
+
+func hasScript(text string, tables ...*unicode.RangeTable) bool {
+	for _, r := range text {
+		if unicode.In(r, tables...) {
+			return true
+		}
+	}
+	return false
+}
+
+// ReadingName names the reading lines carry, for the menu that turns it
+// on: 罗马音 for Japanese and Korean, 粤拼 for Cantonese, 拼音 for
+// Mandarin, or "" when no line has one.
+func ReadingName(lines []Line) string {
+	syl, jyut := 0, 0
+	han := false
+	for _, l := range lines {
+		if l.Reading == "" {
+			continue
+		}
+		if l.Lang == "ja" || l.Lang == "ko" {
+			return "罗马音"
+		}
+		if !hanOnly(l.Text) {
+			continue
+		}
+		han = true
+		for _, s := range strings.Fields(l.Reading) {
+			syl++
+			if jyutSyllable(s) {
+				jyut++
+			}
+		}
+	}
+	if !han {
+		return ""
+	}
+	if syl > 0 && jyut*20 >= syl {
+		return "粤拼"
+	}
+	return "拼音"
+}
+
+// jyutSyllable reports whether s looks like a Jyutping syllable: it ends
+// in p, t or k, contains aa, eo or oe, or starts with ng and a vowel.
+// Pinyin does none of these.
+func jyutSyllable(s string) bool {
+	s = strings.ToLower(s)
+	if s == "" {
+		return false
+	}
+	switch s[len(s)-1] {
+	case 'p', 't', 'k':
+		return true
+	}
+	if strings.Contains(s, "aa") || strings.Contains(s, "eo") || strings.Contains(s, "oe") {
+		return true
+	}
+	return strings.HasPrefix(s, "ng") && len(s) > 2 && strings.ContainsRune("aeiou", rune(s[2]))
 }
 
 // echoes reports whether reading says no more than text: the same letters

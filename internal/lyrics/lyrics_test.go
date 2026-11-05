@@ -236,3 +236,47 @@ func TestCantoneseKeepsTheTimedReading(t *testing.T) {
 		t.Errorf("only the word-timed %q", only[0].Reading)
 	}
 }
+
+// A Japanese song's Han-only line is drawn as Japanese, a Mandarin song's
+// lines are not, and a line with Hangul is Korean. Kana in the credits
+// does not make a song Japanese.
+func TestLineLanguage(t *testing.T) {
+	ja := Build(Source{LRC: "[00:10.00]風が吹く\n[00:20.00]雨\n[00:30.00]また\n[00:40.00]hey"})
+	if ja[1].Lang != "ja" || ja[0].Lang != "ja" || ja[3].Lang != "" {
+		t.Errorf("japanese %q %q %q", ja[0].Lang, ja[1].Lang, ja[3].Lang)
+	}
+	zh := Build(Source{LRC: "[00:10.00]故事\n[00:20.00]小黄花\n[00:30.00]飘着"})
+	for _, l := range zh {
+		if l.Lang != "" {
+			t.Errorf("mandarin %q lang %q", l.Text, l.Lang)
+		}
+	}
+	ko := Build(Source{LRC: "[00:10.00]저기\n[00:20.00]멀리"})
+	if ko[0].Lang != "ko" || ko[1].Lang != "ko" {
+		t.Errorf("korean %q %q", ko[0].Lang, ko[1].Lang)
+	}
+	credits := Build(Source{LRC: "[00:01.00]作词 : あい\n[00:02.00]作曲 : うえ\n[00:10.00]故事\n[00:20.00]小花"})
+	if credits[2].Lang != "" || credits[3].Lang != "" {
+		t.Errorf("credits made it japanese: %q %q", credits[2].Lang, credits[3].Lang)
+	}
+}
+
+// ReadingName names a Japanese or Korean reading 罗马音, Jyutping 粤拼,
+// pinyin 拼音, and nothing when no line has a reading.
+func TestReadingName(t *testing.T) {
+	cases := []struct {
+		lines []Line
+		want  string
+	}{
+		{[]Line{{Text: "風", Lang: "ja", Reading: "kaze"}}, "罗马音"},
+		{[]Line{{Text: "저기", Lang: "ko", Reading: "zeo gi"}}, "罗马音"},
+		{[]Line{{Text: "富士山下", Reading: "jyu joek nei fei ngo bat gaa"}}, "粤拼"},
+		{[]Line{{Text: "你好世界", Reading: "ni hao shi jie"}}, "拼音"},
+		{[]Line{{Text: "你好"}}, ""},
+	}
+	for _, c := range cases {
+		if got := ReadingName(c.lines); got != c.want {
+			t.Errorf("ReadingName(%q) = %q, want %q", c.lines[0].Reading, got, c.want)
+		}
+	}
+}
