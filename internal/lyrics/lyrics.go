@@ -18,6 +18,9 @@ type Line struct {
 	Text        string
 	Translation string
 	Words       []Word
+	// Reading is how the line is read aloud, where NetEase sends one.
+	// A reading that only repeats the line is left empty.
+	Reading string
 	// Timed says the words carry their own times, as NetEase's word-timed
 	// lyrics give them; else they share the line's time evenly.
 	Timed bool
@@ -107,18 +110,27 @@ func parseYRC(yrc string) []Line {
 	return out
 }
 
+// Source is a song's lyrics as NetEase serves them (netease.LyricTexts).
+type Source struct {
+	// LRC is the timed lines; Translation and Reading are timed by them.
+	LRC, Translation, Reading string
+	// YRC is the word-timed lines. They may merge or split LRC's lines;
+	// YTranslation and YReading are timed by YRC's own.
+	YRC, YTranslation, YReading string
+}
+
 // Build makes the lines to show from what NetEase serves: the
 // word-timed lyrics where there are some, else the timed lines, with the
-// translation of each. A translation written against a timed line still
-// reaches the word-timed line that sings it, and two that one line sings
-// are joined, in the order they were written.
-func Build(lrc, translation, yrc string) []Line {
+// translation and the reading of each. A translation written against a
+// timed line still reaches the word-timed line that sings it, and two
+// that one line sings are joined, in the order they were written.
+func Build(s Source) []Line {
 	var lines []Line
-	if yrc != "" {
-		lines = parseYRC(yrc)
+	if s.YRC != "" {
+		lines = parseYRC(s.YRC)
 	}
 	if len(lines) == 0 {
-		for _, l := range parseLRC(lrc) {
+		for _, l := range parseLRC(s.LRC) {
 			if l.Text != "" {
 				lines = append(lines, l)
 			}
@@ -132,10 +144,22 @@ func Build(lrc, translation, yrc string) []Line {
 			lines[i].Words = SpreadWords(lines[i].Text, lines[i].At, end)
 		}
 	}
-	for i, text := range extras(lines, translation) {
+	for i, text := range extras(lines, s.Translation) {
 		lines[i].Translation = text
 	}
+	for i, text := range extras(lines, s.Reading) {
+		if text != "" && !sameLine(lines[i].Text, text) {
+			lines[i].Reading = text
+		}
+	}
 	return lines
+}
+
+// sameLine reports whether a and b are the same words, ignoring case and
+// the space around them. A reading of an English line is often the line
+// itself.
+func sameLine(a, b string) bool {
+	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
 }
 
 // belongs returns the line an extra line at at belongs to, or -1: of the
@@ -198,7 +222,7 @@ func textual(s string) bool {
 // mergeLyrics pairs timed lines with their translations, without words'
 // own times.
 func mergeLyrics(lrc, translation string) []Line {
-	return Build(lrc, translation, "")
+	return Build(Source{LRC: lrc, Translation: translation})
 }
 
 // SpreadWords splits text into words, each Chinese, Japanese or Korean

@@ -278,3 +278,21 @@ func TestProgramCommentsLive(t *testing.T) {
 		t.Errorf("no answer of %d: %v", ids[1], liked)
 	}
 }
+
+// NetEase sends a reading with the timed lines, and, for a song whose
+// word-timed lines it has, a reading timed by those.
+func TestLyricTextsLive(t *testing.T) {
+	if os.Getenv("LIVE") == "" {
+		t.Skip()
+	}
+	for _, id := range []int64{536622304, 2120465975, 65766} {
+		texts, err := Lyrics(id)
+		if err != nil || texts.Reading == "" {
+			t.Errorf("%d: reading %q, %v", id, texts.Reading, err)
+		}
+	}
+	texts, err := Lyrics(3427209483)
+	if err != nil || texts.YReading == "" {
+		t.Errorf("3427209483: y reading %q, %v", texts.YReading, err)
+	}
+}

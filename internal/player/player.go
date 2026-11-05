@@ -602,10 +602,13 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 	}()
 
 	go func() {
-		lrc, trans, yrc, err := netease.Lyrics(t.ID)
+		texts, err := netease.Lyrics(t.ID)
 		var lines []lyrics.Line
 		if err == nil {
-			lines = lyrics.Build(lrc, trans, yrc)
+			lines = lyrics.Build(lyrics.Source{
+				LRC: texts.LRC, Translation: texts.Translation, Reading: texts.Reading,
+				YRC: texts.YRC, YTranslation: texts.YTranslation, YReading: texts.YReading,
+			})
 		}
 		p.post(func() {
 			if gen == p.gen {

@@ -29,7 +29,7 @@ func TestParseYRC(t *testing.T) {
 	yrc := `{"t":0,"c":[{"tx":"作词: "},{"tx":"某人"}]}
 [13010,4780](13010,660,0)从(13670,670,0)不(14340,30,0) (14370,480,0)主
 [17790,1770](17790,170,0)I(17960,450,0) (18410,290,0)love`
-	lines := Build("", "[00:13.00]Never\n[00:17.80]我爱", yrc)
+	lines := Build(Source{Translation: "[00:13.00]Never\n[00:17.80]我爱", YRC: yrc})
 	if len(lines) != 2 || !lines[0].Timed {
 		t.Fatalf("lines %+v", lines)
 	}
@@ -107,7 +107,7 @@ func TestMergedLineTakesBothTranslations(t *testing.T) {
 	yrc := "[37450,4400](37450,4400,0)光も痛みも怒りも全部抱きしめて\n" +
 		"[43000,2000](43000,2000,0)次"
 	trans := "[00:37.64]光与痛与怒\n[00:39.84]全都 拥入怀中\n[00:43.00]下一行"
-	lines := Build("", trans, yrc)
+	lines := Build(Source{Translation: trans, YRC: yrc})
 	if len(lines) != 2 {
 		t.Fatalf("lines %+v", lines)
 	}
@@ -124,7 +124,7 @@ func TestMergedLineTakesBothTranslations(t *testing.T) {
 func TestSplitLineKeepsTheEarlierTranslation(t *testing.T) {
 	yrc := "[71290,2000](71290,2000,0)歌と散れ\n[73330,1500](73330,1500,0)残響"
 	trans := "[01:11.49]与歌一同散去 残响"
-	lines := Build("", trans, yrc)
+	lines := Build(Source{Translation: trans, YRC: yrc})
 	if len(lines) != 2 {
 		t.Fatalf("lines %+v", lines)
 	}
@@ -138,15 +138,15 @@ func TestSplitLineKeepsTheEarlierTranslation(t *testing.T) {
 // their own.
 func TestLateLineStillTakesItsTranslation(t *testing.T) {
 	yrc := "[10270,3000](10270,3000,0)富士山下"
-	lines := Build("", "[00:10.00]富士山下", yrc)
+	lines := Build(Source{Translation: "[00:10.00]富士山下", YRC: yrc})
 	if len(lines) != 1 || lines[0].Translation != "富士山下" {
 		t.Fatalf("late %+v", lines)
 	}
-	own := Build("[00:10.00]一\n[00:10.30]二", "[00:10.00]甲\n[00:10.30]乙", "")
+	own := Build(Source{LRC: "[00:10.00]一\n[00:10.30]二", Translation: "[00:10.00]甲\n[00:10.30]乙"})
 	if len(own) != 2 || own[0].Translation != "甲" || own[1].Translation != "乙" {
 		t.Fatalf("neighbours %+v", own)
 	}
-	marks := Build("[00:10.00]一", "[00:10.00]//\n[00:10.00]●●●", "")
+	marks := Build(Source{LRC: "[00:10.00]一", Translation: "[00:10.00]//\n[00:10.00]●●●"})
 	if marks[0].Translation != "" {
 		t.Errorf("marks %q", marks[0].Translation)
 	}

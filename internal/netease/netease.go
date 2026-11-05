@@ -454,32 +454,50 @@ func SongURL(id int64, level string) (*Stream, error) {
 	return &s, nil
 }
 
-// Lyrics returns a track's timed lyrics, their translation if any, and
-// its word-timed lyrics (YRC) where NetEase has them, which only the
-// desktop client's API serves.
-func Lyrics(id int64) (lrc, translation, yrc string, err error) {
+// LyricTexts are a track's lyrics as NetEase serves them, each in its own
+// format; any of them may be empty.
+type LyricTexts struct {
+	// LRC is the timed lines; Translation and Reading are timed by them.
+	LRC, Translation, Reading string
+	// YRC is the word-timed lines, which only the desktop client's API
+	// serves. They may merge or split LRC's lines; YTranslation and
+	// YReading are timed by YRC's own.
+	YRC, YTranslation, YReading string
+}
+
+// Lyrics returns a track's lyrics. The reading is how its lines are read
+// aloud, as NetEase writes it for the song's language. A failing call to
+// the desktop client's API still leaves the timed lines, the translation
+// and the reading from the web.
+func Lyrics(id int64) (LyricTexts, error) {
+	type text struct {
+		Lyric string `json:"lyric"`
+	}
 	var res struct {
-		Lrc struct {
-			Lyric string `json:"lyric"`
-		} `json:"lrc"`
-		Tlyric struct {
-			Lyric string `json:"lyric"`
-		} `json:"tlyric"`
+		Lrc     text `json:"lrc"`
+		Tlyric  text `json:"tlyric"`
+		Romalrc text `json:"romalrc"`
 	}
-	q := url.Values{"id": {strconv.FormatInt(id, 10)}, "lv": {"1"}, "tv": {"-1"}}
-	if err = get("/api/song/lyric", q, &res); err != nil {
-		return "", "", "", err
+	q := url.Values{"id": {strconv.FormatInt(id, 10)}, "lv": {"1"}, "tv": {"-1"}, "rv": {"-1"}}
+	var out LyricTexts
+	if err := get("/api/song/lyric", q, &res); err != nil {
+		return LyricTexts{}, err
 	}
+	out.LRC, out.Translation, out.Reading = res.Lrc.Lyric, res.Tlyric.Lyric, res.Romalrc.Lyric
 	var words struct {
-		Yrc struct {
-			Lyric string `json:"lyric"`
-		} `json:"yrc"`
+		Romalrc  text `json:"romalrc"`
+		Yrc      text `json:"yrc"`
+		Ytlrc    text `json:"ytlrc"`
+		Yromalrc text `json:"yromalrc"`
 	}
 	data := map[string]any{"id": strconv.FormatInt(id, 10), "cp": false, "tv": 0, "lv": 0, "rv": 0, "kv": 0, "yv": 0, "ytv": 0, "yrv": 0}
 	if eapiPost("/api/song/lyric/v1", data, &words) == nil {
-		yrc = words.Yrc.Lyric
+		out.YRC, out.YTranslation, out.YReading = words.Yrc.Lyric, words.Ytlrc.Lyric, words.Yromalrc.Lyric
+		if out.Reading == "" {
+			out.Reading = words.Romalrc.Lyric
+		}
 	}
-	return res.Lrc.Lyric, res.Tlyric.Lyric, yrc, nil
+	return out, nil
 }
 
 // Sized asks the image CDN for a picture of n×n pixels.
