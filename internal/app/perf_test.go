@@ -82,6 +82,28 @@ func TestNowPlayingFrameBudget(t *testing.T) {
 	}
 }
 
+// 青鸟 asks for at most 1 frame a second once a line has formed, and in breaks.
+func TestBirdFrameBudget(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.settings.StageStyle = "aobird"
+	tr := netease.Track{ID: 7, Name: "風", Artists: []netease.Artist{{Name: "誰"}}, Duration: 80000}
+	a.pl.Cue([]netease.Track{tr})
+	a.pl.SetLyrics([]lyrics.Line{
+		{At: 0, End: 10 * time.Second, Text: "風が吹く", Words: []lyrics.Word{{Text: "風が吹く", Start: 0, End: 8 * time.Second}}},
+		{At: 30 * time.Second, End: 40 * time.Second, Text: "次", Words: []lyrics.Word{{Text: "次", Start: 30 * time.Second, End: 38 * time.Second}}},
+	})
+	a.pl.Hold(0)
+	a.nowPlaying, a.npPane = true, paneStage
+	tt := ui.NewTester(a.view, 1200, 800)
+	if n := framesAt(a, tt, 3*time.Second); n > 1 {
+		t.Errorf("formed: %d frames a second", n)
+	}
+	if n := framesAt(a, tt, 13*time.Second); n > 1 {
+		t.Errorf("break: %d frames a second", n)
+	}
+}
+
 // Another song's backdrop fades in over the last one's, which is then let
 // go, so that the backdrop stops asking for frames.
 func TestBackdropFadeEnds(t *testing.T) {

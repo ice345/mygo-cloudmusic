@@ -12,16 +12,19 @@ import (
 	"netease-music-mygo/internal/lyrics"
 )
 
-// The stage sets its lyrics in one of the styles of Folia's visualizers
-// (github.com/chthollyphile/folia-major), named as Folia names them: 流光,
-// its classic (ui_stage.go); 云阶, which stacks a line in staggered rows,
-// each springing in as it is sung; and 倾诉, which breaks a line into a
-// few large lines, one of them leaning, its characters swelling as they
-// are sung.
+// The stage sets its lyrics in one of four styles. 流光, 云阶 and 倾诉 are
+// Folia's (github.com/chthollyphile/folia-major), named as Folia names
+// them: 流光, its classic (ui_stage.go); 云阶, which stacks a line in
+// staggered rows, each springing in as it is sung; and 倾诉, which breaks
+// a line into a few large lines, one of them leaning, its characters
+// swelling as they are sung. 青鸟 is this app's own (ui_stage_bird.go):
+// a line forms whole out of a mist and stays still. It shows no hot
+// comments and throws no sparks.
 var stageStyles = []struct{ id, label string }{
 	{"", "流光"},
 	{"partita", "云阶"},
 	{"tilt", "倾诉"},
+	{"aobird", "青鸟"},
 }
 
 // stageStyleButton names the stage's style, and opens the menu of the
@@ -52,7 +55,8 @@ func (a *app) stageStyleButton(c *ui.Context) {
 			}
 		}
 		m.Separator()
-		if m.Item("火花").Checked(a.settings.StageSparks).Chosen() {
+		// 青鸟 has no sparks. The choice is kept for the other styles.
+		if m.Item("火花").Checked(a.settings.StageSparks).Disabled(a.settings.StageStyle == "aobird").Chosen() {
 			a.settings.StageSparks = !a.settings.StageSparks
 			a.settings.save()
 		}

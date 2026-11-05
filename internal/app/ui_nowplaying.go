@@ -86,14 +86,17 @@ func (a *app) nowPlayingView(c *ui.Context) {
 	if shown != nil && !shown.failed {
 		tint = shown.tint
 	}
+	// The accent is the cover's own color, before 青鸟 turns the backdrop
+	// toward a cool glass. The chrome keeps it.
 	accent := tint.Mix(white, 0.45)
+	glass := a.npPane == paneStage && a.settings.StageStyle == "aobird"
 
 	root := ui.Box(c.Key("now-playing")).Absolute().Top(0).Left(0).Right(0).Bottom(0).
 		Background(ui.Hex("#0b0b0d")).TextColor(white)
 	// The pointer is over the view whenever it is in the window.
 	pointerIn := root.Hovered()
 	root.Children(func() {
-		a.backdrop(c, shown, tint)
+		a.backdrop(c, shown, tint, glass)
 		// Over the backdrop, which is positioned too: positioned elements
 		// paint over those in the flow.
 		ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Children(func() { a.nowPlayingBody(c, tr, art, accent, w, h, pointerIn) })

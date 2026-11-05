@@ -95,6 +95,12 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 	pl := a.pl
 	lines, loaded := pl.Lyrics()
 	w, h := c.Size()
+	// 青鸟 is not one of Folia's styles: it never gives the stage to a hot
+	// comment, and it keeps its own captions instead of the foot.
+	if a.settings.StageStyle == "aobird" {
+		a.birdStage(c, tr, lines, loaded, pl.Position(), w, h, accent)
+		return
+	}
 	f := min(64, max(36, w*0.045))
 	box := ui.Box(c.Key("stage")).Grow(1)
 	// In a quiet part a hot comment takes the middle, the lyrics nearly
