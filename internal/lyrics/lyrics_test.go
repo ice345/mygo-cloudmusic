@@ -138,8 +138,8 @@ func TestSplitLineKeepsTheEarlierTranslation(t *testing.T) {
 // their own.
 func TestLateLineStillTakesItsTranslation(t *testing.T) {
 	yrc := "[10270,3000](10270,3000,0)富士山下"
-	lines := Build(Source{Translation: "[00:10.00]富士山下", YRC: yrc})
-	if len(lines) != 1 || lines[0].Translation != "富士山下" {
+	lines := Build(Source{Translation: "[00:10.00]在山下", YRC: yrc})
+	if len(lines) != 1 || lines[0].Translation != "在山下" {
 		t.Fatalf("late %+v", lines)
 	}
 	own := Build(Source{LRC: "[00:10.00]一\n[00:10.30]二", Translation: "[00:10.00]甲\n[00:10.30]乙"})
@@ -149,5 +149,90 @@ func TestLateLineStillTakesItsTranslation(t *testing.T) {
 	marks := Build(Source{LRC: "[00:10.00]一", Translation: "[00:10.00]//\n[00:10.00]●●●"})
 	if marks[0].Translation != "" {
 		t.Errorf("marks %q", marks[0].Translation)
+	}
+}
+
+// The second half of a line the word-timed lyrics split takes the reading
+// timed by that half, which the timed lines never gave it.
+func TestSplitLineTakesTheWordTimedReading(t *testing.T) {
+	lines := Build(Source{
+		YRC:         "[71290,2000](71290,2000,0)歌と散れ\n[73330,1500](73330,1500,0)残響",
+		Translation: "[01:11.49]与歌一同散去 残响",
+		Reading:     "[01:11.49]uta to chire",
+		YReading:    "[01:13.33]zankyou",
+	})
+	if len(lines) != 2 {
+		t.Fatalf("lines %+v", lines)
+	}
+	if lines[0].Reading != "uta to chire" || lines[1].Reading != "zankyou" {
+		t.Errorf("readings %q %q", lines[0].Reading, lines[1].Reading)
+	}
+	if lines[0].Translation != "与歌一同散去 残响" {
+		t.Errorf("translation %q", lines[0].Translation)
+	}
+}
+
+// A word-timed line keeps the translation timed by it, and a line that text
+// skips takes the timed lines' translation instead.
+func TestWordTimedTranslationComesFirst(t *testing.T) {
+	lines := Build(Source{
+		YRC:          "[10000,2000](10000,2000,0)風が吹く\n[13000,2000](13000,2000,0)次",
+		YTranslation: "[00:10.00]风在吹",
+		Translation:  "[00:10.00]别用这句\n[00:13.00]下一行",
+	})
+	if lines[0].Translation != "风在吹" || lines[1].Translation != "下一行" {
+		t.Fatalf("translations %q %q", lines[0].Translation, lines[1].Translation)
+	}
+}
+
+// A reading that only repeats the line is dropped, and so is any reading of
+// a line in Latin. A Korean line keeps one that says more, and a line with
+// none stays empty.
+func TestReadingIsKeptOnlyWhereItSaysSomething(t *testing.T) {
+	lines := Build(Source{
+		LRC:     "[00:10.00]風が吹く\n[00:20.00]hey, I love you\n[00:30.00]저기 멀리\n[00:40.00]รักนะ",
+		Reading: "[00:10.00]kaze ga fuku\n[00:20.00]Hey! I love you\n[00:30.00]zeo gi meol ri from Earth to Mars",
+	})
+	if len(lines) != 4 {
+		t.Fatalf("lines %+v", lines)
+	}
+	if lines[0].Reading != "kaze ga fuku" {
+		t.Errorf("japanese %q", lines[0].Reading)
+	}
+	if lines[1].Reading != "" {
+		t.Errorf("english %q", lines[1].Reading)
+	}
+	if lines[2].Reading != "zeo gi meol ri from Earth to Mars" {
+		t.Errorf("korean %q", lines[2].Reading)
+	}
+	if lines[3].Reading != "" {
+		t.Errorf("thai %q", lines[3].Reading)
+	}
+	echo := Build(Source{
+		LRC:         "[00:10.00]hey, I love you",
+		Translation: "[00:10.00]Hey! I love you",
+	})
+	if echo[0].Translation != "" {
+		t.Errorf("echoed translation %q", echo[0].Translation)
+	}
+}
+
+// A Han-only line keeps the timed lines' reading, the Jyutping, and takes
+// the word-timed reading only where that one leaves it empty.
+func TestCantoneseKeepsTheTimedReading(t *testing.T) {
+	both := Build(Source{
+		YRC:      "[10000,2000](10000,2000,0)富士山下",
+		Reading:  "[00:10.00]fu si saan haa",
+		YReading: "[00:10.00]fu si shan xia",
+	})
+	if both[0].Reading != "fu si saan haa" {
+		t.Errorf("both %q", both[0].Reading)
+	}
+	only := Build(Source{
+		YRC:      "[10000,2000](10000,2000,0)富士山下",
+		YReading: "[00:10.00]fu si shan xia",
+	})
+	if only[0].Reading != "fu si shan xia" {
+		t.Errorf("only the word-timed %q", only[0].Reading)
 	}
 }

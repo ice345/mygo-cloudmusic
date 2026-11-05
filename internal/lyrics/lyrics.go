@@ -18,8 +18,9 @@ type Line struct {
 	Text        string
 	Translation string
 	Words       []Word
-	// Reading is how the line is read aloud, where NetEase sends one.
-	// A reading that only repeats the line is left empty.
+	// Reading is how the line is read aloud, where NetEase sends one that
+	// says more than the line. A reading of a line in Latin, or one that
+	// only repeats the line, is left empty.
 	Reading string
 	// Timed says the words carry their own times, as NetEase's word-timed
 	// lyrics give them; else they share the line's time evenly.
@@ -126,8 +127,10 @@ type Source struct {
 // that one line sings are joined, in the order they were written.
 func Build(s Source) []Line {
 	var lines []Line
+	wordTimed := false
 	if s.YRC != "" {
 		lines = parseYRC(s.YRC)
+		wordTimed = len(lines) > 0
 	}
 	if len(lines) == 0 {
 		for _, l := range parseLRC(s.LRC) {
@@ -144,22 +147,81 @@ func Build(s Source) []Line {
 			lines[i].Words = SpreadWords(lines[i].Text, lines[i].At, end)
 		}
 	}
-	for i, text := range extras(lines, s.Translation) {
-		lines[i].Translation = text
+	// On word-timed lines the texts timed by them come first. A line they
+	// leave empty takes the text of the timed lines it sings. A Han-only
+	// line keeps the timed lines' reading where it has one: for Cantonese
+	// that is the Jyutping, and the word-timed reading is a different spelling.
+	var tr, rd []string
+	if wordTimed {
+		tr, rd = extras(lines, s.YTranslation), extras(lines, s.YReading)
 	}
-	for i, text := range extras(lines, s.Reading) {
-		if text != "" && !sameLine(lines[i].Text, text) {
-			lines[i].Reading = text
+	ltr, lrd := extras(lines, s.Translation), extras(lines, s.Reading)
+	for i := range lines {
+		t, r := "", ""
+		if wordTimed {
+			t, r = tr[i], rd[i]
+		}
+		if t == "" {
+			t = ltr[i]
+		}
+		if hanOnly(lines[i].Text) {
+			if lrd[i] != "" {
+				r = lrd[i]
+			}
+		} else if r == "" {
+			r = lrd[i]
+		}
+		if t != "" && !echoes(lines[i].Text, t) {
+			lines[i].Translation = t
+		}
+		if r != "" && spoken(lines[i].Text) && !echoes(lines[i].Text, r) {
+			lines[i].Reading = r
 		}
 	}
 	return lines
 }
 
-// sameLine reports whether a and b are the same words, ignoring case and
-// the space around them. A reading of an English line is often the line
-// itself.
-func sameLine(a, b string) bool {
-	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
+// echoes reports whether reading says no more than text: the same letters
+// and digits, whatever their case, spacing and punctuation, as NetEase's
+// reading of an English line often is.
+func echoes(text, reading string) bool {
+	return foldLetters(text) == foldLetters(reading)
+}
+
+// foldLetters returns the letters and digits of s, in lower case.
+func foldLetters(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(unicode.ToLower(r))
+		}
+	}
+	return b.String()
+}
+
+// spoken reports whether text has letters a reading can say: any outside
+// the Latin script.
+func spoken(text string) bool {
+	for _, r := range text {
+		if unicode.IsLetter(r) && !unicode.Is(unicode.Latin, r) {
+			return true
+		}
+	}
+	return false
+}
+
+// hanOnly reports whether text's letters are Han characters and nothing else.
+func hanOnly(text string) bool {
+	han := false
+	for _, r := range text {
+		switch {
+		case unicode.Is(unicode.Han, r):
+			han = true
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			return false
+		}
+	}
+	return han
 }
 
 // belongs returns the line an extra line at at belongs to, or -1: of the
