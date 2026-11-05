@@ -64,3 +64,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
         run: go tool mygo build -platform "${{ matrix.platform }}" -upload
+      # MyGo's Linux build publishes a .deb. Arch gets a package of the same
+      # files, uploaded to the draft this job already created.
+      - name: Arch Linux packages
+        if: matrix.name == 'Linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y zstd
+          shopt -s nullglob
+          for stage in build/linux-*; do
+            go run ./scripts/archpkg "$stage"
+          done
+          pkgs=(build/*.pkg.tar.zst)
+          if [ ${#pkgs[@]} -eq 0 ]; then
+            echo "no Arch Linux package was built" >&2
+            exit 1
+          fi
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber "${pkgs[@]}"

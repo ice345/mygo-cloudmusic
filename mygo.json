@@ -1,7 +1,7 @@
 {
   "name": "MyGo 云音乐",
   "slug": "mygo-cloudmusic",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "out": "build",
   "updates": {
     "publicKey": "WzJsOGNIuf6mcEqo5ff8jub+NoQQOEk4JXreLPYjgyQ=",

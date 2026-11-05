@@ -42,10 +42,12 @@ const platforms: { os: OS; name: string; note: string; builds: Build[] }[] = [
   {
     os: 'linux',
     name: 'Linux',
-    note: 'Debian 与 Ubuntu 用 .deb；其他发行版用压缩包或下面的命令',
+    note: 'Debian 与 Ubuntu 用 .deb；Arch Linux 用 .pkg.tar.zst；其他发行版用压缩包或下面的命令',
     builds: [
       { label: 'x64', kind: '.deb', match: has('amd64', '.deb'), primary: true },
       { label: 'ARM64', kind: '.deb', match: has('arm64', '.deb') },
+      { label: 'x64', kind: 'Arch', match: has('x86_64', '.pkg.tar.zst') },
+      { label: 'ARM64', kind: 'Arch', match: has('aarch64', '.pkg.tar.zst') },
       { label: 'x64', kind: '.tar.gz', match: has('linux', 'amd64', '.tar.gz') },
       { label: 'ARM64', kind: '.tar.gz', match: has('linux', 'arm64', '.tar.gz') },
     ],
