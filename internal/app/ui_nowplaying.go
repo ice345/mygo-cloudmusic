@@ -548,7 +548,7 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 	scroll.Children(func() {
 		ui.Column(c).Gap(6).Translate(0, -lag).Children(func() {
 			for i, l := range lines {
-				line := ui.ButtonBase(c.Key(i)).Column().AlignItems(ui.Start).Padding(10, 12).Radius(12).Gap(6).FocusRing(false).Label(l.Text)
+				line := ui.ButtonBase(c.Key(i)).Column().AlignItems(ui.Start).Padding(10, 12).Radius(12).Gap(6).FocusRing(false).Label(l.Text).Lang(l.Lang)
 				on := i == cur
 				alpha := float32(0.28)
 				if on {

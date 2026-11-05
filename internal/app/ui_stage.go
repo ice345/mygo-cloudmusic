@@ -210,7 +210,7 @@ func (a *app) stageLine(c *ui.Context, l *lyrics.Line, pos time.Duration, f, w, 
 	justify := []ui.Align{ui.Start, ui.Center, ui.End}[int(seed)%3]
 	lift := []float32{-0.14, 0, 0.12}[int(seed*2)%3] * h
 
-	ui.Row(c.Key(l.At)).Absolute().Top(0).Left(0).Right(0).Bottom(0).Padding(0, w*0.1).
+	ui.Row(c.Key(l.At)).Lang(l.Lang).Absolute().Top(0).Left(0).Right(0).Bottom(0).Padding(0, w*0.1).
 		Wrap().Justify(justify).AlignContent(ui.Center).AlignItems(ui.Center).Translate(0, lift).
 		Opacity(fade).PassThrough().Children(func() {
 		for i, word := range l.Words {
