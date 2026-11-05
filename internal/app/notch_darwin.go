@@ -2,7 +2,12 @@
 
 package app
 
-import "github.com/ebitengine/purego/objc"
+import (
+	"strings"
+	"unsafe"
+
+	"github.com/ebitengine/purego/objc"
+)
 
 type nsPoint struct{ X, Y float64 }
 type nsSize struct{ W, H float64 }
@@ -107,6 +112,100 @@ func menuBarScreen() objc.ID {
 func windowFrame(handle uintptr) (x, y, w, h float64) {
 	f := objc.Send[nsRect](objc.ID(handle), objc.RegisterName("frame"))
 	return f.Origin.X, f.Origin.Y, f.Size.W, f.Size.H
+}
+
+// notchApps are apps that draw at the notch as this one does, by the
+// start of their bundle identifiers: a panel at the main menu's level and
+// above it, opening as the pointer rests there. With one running, both
+// opened on the same spot, one over the other.
+var notchApps = []string{
+	"com.Ebullioscopic.Atoll", // and its .dev builds
+	"theboringteam.boringnotch",
+	"wiki.qaq.NotchDrop",
+	"iordv.Droppy",
+}
+
+// otherNotchApp returns the name of a running app that draws at the
+// notch, or "" if none does.
+func otherNotchApp() string {
+	ws := objc.ID(objc.GetClass("NSWorkspace")).Send(objc.RegisterName("sharedWorkspace"))
+	if ws == 0 {
+		return ""
+	}
+	apps := ws.Send(objc.RegisterName("runningApplications"))
+	n := objc.Send[uint](apps, objc.RegisterName("count"))
+	for i := range n {
+		app := apps.Send(objc.RegisterName("objectAtIndex:"), i)
+		id := nsUTF8(app.Send(objc.RegisterName("bundleIdentifier")))
+		if !notchBundle(id) {
+			continue
+		}
+		if name := nsUTF8(app.Send(objc.RegisterName("localizedName"))); name != "" {
+			return name
+		}
+		return id
+	}
+	return ""
+}
+
+// notchBundle reports whether id is one of notchApps, or a build of one.
+func notchBundle(id string) bool {
+	for _, prefix := range notchApps {
+		if strings.HasPrefix(id, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// nsUTF8 reads an NSString as Go text. A nil string is "".
+func nsUTF8(s objc.ID) string {
+	if s == 0 {
+		return ""
+	}
+	p := s.Send(objc.RegisterName("UTF8String"))
+	if p == 0 {
+		return ""
+	}
+	// The pointer is the C string. Reading it through the address of p
+	// is how a uintptr becomes a pointer without tripping vet.
+	ptr := *(*unsafe.Pointer)(unsafe.Pointer(&p))
+	n := 0
+	for *(*byte)(unsafe.Add(ptr, n)) != 0 {
+		n++
+	}
+	return string(unsafe.Slice((*byte)(ptr), n))
+}
+
+// The observers and the block stay for the life of the process: the
+// notification center calls back on the main queue as apps launch and quit.
+var (
+	appWatchBlock objc.Block
+	appWatchObs   [2]objc.ID
+)
+
+// watchApps calls fn on the main thread as apps launch and quit.
+func watchApps(fn func()) {
+	ws := objc.ID(objc.GetClass("NSWorkspace")).Send(objc.RegisterName("sharedWorkspace"))
+	if ws == 0 || fn == nil {
+		return
+	}
+	center := ws.Send(objc.RegisterName("notificationCenter"))
+	queue := objc.ID(objc.GetClass("NSOperationQueue")).Send(objc.RegisterName("mainQueue"))
+	block := objc.NewBlock(func(_ objc.Block, _ objc.ID) { fn() })
+	block = block.Copy()
+	appWatchBlock = block
+	for i, name := range []string{
+		"NSWorkspaceDidLaunchApplicationNotification",
+		"NSWorkspaceDidTerminateApplicationNotification",
+	} {
+		nsName := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), name)
+		obs := center.Send(objc.RegisterName("addObserverForName:object:queue:usingBlock:"), nsName, objc.ID(0), queue, block)
+		if obs != 0 {
+			obs.Send(objc.RegisterName("retain"))
+		}
+		appWatchObs[i] = obs
+	}
 }
 
 // watchPointer calls fn on the main thread as the pointer moves, over this

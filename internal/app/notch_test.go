@@ -92,6 +92,50 @@ func TestNotchGreetingKeptUnderPointer(t *testing.T) {
 	}
 }
 
+// With another app at the notch, the notch neither greets the first song
+// nor opens under a resting pointer; once that app quits, it opens again.
+func TestNotchMakesWay(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240, neighbor: "Atoll"}
+	a.notch = n
+	defer func(f func() string) { notchNeighbor = f }(notchNeighbor)
+	defer func(f func() mygo.Point) { cursorPoint = f }(cursorPoint)
+	notchNeighbor = func() string { return "Atoll" }
+
+	a.pl.Cue([]netease.Track{{ID: 7, Name: "宝船", Duration: 200000}})
+	a.syncWindows()
+	out := audio.NewPlayer(&silence{})
+	out.SetVolume(0)
+	a.pl.Attach(out)
+	defer out.Close()
+	a.syncWindows()
+	if n.hello || a.settings.NotchGreeted {
+		t.Fatalf("greeted: hello %v, greeted %v", n.hello, a.settings.NotchGreeted)
+	}
+
+	// The listener has it on. The other app still has the spot.
+	a.settings.Notch = true
+	cursorPoint = func() mygo.Point {
+		return mygo.Point{X: int(n.screenX + n.winW/2), Y: int(n.screenY + n.h0/2)}
+	}
+	n.poll()
+	n.enteredAt = n.lastInside.Add(-time.Second)
+	n.poll()
+	if n.open {
+		t.Fatal("opened under the other app")
+	}
+
+	notchNeighbor = func() string { return "" }
+	n.lookAround()
+	n.poll()
+	n.enteredAt = n.lastInside.Add(-time.Second)
+	n.poll()
+	if !n.open {
+		t.Fatal("did not open once the other app quit")
+	}
+}
+
 // With NM_FRAMES set, saves the notch as it greets, growing and grown, and
 // the player bar holding a song a login picked up.
 func TestFirstUseFrames(t *testing.T) {

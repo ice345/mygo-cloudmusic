@@ -104,7 +104,11 @@ func (a *app) settingsView(c *ui.Context) {
 		// Only on macOS, the one with a notch player.
 		if a.notch != nil {
 			group("刘海播放器", func() {
-				row("显示刘海播放器", "在屏幕顶部的刘海处显示迷你播放器，鼠标悬停即可展开", func() {
+				hint := "在屏幕顶部的刘海处显示迷你播放器，鼠标悬停即可展开"
+				if name := a.notch.neighbor; name != "" {
+					hint = name + " 正在使用刘海，刘海播放器暂不显示；正在播放的歌曲会显示在 " + name + " 中。退出 " + name + " 后自动恢复。"
+				}
+				row("显示刘海播放器", hint, func() {
 					if ui.Switch(c.Key("notch"), &s.Notch).Label("显示刘海播放器").Changed() {
 						a.changed()
 					}

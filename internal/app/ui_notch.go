@@ -31,6 +31,7 @@ type notch struct {
 	enteredAt  time.Time
 	lastInside time.Time
 	passing    bool   // clicks pass through to what is under the window
+	neighbor   string // another app drawing at the notch, which this one makes way for
 	watched    bool   // the pointer's moves poll
 	unwatch    func() // stops them polling, nil while they don't
 	active     bool   // the app is active, when they go unseen over the menu bar
@@ -48,6 +49,7 @@ const (
 
 func newNotch(a *app) *notch {
 	n := &notch{a: a}
+	n.neighbor = notchNeighbor()
 	n.measure()
 	n.winW, n.winH = notchOpenW+60, 240
 	n.place()
@@ -86,18 +88,42 @@ func newNotch(a *app) *notch {
 	// The pointer's moves wake the notch: it polls only while one may
 	// soon open or close it, and costs nothing at rest.
 	n.active = true
-	mygo.App.OnDidBecomeActive(func() { n.active = true; n.poll() })
+	mygo.App.OnDidBecomeActive(func() { n.active = true; n.lookAround(); n.poll() })
 	mygo.App.OnDidResignActive(func() { n.active = false })
+	watchApps(n.lookAround)
 	n.watch()
 	n.poll()
 	return n
 }
 
+// lookAround sees whether another app is drawing at the notch. When that
+// changes, this one closes, lets clicks through, and comes back only once
+// the other has quit.
+func (n *notch) lookAround() {
+	name := notchNeighbor()
+	if name == n.neighbor {
+		return
+	}
+	n.neighbor = name
+	n.open = false
+	n.passing = true
+	if n.win != nil {
+		n.win.SetIgnoreMouseEvents(true)
+		n.win.Invalidate()
+	}
+	if n.a.settingsWin != nil {
+		n.a.settingsWin.Invalidate()
+	}
+	n.watch()
+	n.poll()
+}
+
 // watch follows the pointer's moves while the notch shows, turned on or
-// greeting. Otherwise it lets them be: each, anywhere on the screen, would
-// wake the app for nothing.
+// greeting, and no other app is drawing there. Otherwise it lets them be:
+// each, anywhere on the screen, would wake the app for nothing.
 func (n *notch) watch() {
-	on := n.a.settings.Notch || n.hello
+	// No window, as in tests: there is no pointer to follow.
+	on := n.win != nil && (n.a.settings.Notch || n.hello) && n.neighbor == ""
 	switch {
 	case on && n.unwatch == nil:
 		n.unwatch, n.watched = watchPointer(n.poll)
@@ -158,6 +184,11 @@ func (n *notch) setEnabled(on bool) {
 func (n *notch) greet() {
 	s := &n.a.settings
 	if runtime.GOOS != "darwin" || s.Notch || s.NotchGreeted {
+		return
+	}
+	// Another app has the notch. The greeting waits for a launch without
+	// it, and is not marked as done.
+	if notchNeighbor() != "" {
 		return
 	}
 	s.NotchGreeted = true
@@ -222,6 +253,8 @@ func (n *notch) target() (w, h float32) {
 	tr := n.a.pl.Current()
 	s := n.a.settings
 	switch {
+	case n.neighbor != "":
+		return 0, 0
 	case n.open && tr == nil:
 		return notchIdleW, n.h0 + 72
 	case n.open:
@@ -244,9 +277,19 @@ func (n *notch) target() (w, h float32) {
 // cursorPoint is where the pointer is on the screen.
 var cursorPoint = func() mygo.Point { return mygo.Screen.CursorScreenPoint() }
 
+// notchNeighbor finds another app drawing at the notch; tests swap it.
+var notchNeighbor = otherNotchApp
+
 // poll follows the pointer, which the window cannot always see: it lets
 // clicks through where it draws nothing, and opens while over it.
 func (n *notch) poll() {
+	if n.neighbor != "" {
+		n.passing = true
+		if n.win != nil {
+			n.win.SetIgnoreMouseEvents(true)
+		}
+		return
+	}
 	if !n.a.settings.Notch && !n.hello {
 		return
 	}
