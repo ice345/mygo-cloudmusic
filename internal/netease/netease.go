@@ -387,6 +387,12 @@ func ArtistLatestSongs(id int64, limit int) ([]Track, error) {
 
 var ErrUnavailable = errors.New("this song isn't available to stream")
 
+// ErrRefused is NetEase turning a request away rather than answering it,
+// as it does for a while when it takes the client for a risk (code -460),
+// or once the session has run out. It says nothing about the song: asked
+// again later, it may play.
+var ErrRefused = errors.New("netease turned the request away")
+
 // Stream is where a track streams from, and what it is.
 type Stream struct {
 	URL  string `json:"-"`
@@ -428,6 +434,9 @@ func SongURL(id int64, level string) (*Stream, error) {
 	data := map[string]any{"ids": fmt.Sprintf("[%d]", id), "level": level, "encodeType": encode}
 	if err := eapiPost("/api/song/enhance/player/url/v1", data, &res); err != nil {
 		return nil, err
+	}
+	if res.Code != 200 {
+		return nil, fmt.Errorf("netease: song url: code %d: %w", res.Code, ErrRefused)
 	}
 	if len(res.Data) == 0 || res.Data[0].URL == "" {
 		return nil, ErrUnavailable
