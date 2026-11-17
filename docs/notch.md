@@ -49,7 +49,7 @@ The shape springs between sizes. The lyrics ask for a frame every 40 ms while a 
 
 ## Tests and seams
 
-`cursorPoint` (where the pointer is) and `notchNeighbor` (another app at the notch) are package variables that tests swap and restore with `defer`. Tests build a `notch` with no window, so `poll` records `passing` instead of calling the native window.
+`cursorPoint` (where the pointer is) and `notchNeighbor` (another app at the notch) are package variables that tests swap and restore with `defer`. `notchGreets` says the greeting runs, which only macOS does; `greetAnywhere` in the tests turns it on and keeps other apps out, so the greeting's tests pass on Linux and on a Mac running Atoll alike. Tests build a `notch` with no window, so `poll` records `passing` instead of calling the native window.
 
 ## On a Mac, before a release
 

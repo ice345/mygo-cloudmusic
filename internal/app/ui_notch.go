@@ -185,7 +185,7 @@ func (n *notch) setEnabled(on bool) {
 // without one, with the song and a way to keep it, and goes back in.
 func (n *notch) greet() {
 	s := &n.a.settings
-	if runtime.GOOS != "darwin" || s.Notch || s.NotchGreeted {
+	if !notchGreets || s.Notch || s.NotchGreeted {
 		return
 	}
 	// Another app has the notch. The greeting waits for a launch without
@@ -306,6 +306,10 @@ var cursorPoint = func() mygo.Point { return mygo.Screen.CursorScreenPoint() }
 
 // notchNeighbor finds another app drawing at the notch; tests swap it.
 var notchNeighbor = otherNotchApp
+
+// notchGreets says the notch greets the first song: only on macOS, the one
+// system it shows on. Tests turn it on everywhere.
+var notchGreets = runtime.GOOS == "darwin"
 
 // poll follows the pointer, which the window cannot always see: it lets
 // clicks through where it draws nothing, and opens while over it.

@@ -19,6 +19,7 @@ import (
 // The notch, turned off, shows itself as the first song plays, and only
 // then; its button keeps it on.
 func TestNotchGreetsOnce(t *testing.T) {
+	defer greetAnywhere()()
 	a := newTestApp()
 	a.settings = defaultSettings()
 	n := &notch{a: a, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
@@ -61,6 +62,7 @@ func TestNotchGreetsOnce(t *testing.T) {
 // be clicked. It used to open the player, which hid the button, and leaving
 // brought it back only to open again as the pointer came back to it.
 func TestNotchGreetingKeptUnderPointer(t *testing.T) {
+	defer greetAnywhere()()
 	a := newTestApp()
 	a.settings = defaultSettings()
 	n := &notch{a: a, real: true, w0: 185, h0: 32, winW: notchOpenW + 60, winH: 240}
@@ -100,7 +102,7 @@ func TestNotchMakesWay(t *testing.T) {
 	a.settings = defaultSettings()
 	n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240, neighbor: "Atoll"}
 	a.notch = n
-	defer func(f func() string) { notchNeighbor = f }(notchNeighbor)
+	defer greetAnywhere()()
 	defer func(f func() mygo.Point) { cursorPoint = f }(cursorPoint)
 	notchNeighbor = func() string { return "Atoll" }
 
@@ -176,6 +178,15 @@ func TestNotchLyricsPassThePointer(t *testing.T) {
 	if !n.open || n.passing || n.under {
 		t.Fatalf("housing: open %v, passing %v, over the lyrics %v", n.open, n.passing, n.under)
 	}
+}
+
+// greetAnywhere lets the notch greet off macOS too, with no other app at
+// the notch whatever runs on the machine, until the func it returns
+// restores both.
+func greetAnywhere() func() {
+	greets, neighbor := notchGreets, notchNeighbor
+	notchGreets, notchNeighbor = true, func() string { return "" }
+	return func() { notchGreets, notchNeighbor = greets, neighbor }
 }
 
 // The open card keeps the pointer as it moves from the housing onto the

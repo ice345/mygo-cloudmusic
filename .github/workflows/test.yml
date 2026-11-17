@@ -1,0 +1,48 @@
+# Every push and pull request runs the tests on Linux and macOS, vets the
+# code as MyGo checks it, and builds for every platform the app ships on.
+# A release runs this first (release.yml), and builds nothing if it fails.
+name: Test
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Linux, os: ubuntu-latest }
+          - { name: macOS, os: macos-latest }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Vet
+        run: |
+          go vet ./...
+          go tool mygo vet .
+      # The tests need no display, sound device or network: what they ask
+      # of NetEase, they don't wait for.
+      - name: Test
+        run: go test ./internal/... ./scripts/...
+      # The macOS code goes through purego, so every platform builds
+      # without a C toolchain.
+      - name: Build for every platform
+        if: matrix.name == 'Linux'
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          for target in linux/amd64 linux/arm64 windows/amd64 windows/arm64 darwin/amd64 darwin/arm64; do
+            echo "building $target"
+            GOOS=${target%/*} GOARCH=${target#*/} go build -o /dev/null ./...
+          done

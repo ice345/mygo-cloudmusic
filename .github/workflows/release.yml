@@ -12,7 +12,13 @@ permissions:
   contents: write # the draft release, and the uploads to it
 
 jobs:
+  # The same checks as every push: a tag on a commit that fails them
+  # builds nothing.
+  test:
+    uses: ./.github/workflows/test.yml
+
   draft-release:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

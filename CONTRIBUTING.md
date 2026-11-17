@@ -45,6 +45,10 @@ Go 1.27.3 or later. The tests need no display and no sound device.
 - `CHANGELOG.md` is written at release, in Chinese, for listeners, not in feature commits.
 - **Never commit** frames (`*.png` from `NM_FRAMES`), `build/`, `.mygo/`, keys, or `.DS_Store`.
 
+## CI
+
+`.github/workflows/test.yml` runs on every push and pull request, on Linux and macOS: `go vet`, `go tool mygo vet .`, `go test ./internal/... ./scripts/...`, and, on Linux, builds for Windows, Linux and macOS on amd64 and arm64. A release runs it first, and builds nothing if it fails. `-race` is not in it yet: test seams read inside goroutines race with the tests' restores (roadmap §5).
+
 ## Before merging
 
 - [ ] `go test ./internal/...` passes; new UI tests pass with `-count=5`; `go tool mygo vet .` is clean.
