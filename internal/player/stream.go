@@ -104,7 +104,7 @@ func (d *download) run(ctx context.Context, url string) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		finish(errors.New(res.Status))
+		finish(&statusError{res.StatusCode, res.Status})
 		return
 	}
 	buf := make([]byte, 64<<10)
@@ -130,6 +130,23 @@ func (d *download) run(ctx context.Context, url string) {
 
 // write adds b to what is in. Only run writes, so it reads the file and
 // what is in without the lock, which guards them from readers.
+// statusError is the song's server answering with something other than
+// the song.
+type statusError struct {
+	code   int
+	status string
+}
+
+func (e *statusError) Error() string { return e.status }
+
+// failed returns why the song stopped coming in, or nil while it comes in
+// and once it all has.
+func (d *download) failed() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.err
+}
+
 func (d *download) write(b []byte) {
 	if d.file != nil {
 		if _, err := d.file.Write(b); err != nil {

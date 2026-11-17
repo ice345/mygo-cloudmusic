@@ -1,9 +1,15 @@
 package player
 
 import (
+	"fmt"
 	"math"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -221,5 +227,98 @@ func TestEndRadio(t *testing.T) {
 	p.refill()
 	if asked != 0 {
 		t.Error("asked the radio after leaving it")
+	}
+}
+
+// offline is a player of three tracks whose songURL is f, for the tests
+// of tracks that fail to load; settle runs what it posts until the
+// current track has loaded or failed.
+func offline(t *testing.T, f func(int64, string) (*netease.Stream, error)) (p *Player, settle func()) {
+	t.Helper()
+	prev := songURL
+	songURL = f
+	t.Cleanup(func() { songURL = prev })
+	ch := make(chan func(), 64)
+	p = New(func(fn func()) { ch <- fn })
+	p.queue = []netease.Track{{ID: 1, Name: "一"}, {ID: 2, Name: "二"}, {ID: 3, Name: "三"}}
+	p.order = []int{0, 1, 2}
+	return p, func() {
+		t.Helper()
+		for p.loading {
+			next(t, ch)
+		}
+	}
+}
+
+// dialError is how a request fails with no network.
+func dialError() error {
+	return &url.Error{Op: "Post", URL: "https://interfacepc.music.163.com/eapi/song/enhance/player/url/v1",
+		Err: &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED}}
+}
+
+// Restoring a session with the network down keeps its track and where it
+// was, paused, and play tries that track again. Any load error used to
+// skip on, so the player walked the whole queue, stopped on another track
+// at 0:00, and saved that over the session.
+func TestNetworkErrorKeepsTheTrack(t *testing.T) {
+	asked := 0
+	p, settle := offline(t, func(int64, string) (*netease.Stream, error) {
+		asked++
+		return nil, dialError()
+	})
+	p.Restore(Session{Queue: p.queue, Order: p.order, At: 1, Position: 95000})
+	settle()
+	s, _ := p.Session()
+	if p.Current().ID != 2 || s.At != 1 || s.Position != 95000 || p.Playing() || p.Err() == "" {
+		t.Fatalf("offline: track %d, at %d, %dms, playing %v, err %q", p.Current().ID, s.At, s.Position, p.Playing(), p.Err())
+	}
+
+	p.TogglePlay()
+	settle()
+	if asked != 2 || p.Current().ID != 2 || p.Position() != 95*time.Second {
+		t.Fatalf("play again: asked %d times, track %d at %v", asked, p.Current().ID, p.Position())
+	}
+}
+
+// A track that can't play is still skipped, and so is one NetEase won't
+// stream; a refusal, like the network, stops on the track it reached.
+func TestUnplayableSkipsAndRefusalStays(t *testing.T) {
+	p, settle := offline(t, func(id int64, _ string) (*netease.Stream, error) {
+		if id == 1 {
+			return nil, netease.ErrUnavailable
+		}
+		return nil, fmt.Errorf("netease: song url: code -460: %w", netease.ErrRefused)
+	})
+	p.load(0)
+	settle()
+	if p.Current().ID != 2 || p.Playing() || p.Err() == "" {
+		t.Fatalf("track %d, playing %v, err %q", p.Current().ID, p.Playing(), p.Err())
+	}
+}
+
+// A song that stops coming in before it can be decoded stays, as the
+// network's failure; a song its server won't send is skipped. The decoder's
+// error used to hide why the song stopped coming in.
+func TestCutStreamStays(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/gone" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Length", "100000")
+		w.Write([]byte("ID3")) // and then the connection drops
+	}))
+	defer srv.Close()
+	p, settle := offline(t, func(id int64, _ string) (*netease.Stream, error) {
+		path := "/cut"
+		if id == 1 {
+			path = "/gone"
+		}
+		return &netease.Stream{URL: srv.URL + path, Size: 100000}, nil
+	})
+	p.load(0)
+	settle()
+	if p.Current().ID != 2 || p.Playing() || p.Err() == "" {
+		t.Fatalf("track %d, playing %v, err %q", p.Current().ID, p.Playing(), p.Err())
 	}
 }

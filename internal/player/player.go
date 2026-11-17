@@ -2,8 +2,11 @@ package player
 
 import (
 	"errors"
+	"io"
 	"math"
 	"math/rand/v2"
+	"net"
+	"net/http"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -617,12 +620,13 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 			}
 		})
 	}()
+	url := songURL
 	go func() {
 		level := "exhigh"
 		if p.Quality != nil {
 			level = p.Quality()
 		}
-		info, s, err := p.open(t, level)
+		info, s, err := p.open(t, level, url)
 		p.post(func() {
 			if gen != p.gen {
 				if s != nil {
@@ -631,6 +635,17 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 				return
 			}
 			p.loading = false
+			if err != nil && stays(err) {
+				// Nothing says the track can't play: it stays, paused
+				// where it was, and plays when asked again (TogglePlay).
+				p.err = "网络连接失败，请检查网络后重试"
+				if errors.Is(err, netease.ErrRefused) {
+					p.err = "网易云音乐暂时拒绝了请求，请稍后重试"
+				}
+				p.playing = false
+				p.sync()
+				return
+			}
 			if err != nil {
 				p.err = err.Error()
 				switch {
@@ -683,13 +698,16 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 	}()
 }
 
+// songURL asks NetEase where to stream a track; tests swap it.
+var songURL = netease.SongURL
+
 // open opens track t's audio at level: kept in the cache, or else
-// streamed into it, and kept once it has all come in.
-func (p *Player) open(t netease.Track, level string) (*netease.Stream, stream, error) {
+// streamed into it, from where url says, and kept once it has all come in.
+func (p *Player) open(t netease.Track, level string, url func(int64, string) (*netease.Stream, error)) (*netease.Stream, stream, error) {
 	dl, info, ok := p.Cache.lookup(t.ID, level)
 	if !ok {
 		var err error
-		info, err = netease.SongURL(t.ID, level)
+		info, err = url(t.ID, level)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -697,10 +715,29 @@ func (p *Player) open(t netease.Track, level string) (*netease.Stream, stream, e
 	}
 	s, err := openStream(dl, t.Duration)
 	if err != nil {
+		// A song that stopped coming in can't be decoded either: that
+		// is the network's failure, not the song's.
+		if failed := dl.failed(); failed != nil {
+			err = failed
+		}
 		dl.Close()
 		return nil, nil, err
 	}
 	return info, s, nil
+}
+
+// stays reports whether a track that failed to load with err stays, to
+// play when asked again, rather than being skipped as one that can't: the
+// network failed, or NetEase or the song's server turned the request away
+// for now. Any load error used to skip, so a moment offline walked the
+// whole queue.
+func stays(err error) bool {
+	var status *statusError
+	if errors.As(err, &status) {
+		return status.code >= 500 || status.code == http.StatusTooManyRequests
+	}
+	var nerr net.Error
+	return errors.Is(err, netease.ErrRefused) || errors.As(err, &nerr) || errors.Is(err, io.ErrUnexpectedEOF)
 }
 
 // Session is where playback was left, to pick up again.
