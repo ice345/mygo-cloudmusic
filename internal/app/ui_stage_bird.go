@@ -1,6 +1,7 @@
 package app
 
 import (
+	"runtime"
 	"time"
 	"unicode"
 
@@ -19,10 +20,22 @@ import (
 
 // birdFontJA and birdFontZH are the serif families for a Japanese line and
 // for everything else. A test points them at a family that does not exist.
-var (
-	birdFontJA = "Hiragino Mincho ProN, Yu Mincho, YuMincho, Noto Serif CJK JP"
-	birdFontZH = "Songti SC, STSong, SimSun, Noto Serif CJK SC"
-)
+var birdFontJA, birdFontZH = birdFonts(runtime.GOOS)
+
+// birdFonts returns the serif families goos installs, for a Japanese line
+// and for everything else: macOS's own, Windows's, and Noto's elsewhere.
+// Each system is asked only for its own. Asked for YuMincho, which it only
+// offers as a download, macOS can wait on its font catalog: a Mac in CI
+// waited ten minutes.
+func birdFonts(goos string) (ja, zh string) {
+	switch goos {
+	case "darwin":
+		return "Hiragino Mincho ProN", "Songti SC"
+	case "windows":
+		return "Yu Mincho", "SimSun"
+	}
+	return "Noto Serif CJK JP", "Noto Serif CJK SC"
+}
 
 var (
 	birdInk    = ui.Hex("#EEF4F6")
