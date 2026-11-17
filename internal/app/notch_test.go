@@ -178,6 +178,53 @@ func TestNotchLyricsPassThePointer(t *testing.T) {
 	}
 }
 
+// The open card keeps the pointer as it moves from the housing onto the
+// card's controls, and so does the greeting. Since the lyrics came under
+// the notch, only the housing counted: on the card, clicks went to the
+// window under it, and the card closed.
+func TestNotchCardKeepsThePointer(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.settings.Notch = true
+	a.settings.NotchLyrics = 2
+	n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
+	a.notch = n
+	a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 60000}})
+	a.pl.SetLyrics(lyrics.Build(lyrics.Source{LRC: "[00:00.00]风在吹\n[00:10.00]下一句"}))
+	a.pl.Hold(time.Second)
+	defer func(f func() mygo.Point) { cursorPoint = f }(cursorPoint)
+	at := func(dx, dy float32) {
+		cursorPoint = func() mygo.Point {
+			return mygo.Point{X: int(n.screenX + n.winW/2 + dx), Y: int(n.screenY + n.h0 + dy)}
+		}
+	}
+
+	at(0, -n.h0/2)
+	n.poll()
+	n.enteredAt = n.lastInside.Add(-time.Second)
+	n.poll()
+	if !n.open {
+		t.Fatal("did not open on the housing")
+	}
+	// Down to the controls, and a second there.
+	at(0, 130)
+	n.poll()
+	n.lastInside = n.lastInside.Add(-time.Second)
+	n.poll()
+	if !n.open || n.passing {
+		t.Fatalf("on the card: open %v, passing %v", n.open, n.passing)
+	}
+
+	// The greeting, its button under the pointer.
+	a.settings.Notch = false
+	n.open, n.hello = false, true
+	at(120, 28)
+	n.poll()
+	if n.open || n.passing {
+		t.Fatalf("on the greeting: open %v, passing %v", n.open, n.passing)
+	}
+}
+
 // With NM_FRAMES set, saves the lyrics under the notch: one line filling,
 // two and three lines, the next line during a break, and the strip faded
 // under the pointer.

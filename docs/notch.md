@@ -28,6 +28,7 @@ All under 刘海播放器 in settings.
 
 The window is a non-activating panel at `NSMainMenuWindowLevel + 3`, on every Space and over full-screen apps. It lets clicks through wherever it draws nothing, so it can't rely on its own mouse events; `poll` follows the pointer instead.
 
+- **What counts as the notch** is the shape it has now, with 6 pt of slack: the shell (and wings), the card while open, the greeting while it greets. While lyrics hang under the shell, only the shell counts, with no slack. `TestNotchCardKeepsThePointer` holds this.
 - **The lyrics pass the pointer.** Resting there opens nothing, clicks reach the window under them, and they fade to 20% while the pointer is over them.
 - **Polling costs nothing at rest.** The pointer's moves wake a poll only while the notch shows and no other app has the spot (`watch`). While the pointer is over it or it is open, it polls every 33 ms; while the app is active, or moves go unseen, every 100 ms.
 

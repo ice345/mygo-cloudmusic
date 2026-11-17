@@ -322,18 +322,19 @@ func (n *notch) poll() {
 		return
 	}
 	pt := cursorPoint()
-	w, _ := n.target()
+	w, h := n.target()
 	x := n.screenX + (n.winW-w)/2
 	px, py := float32(pt.X), float32(pt.Y)
 	slack := float32(6)
-	// Opening is the housing and the wings only. The lyrics hang below
-	// them, and a rest there must not open the player over the window.
-	// The housing's hit area usually reaches a little past its edge; that
-	// reach stops at the lyrics, whose top would otherwise count as the
-	// housing.
+	// The pointer is on the notch over the shape it has now, and a little
+	// past its edge: the housing and the wings, the open card, or the
+	// greeting. The lyrics are the exception. They hang below the housing,
+	// and a rest there must not open the player over the window, so while
+	// they show only the housing counts, and its reach stops at its edge,
+	// where they begin.
 	shell := n.screenY + n.h0
 	drop := n.strip()
-	bottom := shell + slack
+	bottom := n.screenY + h + slack
 	if drop > 0 {
 		bottom = shell
 	}
