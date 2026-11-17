@@ -8,12 +8,12 @@ Priorities: **P0** blocks a release. **P1** wrong in normal use. **P2** worth do
 
 | Item | Pri | State |
 |---|---|---|
-| The open notch card and the greeting keep the pointer (regression in `c49756f`) | P0 | open |
-| Updates are signed in CI: `MYGO_UPDATER_PRIVATE_KEY`, and a release fails early without it | P0 | open |
-| `main` pushed, and the repository public, so the update feed and the speech libraries download | P0 | open |
-| CI runs the tests on push and pull request, and before a release; the notch tests pass off macOS | P1 | open |
-| A network error leaves the listener on their track, rather than skipping the queue | P1 | open |
-| The speech libraries for podcast captions are hosted on this repository | P1 | open |
+| The open notch card and the greeting keep the pointer (regression in `c49756f`) | P0 | done, `c122424`; check it on a Mac ([`notch.md`](notch.md#on-a-mac-before-a-release)) |
+| Updates are signed in CI: `MYGO_UPDATER_PRIVATE_KEY`, and a release fails early without it | P0 | done, `3441e4d`: a new key, the secret set 2026-11-17 |
+| `main` pushed, and the repository public, so the update feed and the speech libraries download | P0 | done 2026-11-17. The feed answers once a release is published. |
+| CI runs the tests on push and pull request, and before a release; the notch tests pass off macOS | P1 | done, `ea9ebb8`, `4db5d73` |
+| A network error leaves the listener on their track, rather than skipping the queue | P1 | done, `bf1b752`, `4a72f15` |
+| The speech libraries for podcast captions are hosted on this repository | P1 | done, `b57aaa2`: the `sherpa-onnx-2.0.1` prerelease. Check that captions install and run on a Mac. |
 
 ## 2. Lyrics, then 0.1.27
 
@@ -48,7 +48,7 @@ A sibling of 青鸟 on the same engine, from what the makers said rather than fr
 ## 5. Later
 
 - **Structure.** Split the notch's state into an explicit mode; give `app` a constructor that tests share; one `lyrics.Source(texts)` conversion; caption sizes in one place.
-- **Tests.** Seams read before goroutines start, so `-race` passes; the player's network behind seams, so the unit run makes no requests; frame tests that need NetEase behind `LIVE`; the wall tests shorter.
+- **Tests.** Seams read before goroutines start, so `-race` passes; the player's network behind seams, so the unit run makes no requests; frame tests that need NetEase behind `LIVE`; the wall tests shorter. One `internal/app` run of about a dozen failed on Linux on 2026-11-17, its output not kept: likely a late goroutine from a test seam. Keep the output the next time it happens.
 - **Dependencies.** Upgrade MyGo to a tagged release (v0.9.x), with `go tool mygo migrate-ui`. The README asks for Go 1.27.3.
 - **Platforms.** Decide whether Windows and Linux get a compact lyrics surface, or say the notch is macOS only. The notch picks the display with a notch (`safeAreaInsets`), not `screens[0]`.
 - **Accessibility.** A real disabled state for the notch-lyrics control; Reduce Motion in the foot band.
