@@ -16,6 +16,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # mygo build signs the updates with this key, and refuses one that
+      # is not updates.publicKey's: without it every build would fail
+      # after the draft is made. The key is an Ed25519 private key, its
+      # public half in its last 32 bytes. See CONTRIBUTING.md, Releases.
+      - name: Check the update signing key
+        env:
+          KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::The MYGO_UPDATER_PRIVATE_KEY secret is missing: add it under Settings, Secrets and variables, Actions (CONTRIBUTING.md, Releases)."
+            exit 1
+          fi
+          public=$(printf '%s' "$KEY" | base64 -d | tail -c 32 | base64)
+          if [ "$public" != "$(jq -r .updates.publicKey mygo.json)" ]; then
+            echo "::error::MYGO_UPDATER_PRIVATE_KEY is not the key of updates.publicKey in mygo.json: installed apps would refuse its updates."
+            exit 1
+          fi
       # mygo build uploads to the release of mygo.json's version, whichever
       # tag started the workflow.
       - name: Check the version

@@ -59,7 +59,7 @@ Go 1.27.3 or later. The tests need no display and no sound device.
 
 [`RELEASING.md`](RELEASING.md) has the steps. Two things they rely on:
 
-**The update signing key.** Installed apps accept only updates signed with the Ed25519 key whose public half is `updates.publicKey` in `mygo.json`. CI signs with the repository's Actions secret `MYGO_UPDATER_PRIVATE_KEY` (Settings → Secrets and variables → Actions). The owner keeps a copy offline; MyGo's `keygen` writes it as `mygo-update.key`. Never commit it, print it or paste it into an issue.
+**The update signing key.** Installed apps accept only updates signed with the Ed25519 key whose public half is `updates.publicKey` in `mygo.json`. CI signs with the repository's Actions secret `MYGO_UPDATER_PRIVATE_KEY` (Settings → Secrets and variables → Actions); the release workflow stops before making a draft if the secret is missing or isn't the key of `updates.publicKey`. The owner keeps a copy offline; MyGo's `keygen` writes it as `mygo-update.key`. Never commit it, print it or paste it into an issue.
 
 To rotate it, only if it leaks or is lost:
 
