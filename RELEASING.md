@@ -50,11 +50,14 @@
 
 ## The speech recognition libraries
 
-Podcast captions run sherpa-onnx, whose libraries the app downloads with the model from the `sherpa-onnx-<version>` release, not from the app's own. They only change with sherpa-onnx's version, in `scripts/sherpa`. `internal/speech/natives.go` `libBase` still points at upstream's `sherpa-onnx-2.0.1` release. Those libraries load in an ad-hoc-signed build, because MyGo adds the hardened runtime only for a real signing identity.
+Podcast captions run sherpa-onnx, whose libraries the app downloads with the model from this repository's `sherpa-onnx-<version>` prerelease, not from the app's own releases. A prerelease never becomes the latest that updates look for. `internal/speech/natives.go` names each file with its digests; both come from `scripts/sherpa`, and they only change with sherpa-onnx's version.
 
-If this repository later signs with its own Developer ID, library validation will refuse upstream's copies. Re-sign them with that identity, host them on a prerelease here, and point `libBase` at it. A prerelease never becomes the latest that updates look for:
+The macOS libraries keep sherpa-onnx's own ad-hoc signatures, which this repository's builds load: they are signed ad hoc, and MyGo turns on the hardened runtime only for a real identity. If this repository later signs with a Developer ID, library validation will refuse them: pack them again with `-sign` and that identity, and upload the new ones over the old.
+
+To make them, from the repository's root (the script reads the repository from `mygo.json`'s `updates.github`):
 
 ```bash
-go run ./scripts/sherpa -sign "Developer ID Application: <this repository's identity>"
+go run ./scripts/sherpa -out build/sherpa      # add -sign "Developer ID Application: …" once the app has one
 gh release create sherpa-onnx-2.0.1 --prerelease --latest=false build/sherpa/*
+LIVE=1 go test ./internal/speech -run TestNativesLive
 ```

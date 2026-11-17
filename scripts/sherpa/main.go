@@ -1,13 +1,18 @@
 // Command sherpa packs sherpa-onnx's libraries, which write podcasts'
 // captions on the device, for the app to download with the model: each
-// platform's, signed for macOS with the app's Developer ID so that its
-// hardened runtime loads them, and Silero's voice activity detector, which
-// every platform shares. It writes them, gzipped, into a directory to
-// upload as the assets of the release internal/speech downloads them from,
-// and internal/speech/natives.go, which names them with their digests:
+// platform's, and Silero's voice activity detector, which every platform
+// shares. It writes them, gzipped, into a directory to upload as the
+// assets of the release internal/speech downloads them from, on the
+// repository of mygo.json's updates.github, and internal/speech/natives.go,
+// which names them with their digests. Run it from the repository's root:
 //
-//	go run ./scripts/sherpa -sign "Developer ID Application: …" -out build/sherpa
+//	go run ./scripts/sherpa -out build/sherpa
 //	gh release create sherpa-onnx-2.0.1 --prerelease --latest=false build/sherpa/*
+//
+// The macOS libraries keep the signatures sherpa-onnx gives them, which an
+// app signed ad hoc loads: MyGo turns on the hardened runtime only for a
+// real identity. An app signed with a Developer ID loads no library signed
+// by another team, so then pass -sign with that identity.
 //
 // The upstream archives are checked against their digests, and kept in the
 // user's cache between runs.
@@ -20,6 +25,8 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"go/format"
@@ -39,8 +46,6 @@ const version = "2.0.1"
 
 // release is the tag of the app's release the files are uploaded to.
 const release = "sherpa-onnx-" + version
-
-const repo = "egoist/mygo-cloudmusic"
 
 // An archive of sherpa-onnx's release, and the libraries the app takes
 // from it, the C API's first.
@@ -73,13 +78,9 @@ const (
 )
 
 func main() {
-	sign := flag.String("sign", "", "the Developer ID that signs the macOS libraries")
+	sign := flag.String("sign", "", "the Developer ID that signs the macOS libraries, when the app is signed with one")
 	out := flag.String("out", "build/sherpa", "where to write the files to upload")
 	flag.Parse()
-	if *sign == "" {
-		fmt.Fprintln(os.Stderr, "sherpa: -sign is required: the app's hardened runtime loads no library signed by another team")
-		os.Exit(2)
-	}
 	if err := run(*sign, *out); err != nil {
 		fmt.Fprintln(os.Stderr, "sherpa:", err)
 		os.Exit(1)
@@ -94,6 +95,10 @@ type packed struct {
 }
 
 func run(identity, out string) error {
+	repo, err := repository()
+	if err != nil {
+		return err
+	}
 	if err := os.RemoveAll(out); err != nil {
 		return err
 	}
@@ -135,7 +140,7 @@ func run(identity, out string) error {
 		}
 		for _, name := range a.files {
 			lib := filepath.Join(tmp, name)
-			if strings.HasPrefix(p, "darwin-") {
+			if strings.HasPrefix(p, "darwin-") && identity != "" {
 				cmd := exec.Command("codesign", "--force", "--sign", identity, "--options", "runtime", "--timestamp", lib)
 				if b, err := cmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("codesign %s/%s: %v\n%s", p, name, err, b)
@@ -153,7 +158,28 @@ func run(identity, out string) error {
 		}
 		fmt.Printf("packed sherpa-onnx %s for %s\n", version, p)
 	}
-	return writeManifest(filepath.Join("internal", "speech", "natives.go"), platforms, libs, vadFile)
+	return writeManifest(filepath.Join("internal", "speech", "natives.go"), repo, platforms, libs, vadFile)
+}
+
+// repository returns the repository whose releases the app updates from,
+// mygo.json's updates.github, where the libraries are hosted too.
+func repository() (string, error) {
+	b, err := os.ReadFile("mygo.json")
+	if err != nil {
+		return "", fmt.Errorf("%w: run from the repository's root", err)
+	}
+	var config struct {
+		Updates struct {
+			GitHub string `json:"github"`
+		} `json:"updates"`
+	}
+	if err := json.Unmarshal(b, &config); err != nil {
+		return "", fmt.Errorf("mygo.json: %w", err)
+	}
+	if config.Updates.GitHub == "" {
+		return "", errors.New("mygo.json has no updates.github to host the libraries on")
+	}
+	return config.Updates.GitHub, nil
 }
 
 // pack gzips b into out as asset.
@@ -172,7 +198,7 @@ func pack(out, name, asset string, b []byte) (packed, error) {
 		sha256: hex.EncodeToString(sum[:]), gzSHA256: hex.EncodeToString(gzSum[:])}, nil
 }
 
-func writeManifest(file string, platforms []string, libs map[string][]packed, vad packed) error {
+func writeManifest(file, repo string, platforms []string, libs map[string][]packed, vad packed) error {
 	var b strings.Builder
 	lit := func(f packed) string {
 		return fmt.Sprintf("{name: %q, asset: %q, size: %d, gzSize: %d, sha256: %q, gzSHA256: %q}", f.name, f.asset, f.size, f.gzSize, f.sha256, f.gzSHA256)
