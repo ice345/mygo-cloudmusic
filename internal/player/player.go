@@ -67,6 +67,7 @@ type Player struct {
 
 	lyrics       []lyrics.Line
 	lyricsLoaded bool
+	lyricsFailed bool // asked for twice, they did not come
 
 	// pending holds a seek asked for while the track loads.
 	pending time.Duration
@@ -344,6 +345,62 @@ func (p *Player) Repeat() RepeatMode { return p.repeat }
 // Lyrics returns the current track's lyrics, and whether they have loaded.
 func (p *Player) Lyrics() ([]lyrics.Line, bool) { return p.lyrics, p.lyricsLoaded }
 
+// LyricsFailed reports whether the current track's lyrics failed to come,
+// as against a track that has none.
+func (p *Player) LyricsFailed() bool { return p.lyricsFailed }
+
+// RetryLyrics asks again for the current track's lyrics, after they
+// failed to come.
+func (p *Player) RetryLyrics() {
+	if p.track == nil || !p.lyricsFailed {
+		return
+	}
+	p.lyricsLoaded, p.lyricsFailed = false, false
+	p.loadLyrics(p.track.ID, p.gen, false)
+}
+
+// fetchLyrics asks NetEase for a track's lyrics; tests swap it.
+var fetchLyrics = netease.Lyrics
+
+// lyricsAgain is how long after lyrics fail to come they are asked for
+// once more: a moment off the network shouldn't leave a song without its
+// lyrics. Tests shorten it.
+var lyricsAgain = 4 * time.Second
+
+// loadLyrics fetches the lyrics of the track id for the load gen, and asks
+// once more, again, if they fail: then they are failed, not none. A
+// failure read as a song without lyrics, 纯音乐，请欣赏, until it was
+// played again.
+func (p *Player) loadLyrics(id int64, gen int, again bool) {
+	fetch := fetchLyrics
+	go func() {
+		texts, err := fetch(id)
+		var lines []lyrics.Line
+		if err == nil {
+			lines = lyrics.Build(lyrics.Source{
+				LRC: texts.LRC, Translation: texts.Translation, Reading: texts.Reading,
+				YRC: texts.YRC, YTranslation: texts.YTranslation, YReading: texts.YReading,
+			})
+		}
+		p.post(func() {
+			if gen != p.gen {
+				return
+			}
+			if err != nil && again {
+				time.AfterFunc(lyricsAgain, func() {
+					p.post(func() {
+						if gen == p.gen {
+							p.loadLyrics(id, gen, false)
+						}
+					})
+				})
+				return
+			}
+			p.lyrics, p.lyricsLoaded, p.lyricsFailed = lines, true, err != nil
+		})
+	}()
+}
+
 // Downloaded returns the share of the current track downloaded so far, or
 // false before it has started to.
 func (p *Player) Downloaded() (float64, bool) {
@@ -588,7 +645,7 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 	p.track = &t
 	p.loading, p.playing, p.err = true, play, ""
 	p.awaiting = false
-	p.lyrics, p.lyricsLoaded = nil, false
+	p.lyrics, p.lyricsLoaded, p.lyricsFailed = nil, false, false
 	p.pending = from
 	p.announce(&t, nil)
 	p.refill()
@@ -604,22 +661,7 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 		}
 	}()
 
-	go func() {
-		texts, err := netease.Lyrics(t.ID)
-		var lines []lyrics.Line
-		if err == nil {
-			lines = lyrics.Build(lyrics.Source{
-				LRC: texts.LRC, Translation: texts.Translation, Reading: texts.Reading,
-				YRC: texts.YRC, YTranslation: texts.YTranslation, YReading: texts.YReading,
-			})
-		}
-		p.post(func() {
-			if gen == p.gen {
-				p.lyrics = lines
-				p.lyricsLoaded = true
-			}
-		})
-	}()
+	p.loadLyrics(t.ID, gen, true)
 	url := songURL
 	go func() {
 		level := "exhigh"

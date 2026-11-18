@@ -62,6 +62,10 @@ func (a *app) birdStage(c *ui.Context, tr *netease.Track, lines []lyrics.Line, l
 					stageSkeleton(c, npShimmer(c), size, w)
 					return
 				}
+				if a.pl.LyricsFailed() {
+					a.lyricsFailedNote(c, max(14, size*0.38))
+					return
+				}
 				ui.Text(c, "纯音乐，请欣赏").Font(birdFontZH).FontSize(max(14, size*0.38)).FontWeight(400).
 					LetterSpacing(size * 0.38 * 0.14).TextColor(birdAnswer)
 			})

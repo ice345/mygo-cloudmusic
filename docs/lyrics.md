@@ -17,6 +17,8 @@ One request a song, to the desktop client's API, `/api/song/lyric/v1` (`netease.
 
 The web API (`/api/song/lyric`) is asked only when that call fails or sends no timed lines; a reading the web leaves empty then keeps the desktop client's.
 
+When both fail, the player asks once more 4 s later (`loadLyrics`). If that fails too, the lyrics have failed, which is not the same as a song without any: 歌词, the stage and 青鸟 say 歌词加载失败 with 重试 (`lyricsFailedNote`), where a song without lyrics says 纯音乐，请欣赏, and no hot comment takes the whole song as quiet.
+
 Measured signed out on 2026-11-05 (the evidence is in [`archive/2026-11-after-0.1.26/next.md`](archive/2026-11-after-0.1.26/next.md) §3.1):
 
 - The reading is whatever NetEase writes for the song's language: romaji split into syllables for Japanese (`ki tto mo u ko re i jyo u`), NetEase's own spelling for Korean (`ggok ga ti ga zul rae`, not Revised Romanization), and toneless Jyutping for Cantonese. Mandarin, Russian and English get none.

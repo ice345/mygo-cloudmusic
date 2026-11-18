@@ -501,6 +501,10 @@ func (a *app) lyricsPane(c *ui.Context, tr *netease.Track, h float32) {
 				lyricsSkeleton(c, npShimmer(c))
 				return
 			}
+			if pl.LyricsFailed() {
+				a.lyricsFailedNote(c, 24)
+				return
+			}
 			ui.Text(c, "纯音乐，请欣赏").FontSize(24).FontWeight(700).TextColor(white.Alpha(0.4))
 		})
 		a.quietCard(c, dim, h*0.18)
@@ -538,6 +542,17 @@ type linesStyle struct {
 	weight     int
 	lineHeight float32
 	quiet      bool
+}
+
+// lyricsFailedNote says, at size, that the lyrics did not come, with a
+// button that asks again, where a song without lyrics says 纯音乐，请欣赏.
+func (a *app) lyricsFailedNote(c *ui.Context, size float32) {
+	ui.Column(c.Key("lyrics-failed")).Center().Gap(18).Children(func() {
+		ui.Text(c, "歌词加载失败").FontSize(size).FontWeight(700).TextColor(white.Alpha(0.4))
+		if pillButton(c.Key("retry-lyrics"), nil, "重试", white.Alpha(0.14), white).Label("重新加载歌词").Clicked() {
+			a.pl.RetryLyrics()
+		}
+	})
 }
 
 // timedLines fills scroll with lines that follow the track playing at

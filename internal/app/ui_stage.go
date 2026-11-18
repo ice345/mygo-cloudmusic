@@ -113,6 +113,10 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 					stageSkeleton(c, npShimmer(c), f, w)
 					return
 				}
+				if pl.LyricsFailed() {
+					a.lyricsFailedNote(c, 28)
+					return
+				}
 				ui.Text(c, "纯音乐，请欣赏").FontSize(28).FontWeight(800).TextColor(white.Alpha(0.4))
 			})
 			a.stageQuiet(c, dim, f, w)

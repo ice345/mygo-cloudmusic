@@ -96,3 +96,38 @@ func TestQuietCard(t *testing.T) {
 		}
 	}
 }
+
+// With its lyrics failed, a song says so in 歌词, on the stage and in 青鸟,
+// with a button that asks again, and no hot comment takes it for a song
+// without words; a song with none still has its hot comments. A failure
+// read as 纯音乐，请欣赏, a hot comment over the whole song.
+func TestLyricsFailedSaysSo(t *testing.T) {
+	for _, c := range []struct {
+		pane  int
+		style string
+	}{{paneLyrics, ""}, {paneStage, ""}, {paneStage, "aobird"}} {
+		a, tr, _ := quietApp(10 * time.Second)
+		a.pl.FailLyrics()
+		if cm, _ := a.quietComment(&tr, nil, true, 10*time.Second); cm != nil {
+			t.Errorf("pane %v %q: a hot comment over lyrics that failed", c.pane, c.style)
+		}
+		a.settings.StageStyle = c.style
+		a.nowPlaying, a.npPane = true, c.pane
+		tt := ui.NewTester(a.view, 1200, 800)
+		tt.Frame()
+		if err := tt.Click("重新加载歌词"); err != nil {
+			t.Fatalf("pane %v %q: %v", c.pane, c.style, err)
+		}
+		if _, loaded := a.pl.Lyrics(); loaded || a.pl.LyricsFailed() {
+			t.Errorf("pane %v %q: retrying, loaded %v, failed %v", c.pane, c.style, loaded, a.pl.LyricsFailed())
+		}
+	}
+
+	a, tr, _ := quietApp(10 * time.Second)
+	a.pl.FailLyrics()
+	a.quietComment(&tr, nil, true, 10*time.Second)
+	a.pl.SetLyrics(nil)
+	if cm, _ := a.quietComment(&tr, nil, true, 10*time.Second); cm == nil {
+		t.Error("no hot comment for a song without lyrics, once they had failed")
+	}
+}

@@ -25,7 +25,12 @@ func (p *Player) Cue(tracks []netease.Track) {
 
 // SetLyrics gives the current track lines, as loaded.
 func (p *Player) SetLyrics(lines []lyrics.Line) {
-	p.lyrics, p.lyricsLoaded = lines, true
+	p.lyrics, p.lyricsLoaded, p.lyricsFailed = lines, true, false
+}
+
+// FailLyrics makes the current track's lyrics as failed to come.
+func (p *Player) FailLyrics() {
+	p.lyrics, p.lyricsLoaded, p.lyricsFailed = nil, true, true
 }
 
 // Hold makes the player play at pos with nothing to play: its position

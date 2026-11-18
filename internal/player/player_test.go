@@ -232,8 +232,8 @@ func TestEndRadio(t *testing.T) {
 
 // offline is a player of three tracks whose songURL is f, for the tests
 // of tracks that fail to load; settle runs what it posts until the
-// current track has loaded or failed.
-func offline(t *testing.T, f func(int64, string) (*netease.Stream, error)) (p *Player, settle func()) {
+// current track has loaded or failed, and until until done says so.
+func offline(t *testing.T, f func(int64, string) (*netease.Stream, error)) (p *Player, settle func(), until func(done func() bool)) {
 	t.Helper()
 	prev := songURL
 	songURL = f
@@ -242,12 +242,13 @@ func offline(t *testing.T, f func(int64, string) (*netease.Stream, error)) (p *P
 	p = New(func(fn func()) { ch <- fn })
 	p.queue = []netease.Track{{ID: 1, Name: "一"}, {ID: 2, Name: "二"}, {ID: 3, Name: "三"}}
 	p.order = []int{0, 1, 2}
-	return p, func() {
+	until = func(done func() bool) {
 		t.Helper()
-		for p.loading {
+		for !done() {
 			next(t, ch)
 		}
 	}
+	return p, func() { t.Helper(); until(func() bool { return !p.loading }) }, until
 }
 
 // dialError is how a request fails with no network.
@@ -262,7 +263,7 @@ func dialError() error {
 // at 0:00, and saved that over the session.
 func TestNetworkErrorKeepsTheTrack(t *testing.T) {
 	asked := 0
-	p, settle := offline(t, func(int64, string) (*netease.Stream, error) {
+	p, settle, _ := offline(t, func(int64, string) (*netease.Stream, error) {
 		asked++
 		return nil, dialError()
 	})
@@ -283,7 +284,7 @@ func TestNetworkErrorKeepsTheTrack(t *testing.T) {
 // A track that can't play is still skipped, and so is one NetEase won't
 // stream; a refusal, like the network, stops on the track it reached.
 func TestUnplayableSkipsAndRefusalStays(t *testing.T) {
-	p, settle := offline(t, func(id int64, _ string) (*netease.Stream, error) {
+	p, settle, _ := offline(t, func(id int64, _ string) (*netease.Stream, error) {
 		if id == 1 {
 			return nil, netease.ErrUnavailable
 		}
@@ -309,7 +310,7 @@ func TestCutStreamStays(t *testing.T) {
 		w.Write([]byte("ID3")) // and then the connection drops
 	}))
 	defer srv.Close()
-	p, settle := offline(t, func(id int64, _ string) (*netease.Stream, error) {
+	p, settle, _ := offline(t, func(id int64, _ string) (*netease.Stream, error) {
 		path := "/cut"
 		if id == 1 {
 			path = "/gone"
@@ -320,5 +321,41 @@ func TestCutStreamStays(t *testing.T) {
 	settle()
 	if p.Current().ID != 2 || p.Playing() || p.Err() == "" {
 		t.Fatalf("track %d, playing %v, err %q", p.Current().ID, p.Playing(), p.Err())
+	}
+}
+
+// Lyrics that fail to come are asked for once more, a little later, and
+// then the player says they failed, rather than that the song has none;
+// asking again fetches them. A failure used to read as a song without
+// lyrics, 纯音乐，请欣赏, until the song was played again.
+func TestLyricsFailureIsNotNone(t *testing.T) {
+	asked, back := 0, false
+	prevFetch, prevAgain := fetchLyrics, lyricsAgain
+	defer func() { fetchLyrics, lyricsAgain = prevFetch, prevAgain }()
+	fetchLyrics = func(int64) (netease.LyricTexts, error) {
+		asked++
+		if back {
+			return netease.LyricTexts{LRC: "[00:01.00]回来了"}, nil
+		}
+		return netease.LyricTexts{}, dialError()
+	}
+	lyricsAgain = time.Millisecond
+	p, _, until := offline(t, func(int64, string) (*netease.Stream, error) { return nil, dialError() })
+	loaded := func() bool { _, ok := p.Lyrics(); return ok }
+
+	p.load(0)
+	until(loaded)
+	if lines, _ := p.Lyrics(); asked != 2 || !p.LyricsFailed() || len(lines) != 0 {
+		t.Fatalf("asked %d times, failed %v, %d lines", asked, p.LyricsFailed(), len(lines))
+	}
+
+	back = true
+	p.RetryLyrics()
+	if loaded() || p.LyricsFailed() {
+		t.Fatal("retrying: still shown as failed")
+	}
+	until(loaded)
+	if lines, _ := p.Lyrics(); asked != 3 || p.LyricsFailed() || len(lines) != 1 {
+		t.Fatalf("after retrying: asked %d times, failed %v, %d lines", asked, p.LyricsFailed(), len(lines))
 	}
 }
