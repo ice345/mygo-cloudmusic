@@ -321,3 +321,35 @@ func TestSpreadWordsKeepsSpaces(t *testing.T) {
 		}
 	}
 }
+
+// Two timed lines at one time are a line and its translation, as uploads
+// without a translation of their own write them: of the two, the Chinese
+// one is the translation, and a translation sent apart comes first. The
+// first line lasted no time and was never the line sung, while the other,
+// often the translation, was sung in its place, as Japanese.
+func TestLinesAtOneTimeAreALineAndItsTranslation(t *testing.T) {
+	lines := Build(Source{LRC: "[00:00.00]作词 : 某人\n[00:00.00]作曲 : 某人\n" +
+		"[00:10.00]日本語の歌詞\n[00:10.00]日语的歌词\n" +
+		"[00:15.00]中文翻译在前\n[00:15.00]訳が先の行\n" +
+		"[00:20.00]次の行"})
+	if len(lines) != 5 {
+		t.Fatalf("%d lines: %+v", len(lines), lines)
+	}
+	if lines[0].Text != "作词 : 某人" || lines[1].Text != "作曲 : 某人" {
+		t.Errorf("credits %q, %q", lines[0].Text, lines[1].Text)
+	}
+	for i, want := range [][2]string{{"日本語の歌詞", "日语的歌词"}, {"訳が先の行", "中文翻译在前"}} {
+		l := lines[2+i]
+		if l.Text != want[0] || l.Translation != want[1] || l.End <= l.At || l.Lang != "ja" {
+			t.Errorf("line %d: %q, translation %q, %v to %v, lang %q", 2+i, l.Text, l.Translation, l.At, l.End, l.Lang)
+		}
+	}
+	if i := Index(lines, 11*time.Second); i < 0 || lines[i].Text != "日本語の歌詞" {
+		t.Errorf("sung at 11s: line %d", i)
+	}
+
+	apart := Build(Source{LRC: "[00:10.00]Hello\n[00:10.00]你好\n[00:15.00]Bye", Translation: "[00:10.00]您好"})
+	if len(apart) != 2 || apart[0].Text != "Hello" || apart[0].Translation != "您好" {
+		t.Errorf("with a translation apart: %+v", apart)
+	}
+}

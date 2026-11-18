@@ -144,11 +144,27 @@ func Build(s Source) []Line {
 		lines = parseYRC(s.YRC)
 		wordTimed = len(lines) > 0
 	}
+	// A second timed line at the same time as one is its translation, as
+	// uploads without a translation of their own write it: of the two, the
+	// one in Chinese, if only one is. Credits are left as they are.
+	var embedded []string
 	if len(lines) == 0 {
 		for _, l := range parseLRC(s.LRC) {
-			if l.Text != "" {
-				lines = append(lines, l)
+			if l.Text == "" {
+				continue
 			}
+			if n := len(lines); n > 0 && lines[n-1].At == l.At && !IsCredit(l.Text) && !IsCredit(lines[n-1].Text) {
+				if hanOnly(lines[n-1].Text) && !hanOnly(l.Text) {
+					lines[n-1].Text, l.Text = l.Text, lines[n-1].Text
+				}
+				if embedded[n-1] != "" {
+					embedded[n-1] += " "
+				}
+				embedded[n-1] += l.Text
+				continue
+			}
+			lines = append(lines, l)
+			embedded = append(embedded, "")
 		}
 		for i := range lines {
 			end := lines[i].At + 6*time.Second
@@ -175,6 +191,9 @@ func Build(s Source) []Line {
 		}
 		if t == "" {
 			t = ltr[i]
+		}
+		if t == "" && embedded != nil {
+			t = embedded[i]
 		}
 		if hanOnly(lines[i].Text) {
 			if lrd[i] != "" {
