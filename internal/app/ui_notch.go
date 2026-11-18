@@ -277,16 +277,25 @@ func (n *notch) target() (w, h float32) {
 	}
 }
 
-// strip is how far the lyrics hang under the housing: nothing while the
-// card is open, while another app has the notch, or when there is no line
-// to show, including the outro.
-func (n *notch) strip() float32 {
+// stripSize is how far the lyrics hang under the housing while there is a
+// line to show: nothing while the card is open, while another app has the
+// notch, or with them turned off.
+func (n *notch) stripSize() float32 {
 	if n.neighbor != "" || n.open || !n.a.settings.Notch {
 		return 0
 	}
 	switch n.a.settings.NotchLyrics {
 	case 1, 2, 3:
-	default:
+		return []float32{0, 28, 50, 72}[n.a.settings.NotchLyrics]
+	}
+	return 0
+}
+
+// strip is how far the lyrics hang under the housing now: stripSize, but
+// nothing when there is no line to show, in the intro and the outro too.
+func (n *notch) strip() float32 {
+	size := n.stripSize()
+	if size == 0 {
 		return 0
 	}
 	lines, _ := n.a.pl.Lyrics()
@@ -298,7 +307,22 @@ func (n *notch) strip() float32 {
 	if cur < 0 || pos >= lines[len(lines)-1].End {
 		return 0
 	}
-	return []float32{0, 28, 50, 72}[n.a.settings.NotchLyrics]
+	return size
+}
+
+// stripTurn returns how long after pos the lyrics under the notch next
+// come in or go: as the first line starts, and as the last one ends. ok is
+// false when neither is still to come.
+func stripTurn(lines []lyrics.Line, pos time.Duration) (d time.Duration, ok bool) {
+	switch {
+	case len(lines) == 0:
+		return 0, false
+	case pos < lines[0].At:
+		return lines[0].At - pos, true
+	case pos < lines[len(lines)-1].End:
+		return lines[len(lines)-1].End - pos, true
+	}
+	return 0, false
 }
 
 // cursorPoint is where the pointer is on the screen.
@@ -630,11 +654,18 @@ type stripRow struct {
 // lyricStrip draws the lines hanging under the housing, as wide as its
 // head, clipped by the shell. The pointer over them fades them.
 func (n *notch) lyricStrip(c *ui.Context, w, shown float32) {
+	lines, _ := n.a.pl.Lyrics()
+	pos := n.a.pl.Position()
+	// Nothing else builds the notch as the first line comes or the last
+	// one ends, so the strip asks for those moments itself.
+	if n.stripSize() > 0 && n.a.pl.Playing() {
+		if d, ok := stripTurn(lines, pos); ok {
+			c.After(d)
+		}
+	}
 	if shown < 0.02 || n.strip() <= 0 {
 		return
 	}
-	lines, _ := n.a.pl.Lyrics()
-	pos := n.a.pl.Position()
 	cur := lyrics.Index(lines, pos)
 	if cur < 0 || cur >= len(lines) {
 		return

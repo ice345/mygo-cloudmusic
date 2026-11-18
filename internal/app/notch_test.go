@@ -332,3 +332,43 @@ func TestFirstUseFrames(t *testing.T) {
 	main.Frame()
 	save("pickup-bar", main)
 }
+
+// The lyrics under the notch are built again when the first line comes,
+// after an intro, and when the last line ends, before an outro. Nothing
+// asked for those moments, so the strip came in late, on some other
+// change, and stayed through the outro.
+func TestNotchStripComesAndGoesOnTime(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		hold, at time.Duration // where playback is, and when the strip changes
+	}{
+		{"intro", 2 * time.Second, 10 * time.Second},
+		{"outro", 14 * time.Second, 16 * time.Second},
+	} {
+		a := newTestApp()
+		a.settings = defaultSettings()
+		a.settings.Notch = true
+		a.settings.NotchLyrics = 1
+		n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
+		a.notch = n
+		a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 60000}})
+		a.pl.SetLyrics([]lyrics.Line{{
+			At: 10 * time.Second, End: 16 * time.Second, Text: "风在吹",
+			Words: []lyrics.Word{{Text: "风在吹", Start: 10 * time.Second, End: 13 * time.Second}},
+		}})
+		a.pl.Hold(c.hold)
+		builds := 0
+		tt := ui.NewTester(func(ctx *ui.Context) { builds++; n.view(ctx) }, int(n.winW), int(n.winH))
+		tt.Frame()
+		tt.Advance(time.Second)
+		before := builds
+		tt.Advance(c.at - c.hold - time.Second - 100*time.Millisecond)
+		if builds != before {
+			t.Errorf("%s: built %d times before the strip changes", c.name, builds-before)
+		}
+		tt.Advance(200 * time.Millisecond)
+		if builds == before {
+			t.Errorf("%s: not built as the strip changes", c.name)
+		}
+	}
+}
