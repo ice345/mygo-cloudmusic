@@ -72,7 +72,9 @@ func parseLRC(lrc string) []Line {
 
 var (
 	yrcLine = regexp.MustCompile(`^\[(\d+),(\d+)\]`)
-	yrcWord = regexp.MustCompile(`\((\d+),(\d+),\d+\)([^(]*)`)
+	// yrcTime is a word's time. Its text runs to the next word's time, and
+	// may hold parentheses of its own, as a backing vocal's "(oh" does.
+	yrcTime = regexp.MustCompile(`\((\d+),(\d+),\d+\)`)
 )
 
 // parseYRC reads NetEase's word-timed lyrics: a line is
@@ -91,9 +93,15 @@ func parseYRC(yrc string) []Line {
 		}
 		l := Line{At: ms(m[1]), Timed: true}
 		l.End = l.At + ms(m[2])
-		for _, w := range yrcWord.FindAllStringSubmatch(raw[len(m[0]):], -1) {
-			start := ms(w[1])
-			word := Word{Text: w[3], Start: start, End: start + ms(w[2])}
+		body := raw[len(m[0]):]
+		times := yrcTime.FindAllStringSubmatchIndex(body, -1)
+		for k, w := range times {
+			end := len(body)
+			if k+1 < len(times) {
+				end = times[k+1][0]
+			}
+			start := ms(body[w[2]:w[3]])
+			word := Word{Text: body[w[1]:end], Start: start, End: start + ms(body[w[4]:w[5]])}
 			if strings.TrimSpace(word.Text) == "" {
 				// A space between words: it belongs to the word before.
 				if n := len(l.Words); n > 0 {

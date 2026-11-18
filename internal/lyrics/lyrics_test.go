@@ -1,6 +1,7 @@
 package lyrics
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -278,5 +279,29 @@ func TestReadingName(t *testing.T) {
 		if got := ReadingName(c.lines); got != c.want {
 			t.Errorf("ReadingName(%q) = %q, want %q", c.lines[0].Reading, got, c.want)
 		}
+	}
+}
+
+// A word-timed word keeps its parentheses, as backing vocals are written.
+// A word's text used to stop at the first "(", so "(oh" and "(Ah)" were
+// lost, and the space before them stuck to the word before.
+func TestWordTimedLineKeepsParentheses(t *testing.T) {
+	lines := Build(Source{YRC: "[1000,3000](1000,500,0)I (1500,500,0)love (2000,400,0)(oh(2400,400,0) yeah)(2800,500,0) you\n" +
+		"[5000,2000](5000,500,0)(Ah)(5500,500,0) 你好"})
+	if len(lines) != 2 {
+		t.Fatalf("%d lines: %+v", len(lines), lines)
+	}
+	if got := lines[0].Text; got != "I love (oh yeah) you" {
+		t.Errorf("text %q", got)
+	}
+	var words []string
+	for _, w := range lines[0].Words {
+		words = append(words, w.Text)
+	}
+	if want := []string{"I ", "love ", "(oh", " yeah)", " you"}; strings.Join(words, "|") != strings.Join(want, "|") {
+		t.Errorf("words %q", words)
+	}
+	if got := lines[1].Text; got != "(Ah) 你好" {
+		t.Errorf("second line %q", got)
 	}
 }
