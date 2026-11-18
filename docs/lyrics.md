@@ -69,6 +69,16 @@ Reading sits above translation everywhere. The weight between them does not: tha
 6. Both reach 4.5:1 contrast against the lightest backdrop under them.
 7. Two balanced rows at most, never broken inside a word; Korean breaks only at spaces.
 
+## Podcast captions
+
+Episodes get captions written on the device, set like lyrics in the 字幕 tab (`ui_captions.go`, `captions.go`, `internal/speech`). The listener downloads the 语音识别模型 once, from 下载模型 in that tab or in settings under 播客字幕. That download is Qwen3-ASR's model from its own sources, and sherpa-onnx's libraries and Silero's voice detector from this repository's `sherpa-onnx-2.0.1` prerelease (`internal/speech/natives.go`; how they are made is in `RELEASING.md`). Each file is checked against its digest. The lines come from `speech.Lines`; they have no words, translation or reading.
+
+> **Pending verification.** The libraries moved to this repository in `b57aaa2`, and 0.1.27 shipped without trying them on a Mac: no Mac was available. On Linux every file was downloaded anonymously and matched its digest, and the macOS libraries were checked to carry sherpa-onnx's ad-hoc signatures, which this repository's ad-hoc-signed builds load. No macOS build has loaded them yet. This blocks 0.1.28 ([`roadmap.md`](roadmap.md#2-before-0128-blocks-the-release) §2). On a Mac, Apple silicon and Intel if both are at hand:
+>
+> 1. In 0.1.27's build, with no model downloaded, open settings and press 下载模型: the download finishes without 「下载失败，请检查网络后重试」.
+> 2. Turn on 播客字幕 and play an episode: captions appear in its 字幕 tab within a minute, and follow playback.
+> 3. Quit and open the app again: the model and libraries are not downloaded again.
+
 ## Not doing
 
 - **Furigana.** NetEase doesn't send it, and it would need a Japanese dictionary and ruby layout, which MyGo doesn't have.

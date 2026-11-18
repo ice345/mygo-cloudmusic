@@ -53,6 +53,8 @@ The shape springs between sizes. The lyrics ask for a frame every 40 ms while a 
 
 ## On a Mac, before a release
 
+> **Pending verification.** None of these was done for 0.1.27: no Mac was available, so it shipped with the notch fixes (`c122424`) and making way for other apps (`43ace64`) checked only by tests on Linux and macOS CI, which have no notch, no pointer and no other apps. They block 0.1.28 ([`roadmap.md`](roadmap.md#2-before-0128-blocks-the-release) §2). Write the result there when they are done.
+
 1. Turn the notch on. Rest on it: the card opens. Move down onto the card and press pause, next and the scrubber: each works, and the card stays open.
 2. Reset `notchGreeted` and `notch` in settings.json, play a song: the greeting shows. Click 开启.
 3. Set 刘海歌词 to 2 行 and 3 行, with 翻译 and 音译 on and off. Rest on the lyrics: nothing opens, they fade, and a click reaches the window under them. Rest on the housing: the card opens.
