@@ -28,7 +28,7 @@ Folia is [chthollyphile/folia-major](https://github.com/chthollyphile/folia-majo
 `stage` (`ui_stage.go`) takes the lines and the position:
 
 - **No lines.** A skeleton while loading, else 「纯音乐，请欣赏」.
-- **The line before** fades over the first 0.4 s of the next.
+- **The line before** fades over the first 0.4 s of the next, unless a long break came between them (`breakBefore`): then it went with the break and stays gone.
 - **A long break**, when the next line is more than 4 s after this one ends and playback is more than 1 s past its end: the interlude takes the stage. 青鸟 has its own test and draws a hairline instead.
 - **Hot comments.** With 热评 on, a hot comment takes the middle in a quiet part, the lyrics dimmed under it (`ui_quiet.go`). 青鸟 never shows one.
 - **Sparks.** 火花 throws sparks off each word as it lands, for 流光 and 倾诉. The menu disables it while 青鸟 is chosen and keeps the setting.
@@ -61,7 +61,7 @@ A line forms whole out of a mist and stays still. Its reading sits under it, and
 
 **Backdrop.** While 青鸟 shows, the backdrop takes its "glass" tone (`glassColors`, `backdrop.go`). The cover's hue moves 70% of the way to 192°, at saturation 0.20 at the top and 0.24 at the foot, and value 0.40 and 0.25. The cover's wash drops to 0.06, and a light falls at 135° from 8% white to nothing by 55%. A grey cover stays grey. The fog takes the same tone.
 
-Known defects, on the roadmap: the answer arrives before the line has formed and sits left of centre; the captions are below 4.5:1; the line breaks inside words; the line before comes back at the end of a long break; red covers turn mauve and the hue jumps at 12°.
+Known defects, on the roadmap: the answer arrives before the line has formed and sits left of centre; the captions are below 4.5:1; the line breaks inside words; red covers turn mauve and the hue jumps at 12°.
 
 ## The backdrop
 

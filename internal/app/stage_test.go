@@ -325,3 +325,47 @@ func TestTiltSplitsAtPunctuation(t *testing.T) {
 		t.Errorf("split at %d, not after 星，", parts[0].to)
 	}
 }
+
+// After a long break the line before stays gone as the next line comes in,
+// in every style, and so does its translation; with no break it still
+// fades as the next comes. It used to come back for a moment, faint, as
+// the next line began: in 流光, 云阶 and 倾诉 its words for 0.4 s and its
+// translation for 0.12 s, and in 青鸟 the whole line at about a third.
+func TestLineBeforeStaysGoneAfterABreak(t *testing.T) {
+	for _, gap := range []string{"break", "none"} {
+		next := "[00:40.00]"
+		if gap == "none" {
+			next = "[00:16.00]"
+		}
+		lines := lyrics.Build(lyrics.Source{
+			LRC:         "[00:10.00]風が吹く\n" + next + "遠くで息をする\n[00:58.00]終わり",
+			Translation: "[00:10.00]风在吹\n" + next + "远处有人呼吸",
+		})
+		for _, style := range []string{"", "partita", "tilt", "aobird"} {
+			a := newTestApp()
+			a.settings = defaultSettings()
+			a.settings.StageStyle = style
+			a.pl.Cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
+			a.pl.SetLyrics(lines)
+			a.nowPlaying, a.npPane = true, paneStage
+			// Just as the next line comes in: in 青鸟 as it starts to form.
+			pos := lines[1].At + 50*time.Millisecond
+			mark := "風"
+			if style == "aobird" {
+				pos, _ = birdClockOf(&lines[1], false).condense()
+				mark = "風が吹く"
+			}
+			a.pl.Hold(pos)
+			tt := ui.NewTester(a.view, 1200, 800)
+			tt.Frame()
+			_, words := tt.Find(mark)
+			_, translation := tt.Find("风在吹")
+			if gap == "break" && (words || translation) {
+				t.Errorf("style %q after a break: the line before is back (words %v, translation %v)", style, words, translation)
+			}
+			if gap == "none" && !words {
+				t.Errorf("style %q with no break: the line before is gone at once", style)
+			}
+		}
+	}
+}

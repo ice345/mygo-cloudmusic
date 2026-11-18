@@ -81,14 +81,14 @@ func (a *app) birdStage(c *ui.Context, tr *netease.Track, lines []lyrics.Line, l
 			})
 		}
 		if active > 0 {
-			a.birdLine(c, &lines[active-1], &lines[active], pos, w, reduce, false)
+			a.birdLine(c, &lines[active-1], &lines[active], pos, w, reduce)
 		}
 		if active >= 0 {
 			var next *lyrics.Line
 			if active+1 < len(lines) {
 				next = &lines[active+1]
 			}
-			a.birdLine(c, &lines[active], next, pos, w, reduce, true)
+			a.birdLine(c, &lines[active], next, pos, w, reduce)
 		}
 	})
 }
@@ -109,13 +109,15 @@ func birdActive(lines []lyrics.Line, cur int, pos time.Duration, reduce bool) in
 	return cur
 }
 
-// birdLine draws l as it is at pos. The line stays in the middle; its
-// reading and its translation hang below that, so turning them on or off
-// does not move the words. current is the line sung, whose leaving follows
-// the break; the one before leaves as this one forms.
-func (a *app) birdLine(c *ui.Context, l, next *lyrics.Line, pos time.Duration, w float32, reduce, current bool) {
+// birdLine draws l, and next the line after it, as they are at pos. The
+// line stays in the middle; its reading and its translation hang below
+// that, so turning them on or off does not move the words. Before a long
+// break the line leaves with the break, and otherwise as the next one
+// forms. The line before the one sung used to be timed as if no break had
+// come, and came back, faint, as the next line formed.
+func (a *app) birdLine(c *ui.Context, l, next *lyrics.Line, pos time.Duration, w float32, reduce bool) {
 	clock := birdClockOf(l, reduce)
-	long := current && (next == nil || next.At-l.End > 4*time.Second)
+	long := next == nil || next.At-l.End > 4*time.Second
 	text := l.Text
 	cjk := birdCJK(text)
 	font := birdFontZH

@@ -135,8 +135,9 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 	box.Children(func() {
 		defer a.stageQuiet(c, dim, f, w)
 		quietUnder(ui.Box(c.Key("sung")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough(), dim).Children(func() {
-			// The line before goes as the new one comes.
-			if cur > 0 {
+			// The line before goes as the new one comes, unless it went
+			// already, with a break.
+			if cur > 0 && !breakBefore(lines, cur) {
 				gone := float32((pos - lines[cur].At).Seconds()) / 0.4
 				if gone < 1 {
 					a.stageLine(c, &lines[cur-1], pos, f, w, h, 1-easeOutCubic(gone), accent)
@@ -157,6 +158,13 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 	})
 }
 
+// breakBefore reports whether a long break comes before lines[i], as the
+// stage tests for one: then the line before went with it, and does not
+// come back as lines[i] comes in.
+func breakBefore(lines []lyrics.Line, i int) bool {
+	return i > 0 && lines[i].At-lines[i-1].End > 4*time.Second
+}
+
 // stageFoot sets, along the foot of the stage, the reading and the
 // translation of the line sung, and under them the line coming next: in
 // one place and at one size whatever the style, as Folia's shared
@@ -171,7 +179,7 @@ func (a *app) stageFoot(c *ui.Context, lines []lyrics.Line, cur int, pos time.Du
 		since := pos - lines[cur].At
 		longBreak := cur+1 < len(lines) && pos > lines[cur].End+time.Second && lines[cur+1].At-lines[cur].End > 4*time.Second
 		switch {
-		case since < 120*time.Millisecond && cur > 0:
+		case since < 120*time.Millisecond && cur > 0 && !breakBefore(lines, cur):
 			cap = &lines[cur-1]
 			shown = 1 - float32(since)/float32(120*time.Millisecond)
 			fading = true
