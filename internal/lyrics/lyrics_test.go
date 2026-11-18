@@ -52,7 +52,7 @@ func TestSpreadWords(t *testing.T) {
 	for _, x := range w {
 		got = append(got, x.Text)
 	}
-	if len(w) != 4 || got[0] != "我" || got[1] != "爱" || got[2] != "you " || got[3] != "all" {
+	if len(w) != 4 || got[0] != "我" || got[1] != "爱 " || got[2] != "you " || got[3] != "all" {
 		t.Fatalf("words %q", got)
 	}
 	if w[0].Start != 0 || w[3].End > 10*time.Second || w[1].Start != w[0].End {
@@ -303,5 +303,21 @@ func TestWordTimedLineKeepsParentheses(t *testing.T) {
 	}
 	if got := lines[1].Text; got != "(Ah) 你好" {
 		t.Errorf("second line %q", got)
+	}
+}
+
+// A line without word timing keeps every space between its words, after
+// Korean and Chinese too. The space after a character of either was
+// dropped, so a lit Korean line read 너의모든걸원해, and 云阶 split its
+// words in the middle.
+func TestSpreadWordsKeepsSpaces(t *testing.T) {
+	for _, text := range []string{"Baby 너의 모든 걸 원해", "我爱你 直到最后", "風が 吹く Hello"} {
+		var b strings.Builder
+		for _, w := range SpreadWords(text, 0, 10*time.Second) {
+			b.WriteString(w.Text)
+		}
+		if got := strings.TrimSpace(b.String()); got != text {
+			t.Errorf("%q: words make %q", text, got)
+		}
 	}
 }

@@ -412,6 +412,10 @@ func SpreadWords(text string, start, end time.Duration) []Word {
 			if cur.Len() > 0 {
 				cur.WriteRune(' ')
 				flush()
+			} else if n := len(words); n > 0 && !strings.HasSuffix(words[n-1], " ") {
+				// After a character of Chinese, Japanese or Korean: the
+				// space is that character's, as word-timed lyrics give it.
+				words[n-1] += " "
 			}
 		case isCJK(r):
 			flush()
