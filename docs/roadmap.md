@@ -31,20 +31,20 @@ Priorities: **P0** blocks a release. **P1** wrong in normal use. **P2** worth do
 
 ## 3. Lyrics, for 0.1.28
 
-| Item | Pri | Where |
-|---|---|---|
-| Word-timed lines keep words in parentheses, "(oh" and "(Ah)" | P1 | `lyrics.go:75` |
-| Lines without word timing keep the space after Han and Hangul once lit | P1 | `SpreadWords` |
-| The line before doesn't come back after a long break, in every style | P1 | `ui_stage.go:139`, `:174`; `ui_stage_bird.go:105` |
-| The lyrics under the notch come in with the first line and go with the last | P1 | `ui_notch.go:628` |
-| 青鸟's translation arrives after its line, and answers from the right | P1 | `ui_stage_bird.go:136-219` |
-| Two LRC lines at one time: one line with its translation, and keys by index | P2 | `lyrics.Build`, `ui_stage.go:280` |
-| `Lang` on the line's own text in 歌词, not on its row | P2 | `ui_nowplaying.go:554` |
-| A lyrics request that fails says so, with 重试, and is tried again once | P2 | `player.go:604` |
-| `settings.json` written to a temporary file and renamed | P2 | `settings.go:144` |
-| A cover that failed on the network is asked for again after a while | P2 | `artwork.go:129` |
-| Downloads stop when their track does, and give up when stalled | P2 | `player.go:560`, `stream.go:100` |
-| The notch's levels at 30 frames a second | P2 | `ui_notch.go:513`, `ui_pages.go:449` |
+| Item | Pri | Where | State |
+|---|---|---|---|
+| Word-timed lines keep words in parentheses, "(oh" and "(Ah)" | P1 | `lyrics.go`, `parseYRC` | done, `4d420a3` |
+| Lines without word timing keep the space after Han and Hangul once lit | P1 | `SpreadWords` | done, `4672687` |
+| The line before doesn't come back after a long break, in every style | P1 | `ui_stage.go`, `ui_stage_bird.go` | done, `e465dbd` |
+| The lyrics under the notch come in with the first line and go with the last | P1 | `ui_notch.go`, `lyricStrip` | done, `dcddf48`; on the Mac checklist (§2) |
+| Two LRC lines at one time: one line with its translation, and stage keys that don't collide | P2 | `lyrics.Build`, `lineKey` | done, `b9818c5`, `bb8e33e` |
+| `Lang` on the line's own text in 歌词, not on its row | P2 | `ui_nowplaying.go`, `timedLines` | done, `5bd50ea` |
+| A lyrics request that fails says so, with 重试, and is tried again once | P2 | `player.go`, `loadLyrics`; `lyricsFailedNote` | done, `bce8059` |
+| 青鸟's translation arrives after its line, and answers from the right | P1 | `ui_stage_bird.go`, `birdCaptions` | open: with the typography work (§4) |
+| `settings.json` written to a temporary file and renamed | P2 | `settings.go:144` | open |
+| A cover that failed on the network is asked for again after a while | P2 | `artwork.go:129` | open |
+| Downloads stop when their track does, and give up when stalled | P2 | `player.go`, `stop`; `stream.go` | open |
+| The notch's levels at 30 frames a second | P2 | `ui_notch.go:513`, `ui_pages.go:449` | open |
 
 ## 4. Typography and 青鸟
 
