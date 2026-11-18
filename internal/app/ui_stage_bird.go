@@ -131,7 +131,7 @@ func (a *app) birdLine(c *ui.Context, l, next *lyrics.Line, pos time.Duration, w
 	if op < 0.004 {
 		return
 	}
-	ui.Box(c.Key(l.At)).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Children(func() {
+	ui.Box(c.Key(lineKey(l))).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Children(func() {
 		words := ui.Column(c.Key("words")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Center().
 			Translate(0, dy).Opacity(op)
 		if !reduce && blur > 0.05 {

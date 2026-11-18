@@ -158,6 +158,15 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 	})
 }
 
+// lineKey keys the layer of a line on the stage: by its time, and its text
+// too, as two lines a duet sings at one time are two layers.
+func lineKey(l *lyrics.Line) any {
+	return struct {
+		at   time.Duration
+		text string
+	}{l.At, l.Text}
+}
+
 // breakBefore reports whether a long break comes before lines[i], as the
 // stage tests for one: then the line before went with it, and does not
 // come back as lines[i] comes in.
@@ -215,7 +224,7 @@ func (a *app) stageCaption(c *ui.Context, l *lyrics.Line, shown, w float32) {
 	if reading == "" && translation == "" {
 		return
 	}
-	ui.Column(c.Key(l.At)).AlignItems(ui.Center).Gap(4).MaxWidth(w*0.72).Opacity(shown).Translate(0, 6*(1-shown)).Children(func() {
+	ui.Column(c.Key(lineKey(l))).AlignItems(ui.Center).Gap(4).MaxWidth(w*0.72).Opacity(shown).Translate(0, 6*(1-shown)).Children(func() {
 		first := true
 		row := func(text string) {
 			size, weight, alpha := float32(18), 600, float32(0.72)
@@ -285,7 +294,7 @@ func (a *app) stageLine(c *ui.Context, l *lyrics.Line, pos time.Duration, f, w, 
 	justify := []ui.Align{ui.Start, ui.Center, ui.End}[int(seed)%3]
 	lift := []float32{-0.14, 0, 0.12}[int(seed*2)%3] * h
 
-	ui.Row(c.Key(l.At)).Lang(l.Lang).Absolute().Top(0).Left(0).Right(0).Bottom(0).Padding(0, w*0.1).
+	ui.Row(c.Key(lineKey(l))).Lang(l.Lang).Absolute().Top(0).Left(0).Right(0).Bottom(0).Padding(0, w*0.1).
 		Wrap().Justify(justify).AlignContent(ui.Center).AlignItems(ui.Center).Translate(0, lift).
 		Opacity(fade).PassThrough().Children(func() {
 		for i, word := range l.Words {

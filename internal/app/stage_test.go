@@ -369,3 +369,30 @@ func TestLineBeforeStaysGoneAfterABreak(t *testing.T) {
 		}
 	}
 }
+
+// Two lines sung at one time, as a duet's are, both show on the stage, in
+// every style. Their layers were keyed by time alone, so the two shared
+// one, which MyGo stops on in tests.
+func TestStageLinesAtOneTime(t *testing.T) {
+	lines := lyrics.Build(lyrics.Source{YRC: "[10000,4000](10000,2000,0)Hello(12000,2000,0) world\n" +
+		"[10000,4000](10000,2000,0)Bonjour(12000,2000,0) monde\n[20000,2000](20000,2000,0)Bye"})
+	for _, style := range []string{"", "partita", "tilt", "aobird"} {
+		a := newTestApp()
+		a.settings = defaultSettings()
+		a.settings.StageStyle = style
+		a.pl.Cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
+		a.pl.SetLyrics(lines)
+		a.nowPlaying, a.npPane = true, paneStage
+		// The first still fading as the second comes in, in the styles
+		// where one line fades as the next comes.
+		a.pl.Hold(10100 * time.Millisecond)
+		tt := ui.NewTester(a.view, 1200, 800)
+		tt.Frame()
+		marks := map[string][]string{"": {"Hello", "Bonjour"}, "partita": {"Hello", "Bonjour"}, "tilt": {"H", "j"}, "aobird": {"Bonjour monde"}}[style]
+		for _, mark := range marks {
+			if _, ok := tt.Find(mark); !ok {
+				t.Errorf("style %q: %s is not shown", style, mark)
+			}
+		}
+	}
+}

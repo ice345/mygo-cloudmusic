@@ -18,7 +18,7 @@ Folia is [chthollyphile/folia-major](https://github.com/chthollyphile/folia-majo
 ## What every change must keep
 
 1. **The stage is a function of where playback is.** Every opacity, blur and offset is worked out from `pl.Position()` and the lines: no state, no timers. Seeking lands on the frame playing would show, and pausing freezes it.
-2. **A line is one layer over the whole stage, keyed by its time** (`c.Key(l.At)`), so the line going and the line coming can overlap while one fades. Stateful widgets get a key before they are built. Never store a `ui.Element`.
+2. **A line is one layer over the whole stage, keyed by its time and its text** (`lineKey`), so the line going and the line coming can overlap while one fades, and two lines a duet sings at one time are two layers. Stateful widgets get a key before they are built. Never store a `ui.Element`.
 3. **Nothing moves because something else changed.** Turning the translation or reading on or off, or a line without them, must not move the words. Anchor at the edge that shouldn't move: the foot band is anchored at its bottom, so it grows upward. `TestStageWordsStayWhenTheCaptionChanges` checks this for each style it lists; add new styles to it.
 4. **Frames only while something changes.** `c.AnimationFrame()` while something visibly moves; otherwise `c.After(d)` until the next change. Budgets live in `internal/app/perf_test.go`: between lines, at most 12 frames a second for every style (`TestNowPlayingFrameBudget`), and at most 1 for 青鸟 once a line has formed and in breaks (`TestBirdFrameBudget`). A new animated surface gets a budget.
 5. **Reduce Motion** (`c.Preferences().ReduceMotion`) turns movement into fades.
