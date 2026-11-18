@@ -2,7 +2,10 @@ package app
 
 import (
 	"fmt"
+	"image/png"
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -102,5 +105,42 @@ func TestLyricRowsKeepTheLitLine(t *testing.T) {
 	}
 	if d := math.Abs(float64(r1.Y - r0.Y)); d > 4 {
 		t.Fatalf("the lit line moved by %.1f", d)
+	}
+}
+
+// With NM_FRAMES set, saves 歌词 with a Japanese song's reading and
+// translation on, to look at: the line in Japanese forms (直, 骨, 角), the
+// translation in Chinese ones.
+func TestLyricListFrames(t *testing.T) {
+	dir := os.Getenv("NM_FRAMES")
+	if dir == "" {
+		t.Skip()
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.settings.LyricRoman = true
+	a.pl.Cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
+	a.pl.SetLyrics(lyrics.Build(lyrics.Source{
+		LRC:         "[00:10.00]真っ直ぐな骨の角まで\n[00:16.00]風が吹く\n[00:22.00]遠くで息をする",
+		Translation: "[00:10.00]直到骨头的棱角\n[00:16.00]风在吹\n[00:22.00]远处有人呼吸",
+		Reading:     "[00:10.00]ma s su gu na ho ne no ka do ma de\n[00:16.00]ka ze ga fu ku\n[00:22.00]to o ku de i ki wo su ru",
+	}))
+	a.nowPlaying, a.npPane = true, paneLyrics
+	a.pl.Hold(17 * time.Second)
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.SetDark(true)
+	tt.Frame()
+	tt.Advance(2 * time.Second)
+	tt.Frame()
+	f, err := os.Create(filepath.Join(dir, "lyrics-ja.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, tt.Image()); err != nil {
+		t.Fatal(err)
 	}
 }
