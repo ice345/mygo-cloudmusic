@@ -535,6 +535,14 @@ func (a *app) lyricsPane(c *ui.Context, tr *netease.Track, h float32) {
 	a.timedLines(c, scroll, lines, pos, cur, lag, linesStyle{size: 30, weight: 800, lineHeight: 1.25, quiet: quiet}, nil)
 }
 
+// The 歌词 list's captions, under the line sung: the reading quieter than
+// the translation, both reading at 4.5:1 or more over the backdrop
+// (TestCaptionsReadOverTheBackdrop). The other lines fade, captions too.
+var (
+	listReading     = white.Alpha(0.80)
+	listTranslation = white.Alpha(0.86)
+)
+
 // lyricRows are which extra rows the lines are showing.
 type lyricRows struct{ translation, reading bool }
 
@@ -592,11 +600,12 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 				line.Children(func() {
 					// The line fades as a pose, in frames that only paint, rather
 					// than building the view at the display's rate as it does.
-					text := ui.Column(c).AlignItems(ui.Start).Gap(6)
+					text := ui.Column(c).AlignItems(ui.Start)
 					text.AnimatePose(ui.Pose{Fade: 1 - alpha}, ui.Animation{Duration: 380 * time.Millisecond})
-					// The line in its own language; its reading and translation
-					// in the app's, as everywhere else. On the row, the language
-					// drew a Japanese line's Chinese translation as Japanese.
+					// The line in its own language; its reading, Latin, close under
+					// it, and its translation, Simplified Chinese, a group of its
+					// own. On the row, the language drew a Japanese line's Chinese
+					// translation as Japanese.
 					text.Children(func() {
 						if on && len(l.Words) > 0 {
 							// The line sung lights up word by word as it is sung.
@@ -614,10 +623,10 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 							ui.Text(c, l.Text).Lang(l.Lang).FontSize(st.size).FontWeight(st.weight).LineHeight(st.lineHeight).LetterSpacing(-0.4).TextColor(white)
 						}
 						if reading := a.lyricReading(l); reading != "" {
-							ui.Text(c, reading).FontSize(17).FontWeight(500).TextColor(white.Alpha(0.55))
+							ui.Text(c, reading).FontSize(max(15, st.size*0.34)).FontWeight(500).TextColor(listReading).Margin(st.size*0.1, 0, 0, 0)
 						}
 						if translation := a.lyricTranslation(l); translation != "" {
-							ui.Text(c, translation).FontSize(17).FontWeight(600).TextColor(white.Alpha(0.7))
+							ui.Text(c, translation).Lang("zh-Hans").FontSize(max(17, st.size*0.38)).FontWeight(600).TextColor(listTranslation).Margin(st.size*0.35, 0, 0, 0)
 						}
 					})
 				})

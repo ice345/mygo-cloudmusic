@@ -97,7 +97,8 @@ func TestBackdropDriftFrames(t *testing.T) {
 
 // Each surface's reading and translation read at 4.5:1 or more over the
 // lightest still backdrop where they sit: a pale cover of any hue, its
-// wash white. 青鸟's were about 3:1 and 3.7:1 over its glass.
+// wash white. 青鸟's were about 3:1 and 3.7:1 over its glass, and the
+// reading under the line sung in 歌词 about 3:1.
 func TestCaptionsReadOverTheBackdrop(t *testing.T) {
 	type caption struct {
 		name  string
@@ -110,6 +111,10 @@ func TestCaptionsReadOverTheBackdrop(t *testing.T) {
 		caps   []caption
 	}{
 		{"青鸟", toneGlass, 0.35, 0.7, []caption{{"reading", birdBreath}, {"translation", birdAnswer}}},
+		// The foot band, from the shortest window's to the tallest's.
+		{"the foot band", toneDeep, 0.62, 0.88, []caption{{"reading", footReading}, {"translation", footTranslation}}},
+		// Under the line sung, a third of the way down the list.
+		{"歌词", toneDeep, 0.3, 0.7, []caption{{"reading", listReading}, {"translation", listTranslation}}},
 	}
 	cover := image.NewRGBA(image.Rect(0, 0, 48, 48))
 	draw.Draw(cover, cover.Bounds(), &image.Uniform{color.RGBA{255, 255, 255, 255}}, image.Point{}, draw.Src)

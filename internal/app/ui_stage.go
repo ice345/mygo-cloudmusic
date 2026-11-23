@@ -221,31 +221,32 @@ func (a *app) stageFoot(c *ui.Context, lines []lyrics.Line, cur int, pos time.Du
 	})
 }
 
+// The foot band's captions. Each has the style of its role, whatever else
+// shows: the translation the same with the reading on or off, and the
+// reading, Latin, a step quieter. Both read at 4.5:1 or more over the
+// backdrop under them (TestCaptionsReadOverTheBackdrop).
+var (
+	footReading     = white.Alpha(0.70)
+	footTranslation = white.Alpha(0.72)
+)
+
 // stageCaption sets l's reading and translation as rows of the stage's
-// foot, shown as far in as shown: the first at the size the translation
-// always had there, the second a step quieter, as Folia stacks them. Each
-// takes at most two even rows, broken between phrases.
+// foot, shown as far in as shown: the reading over the translation, each
+// in at most two even rows broken between phrases. The translation is
+// Simplified Chinese; the reading takes no language, as Latin.
 func (a *app) stageCaption(c *ui.Context, l *lyrics.Line, shown, w float32) {
 	reading, translation := a.lyricReading(*l), a.lyricTranslation(*l)
 	if reading == "" && translation == "" {
 		return
 	}
 	ui.Column(c.Key(lineKey(l))).AlignItems(ui.Center).Gap(4).MaxWidth(w*0.72).Opacity(shown).Translate(0, 6*(1-shown)).Children(func() {
-		first := true
-		row := func(text string) {
-			size, weight, alpha := float32(18), 600, float32(0.72)
-			if !first {
-				size, weight, alpha = size*0.88, 500, alpha*0.82
-			}
-			first = false
-			rows, _ := breakRows(c, text, "", 2, w*0.72, ui.Span{Size: size, Weight: weight})
-			ui.Text(c, rows).FontSize(size).FontWeight(weight).TextColor(white.Alpha(alpha)).TextAlign(ui.Center).NoWrap()
-		}
 		if reading != "" {
-			row(reading)
+			rows, _ := breakRows(c, reading, "", 2, w*0.72, ui.Span{Size: 16, Weight: 500})
+			ui.Text(c, rows).FontSize(16).FontWeight(500).TextColor(footReading).TextAlign(ui.Center).NoWrap()
 		}
 		if translation != "" {
-			row(translation)
+			rows, _ := breakRows(c, translation, "zh-Hans", 2, w*0.72, ui.Span{Size: 18, Weight: 600})
+			ui.Text(c, rows).Lang("zh-Hans").FontSize(18).FontWeight(600).TextColor(footTranslation).TextAlign(ui.Center).NoWrap()
 		}
 	})
 }

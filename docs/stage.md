@@ -40,7 +40,7 @@ Folia is [chthollyphile/folia-major](https://github.com/chthollyphile/folia-majo
 
 - `Absolute().Left(0).Right(0).Bottom(24)`, centred, passing the pointer through, inside the dimmed `sung` box so a hot comment dims it too.
 - Rows from top to bottom: the reading, the translation, then the next line (14 pt, 32%, one line).
-- The first caption row present is 18 pt, weight 600, 72% white; the second ×0.88 the size, weight 500, ×0.82 the opacity. Each at most 72% of the stage wide, in at most two even rows broken between phrases (`breakRows`, below).
+- The reading is 16 pt, weight 500, white at 70% (`footReading`); the translation 18 pt, weight 600, white at 72% (`footTranslation`), `zh-Hans`, the same with the reading on or off. Each at most 72% of the stage wide, in at most two even rows broken between phrases (`breakRows`, below).
 - One line's captions at a time: the old ones fade over the first 120 ms after the new line's time, and the new ones come in from 120 ms over 250 ms, rising 6 DIP. In a long break they fade over 400 ms with their line.
 
 ## 青鸟

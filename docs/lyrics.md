@@ -56,21 +56,21 @@ Two settings, shared by every surface: `LyricTranslation` (on by default) and `L
 
 | Surface | Code | Reading | Translation |
 |---|---|---|---|
-| 歌词 list | `timedLines`, `ui_nowplaying.go` | 17 pt, 500, 55% | 17 pt, 600, 70% |
-| Foot band of 流光, 云阶 and 倾诉 | `stageFoot`, `stageCaption`, `ui_stage.go` | the first row present is 18 pt, 600, 72%; the second ×0.88 size and ×0.82 opacity | same rule |
+| 歌词 list | `timedLines`, `ui_nowplaying.go` | `max(15, 0.34 ×)` the line's size, 500, white at 80% (`listReading`), `0.1 ×` the line's size under it | `max(17, 0.38 ×)`, 600, white at 86% (`listTranslation`), `zh-Hans`, `0.35 ×` under the line or reading |
+| Foot band of 流光, 云阶 and 倾诉 | `stageFoot`, `stageCaption`, `ui_stage.go` | 16 pt, 500, white at 70% (`footReading`) | 18 pt, 600, white at 72% (`footTranslation`), `zh-Hans` |
 | 青鸟 | `birdCaptions`, `ui_stage_bird.go` | `max(15, 0.34 ×)` the line's size, 400, `#EEF4F6` at 82%, the system sans, close under the line | `max(18, 0.38 ×)`, 400, serif, `zh-Hans`, `#F3EEDF` at 88%, its right edge the line's, 0.4 s after the first word |
 | Under the notch | `withExtra`, `ui_notch.go` | one extra row, in 2- and 3-line modes | only when the reading is off |
 | 选歌 wall, podcast captions | `ui_wall.go`, `ui_captions.go` | none | none |
 
-Reading sits above translation everywhere. The weight between them does not: that is on the roadmap. The agreed direction, not yet built:
+The 歌词 list's captions are those of the line sung; the other lines fade with theirs. The reading sits above the translation everywhere, and every surface keeps these rules:
 
-1. A row's style depends on its role, never on what else is showing.
+1. A row's style depends on its role, never on what else is showing (`TestFootTranslationStaysWhenTheReadingChanges`).
 2. The reading binds tight to its line; the translation is its own group, with more space above it.
 3. The translation is never smaller or fainter than the reading, and never under 18 pt on the stage.
 4. The reading is Latin: the system sans, no `Lang`, about a third of the line's size.
 5. `Lang` goes on the line's own text; the translation is `zh-Hans`.
-6. Both reach 4.5:1 contrast against the lightest backdrop under them.
-7. Two balanced rows at most, never broken inside a word; Korean breaks only at spaces.
+6. Both reach 4.5:1 contrast against the lightest still backdrop under them: a pale cover of any hue (`TestCaptionsReadOverTheBackdrop`). The fog, an experiment that is off by default, is lighter, and they do not reach it there.
+7. Two balanced rows at most, never broken inside a word; Korean breaks only at spaces ([`stage.md`](stage.md#breaking-lines)). On the stage only: the 歌词 list still wraps as MyGo does.
 
 ## Podcast captions
 

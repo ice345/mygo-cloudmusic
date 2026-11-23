@@ -479,3 +479,42 @@ func TestBirdAnswersFromTheRight(t *testing.T) {
 		}
 	}
 }
+
+// In the foot band the translation keeps its size and place with the
+// reading on or off, in every style that has the band: as the second row
+// it shrank and dimmed when 音译 came on.
+func TestFootTranslationStaysWhenTheReadingChanges(t *testing.T) {
+	for _, s := range stageStyles {
+		if s.line == nil {
+			continue // its own captions, no foot band
+		}
+		a := newTestApp()
+		a.settings = defaultSettings()
+		a.settings.StageStyle = s.id
+		a.settings.LyricTranslation = true
+		a.pl.Cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
+		a.pl.SetLyrics(lyrics.Build(lyrics.Source{
+			LRC:         "[00:10.00]風が廊下を渡る\n[00:18.00]遠くで息をする",
+			Translation: "[00:10.00]风穿过走廊\n[00:18.00]远处有人呼吸",
+			Reading:     "[00:10.00]kaze ga rouka o wataru\n[00:18.00]tooku de iki o suru",
+		}))
+		a.nowPlaying, a.npPane = true, paneStage
+		a.pl.Hold(12 * time.Second)
+		tt := ui.NewTester(a.view, 1200, 800)
+		tt.Frame()
+		r0, ok := tt.Find("风穿过走廊")
+		if !ok {
+			t.Fatalf("style %q: the translation is not shown", s.id)
+		}
+		a.settings.LyricRoman = true
+		tt.Frame()
+		r1, ok := tt.Find("风穿过走廊")
+		if _, reading := tt.Find("kaze ga rouka o wataru"); !ok || !reading {
+			t.Fatalf("style %q: translation shown %v, reading shown %v", s.id, ok, reading)
+		}
+		if math.Abs(float64(r1.X-r0.X)) > 0.5 || math.Abs(float64(r1.Y-r0.Y)) > 0.5 ||
+			math.Abs(float64(r1.W-r0.W)) > 0.5 || math.Abs(float64(r1.H-r0.H)) > 0.5 {
+			t.Errorf("style %q: the translation went from %v to %v as the reading came on", s.id, r0, r1)
+		}
+	}
+}
