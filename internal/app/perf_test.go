@@ -159,3 +159,23 @@ func TestBackdropFadeEnds(t *testing.T) {
 		t.Error("the last song's backdrop still fades after the fade")
 	}
 }
+
+// 和鸣 asks for at most 1 frame a second while a word is held, once its
+// line is in focus and the word gold.
+func TestChorusFrameBudget(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.settings.StageStyle = "chorus"
+	tr := netease.Track{ID: 7, Name: "風", Artists: []netease.Artist{{Name: "誰"}}, Duration: 80000}
+	a.pl.Cue([]netease.Track{tr})
+	a.pl.SetLyrics([]lyrics.Line{
+		{At: 0, End: 10 * time.Second, Text: "風が吹く", Timed: true, Words: []lyrics.Word{{Text: "風が吹く", Start: 0, End: 8 * time.Second}}},
+		{At: 30 * time.Second, End: 40 * time.Second, Text: "次", Timed: true, Words: []lyrics.Word{{Text: "次", Start: 30 * time.Second, End: 38 * time.Second}}},
+	})
+	a.pl.Hold(0)
+	a.nowPlaying, a.npPane = true, paneStage
+	tt := ui.NewTester(a.view, 1200, 800)
+	if n := framesAt(a, tt, 3*time.Second); n > 1 {
+		t.Errorf("a word held: %d frames a second", n)
+	}
+}

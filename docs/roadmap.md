@@ -58,9 +58,9 @@ Priorities: **P0** blocks a release. **P1** wrong in normal use. **P2** worth do
 | The 歌词 list broken between phrases too | `timedLines` | open: its width is known only after layout |
 | The captions over the fog, which is lighter than 4.5:1 allows | `fogColors` | open, P3: the fog is an experiment, off by default |
 
-## 5. A style after 『響け！ユーフォニアム』
+## 5. 和鸣, a style after 『響け！ユーフォニアム』, for 0.1.28
 
-A sibling of 青鸟 on the same engine, from what the makers said rather than from impressions: high contrast, a backlight behind the line, rack focus as a line comes in, one gold on the word sung, the translation in unison on the line's axis. Look at its frames on real covers before it ships. Never anything from the works themselves: see the review's §5.
+Done (`ui_stage_chorus.go`, `backdrop_backlit.go`): a sibling of 青鸟 on the shared stage, from what the makers said rather than from impressions, and nothing from the works themselves (the review's §5). High contrast, a backlight behind the line with lights out of focus, a rack focus as each line comes in, one brass gold on the word sung on word-timed lines, the translation in unison on the line's axis; hot comments stay. Its frames were looked at on six real covers on Linux ([`stage.md`](stage.md#和鸣)); they are on the Mac checklist (§2) with the other styles'. The release notes must not name the works.
 
 ## 6. Later
 
@@ -84,4 +84,5 @@ A sibling of 青鸟 on the same engine, from what the makers said rather than fr
 | 2026-11-18 | 0.1.27 ships without the macOS checks, which no Mac was available for; they block 0.1.28. |
 | 2026-11-23 | Line breaks come from BudouX's Japanese and Simplified Chinese models (v0.10.4, Apache-2.0), kept in the repository, read by a port of its parser rather than a Go dependency, whose newest release is v0.1.0's model. |
 | 2026-11-23 | 青鸟's answer ends at the line's right edge; one wider than the line sets out from the line's middle, to the right. Both captions read at 4.5:1 over the lightest glass: the glass went from value 0.40 to 0.36 at the top for it. |
+| 2026-11-23 | The Euphonium sibling is named 和鸣 ("sounding together"), not 余晖 ("afterglow"), which is elegiac: id `chorus`. No sparks, as the gold is its one accent. |
 | 2026-11-23 | Captions by role: in the foot band the translation is 18/600/72% always and the reading 16/500/70%; in 歌词 the reading is closer to its line than the translation. This departs from Folia's "the first row is louder". |

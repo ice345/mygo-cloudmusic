@@ -59,6 +59,7 @@ Two settings, shared by every surface: `LyricTranslation` (on by default) and `L
 | 歌词 list | `timedLines`, `ui_nowplaying.go` | `max(15, 0.34 ×)` the line's size, 500, white at 80% (`listReading`), `0.1 ×` the line's size under it | `max(17, 0.38 ×)`, 600, white at 86% (`listTranslation`), `zh-Hans`, `0.35 ×` under the line or reading |
 | Foot band of 流光, 云阶 and 倾诉 | `stageFoot`, `stageCaption`, `ui_stage.go` | 16 pt, 500, white at 70% (`footReading`) | 18 pt, 600, white at 72% (`footTranslation`), `zh-Hans` |
 | 青鸟 | `birdCaptions`, `ui_stage_bird.go` | `max(15, 0.34 ×)` the line's size, 400, `#EEF4F6` at 82%, the system sans, close under the line | `max(18, 0.38 ×)`, 400, serif, `zh-Hans`, `#F3EEDF` at 88%, its right edge the line's, 0.4 s after the first word |
+| 和鸣 | `chorusCaptions`, `ui_stage_chorus.go` | `max(15, 0.34 ×)` the line's size, 500, white at 84%, close under the line, centred | `max(18, 0.38 ×)`, 600, `#FFF3E2` at 90%, `zh-Hans`, centred, with the line |
 | Under the notch | `stripRows`, `ui_notch.go` | 11.5 pt, 500, 55%: the extra row in 2 行 when the translation is off; in 3 行 with the translation, under the line | 11.5 pt, 500, 62%, `zh-Hans`: the extra row whenever it is on |
 | 选歌 wall, podcast captions | `ui_wall.go`, `ui_captions.go` | none | none |
 

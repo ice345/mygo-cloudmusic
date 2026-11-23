@@ -12,14 +12,15 @@ import (
 	"netease-music-mygo/internal/lyrics"
 )
 
-// The stage sets its lyrics in one of four styles. 流光, 云阶 and 倾诉 are
+// The stage sets its lyrics in one of five styles. 流光, 云阶 and 倾诉 are
 // Folia's (github.com/chthollyphile/folia-major), named as Folia names
 // them: 流光, its classic (ui_stage.go); 云阶, which stacks a line in
 // staggered rows, each springing in as it is sung; and 倾诉, which breaks
 // a line into a few large lines, one of them leaning, its characters
 // swelling as they are sung. 青鸟 is this app's own (ui_stage_bird.go):
 // a line forms whole out of a mist and stays still. It shows no hot
-// comments and throws no sparks.
+// comments and throws no sparks. 和鸣, its sibling (ui_stage_chorus.go),
+// sets a line in full light, lit from behind, its translation in unison.
 
 // A stageStyle is one way the stage sets its lyrics, and all the menu, the
 // stage and Now Playing need to know of it: none of them asks for its id.
@@ -34,6 +35,12 @@ type stageStyle struct {
 	own func(a *app, c *ui.Context, lines []lyrics.Line, loaded bool, pos time.Duration, w, h float32, accent ui.Color)
 	// lead is how long before a word is sung the style starts to show it.
 	lead time.Duration
+	// captions says the style sets the reading and translation with its
+	// line: the foot band then shows only the next line.
+	captions bool
+	// frames asks for the stage's next frame, in place of stageNextFrame,
+	// for a style that moves less than its words.
+	frames func(a *app, c *ui.Context, lines []lyrics.Line, cur int, pos time.Duration)
 	// sparks says 火花 throws sparks in this style.
 	sparks bool
 	// tone is the backdrop's under the style.
@@ -55,6 +62,7 @@ var stageStyles = []stageStyle{
 	{id: "partita", label: "云阶", line: (*app).partitaLine, lead: 80 * time.Millisecond, sparks: true},
 	{id: "tilt", label: "倾诉", line: func(_ *app, c *ui.Context, l *lyrics.Line, at stageAt) { tiltLine(c, l, at) }, lead: tiltLead, sparks: true},
 	{id: "aobird", label: "青鸟", own: (*app).birdStage, tone: toneGlass},
+	{id: "chorus", label: "和鸣", line: (*app).chorusLine, lead: chorusLead, captions: true, frames: (*app).chorusFrames, tone: toneBacklit},
 }
 
 // styleOf returns the style id names. An id it does not know, as a later

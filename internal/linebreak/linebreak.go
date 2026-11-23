@@ -201,3 +201,24 @@ func Rows(pieces []string, n int, limit float32, width func(string) float32) []s
 	}
 	return out
 }
+
+// Starts breaks pieces into rows as Rows does, and returns where each row
+// after the first starts, as byte offsets into the pieces joined: for text
+// set in runs of its own, as words lit one by one are.
+func Starts(pieces []string, n int, limit float32, width func(string) float32) []int {
+	rows := Rows(pieces, n, limit, width)
+	joined := strings.Join(pieces, "")
+	var starts []int
+	at := 0
+	for i, r := range rows {
+		k := strings.Index(joined[at:], r)
+		if k < 0 {
+			break
+		}
+		if i > 0 {
+			starts = append(starts, at+k)
+		}
+		at += k + len(r)
+	}
+	return starts
+}

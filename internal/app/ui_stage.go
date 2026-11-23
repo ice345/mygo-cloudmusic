@@ -131,7 +131,11 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 	// Under a hot comment there is nothing to move: the quiet asks for
 	// the frame where it ends.
 	if pl.Playing() && !(quiet && dim > 0.98) {
-		stageNextFrame(c, lines, cur, pos, style.lead)
+		if style.frames != nil {
+			style.frames(a, c, lines, cur, pos)
+		} else {
+			stageNextFrame(c, lines, cur, pos, style.lead)
+		}
 	}
 	at := stageAt{pos: pos, f: f, w: w, h: h, fade: 1, accent: accent, sparks: style.sparks && a.settings.StageSparks}
 
@@ -158,7 +162,7 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 				style.line(a, c, &lines[cur], at)
 			}
 
-			a.stageFoot(c, lines, cur, pos, w)
+			a.stageFoot(c, lines, cur, pos, w, !style.captions)
 		})
 	})
 }
@@ -185,11 +189,12 @@ func breakBefore(lines []lyrics.Line, i int) bool {
 // subtitle does, so that turning them on or off, or a line without them,
 // moves none of the words above. One line's are there at a time: the
 // last line's go in the first 120 milliseconds of the next, whose come in
-// after them, and in a long break they go with their line.
-func (a *app) stageFoot(c *ui.Context, lines []lyrics.Line, cur int, pos time.Duration, w float32) {
+// after them, and in a long break they go with their line. Without
+// captions, for a style that sets its own, only the next line shows.
+func (a *app) stageFoot(c *ui.Context, lines []lyrics.Line, cur int, pos time.Duration, w float32, captions bool) {
 	var cap *lyrics.Line
 	shown, fading := float32(0), false
-	if cur >= 0 {
+	if cur >= 0 && captions {
 		since := pos - lines[cur].At
 		longBreak := cur+1 < len(lines) && pos > lines[cur].End+time.Second && lines[cur+1].At-lines[cur].End > 4*time.Second
 		switch {

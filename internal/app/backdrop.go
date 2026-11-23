@@ -133,6 +133,9 @@ const (
 	toneDeep backdropTone = iota
 	// toneGlass is 青鸟's: the same picture, paler and cooler.
 	toneGlass
+	// toneBacklit is 和鸣's: the cover's hue deeper still, lit from
+	// behind the line, with lights out of focus around it.
+	toneBacklit
 )
 
 // backdrop paints the backdrop behind Now Playing, still or fog, in tone:
@@ -223,6 +226,10 @@ func (bd *backdropCache) step(now time.Time, playing bool, lv [player.Bands]floa
 // cool glass for every cover, the cover only its light and dark seen from
 // farther away, with a window's light across the top.
 func drawBackdrop(p *ui.Painter, r ui.Rect, art *artwork, tint ui.Color, tone backdropTone) {
+	if tone == toneBacklit {
+		drawBacklit(p, r, art, tint)
+		return
+	}
 	glass := tone == toneGlass
 	top, foot := backdropColors(tint)
 	wash, washed := float32(0.1), (*ui.Bitmap)(nil)

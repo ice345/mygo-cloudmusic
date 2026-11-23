@@ -81,3 +81,13 @@ func TestRowsBreakAfterPunctuation(t *testing.T) {
 		t.Errorf("%q, want %q", rows, want)
 	}
 }
+
+// Starts says where the rows Rows makes start in the text, past the spaces
+// a row ends with.
+func TestStartsAreWhereRowsStart(t *testing.T) {
+	text := "across the quiet water"
+	got := Starts(Phrases(text, ""), 2, 16, chars)
+	if !reflect.DeepEqual(got, []int{11}) || text[11:] != "quiet water" {
+		t.Errorf("starts %v, want [11]", got)
+	}
+}

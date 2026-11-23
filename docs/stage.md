@@ -1,6 +1,6 @@
 # The stage
 
-The stage is Now Playing's 律动 pane: the song's lyrics set large over a backdrop made from its cover, in one of four styles. This file says how it works and what any change to it must keep. When you change a rule here in the code, change it here too.
+The stage is Now Playing's 律动 pane: the song's lyrics set large over a backdrop made from its cover, in one of five styles. This file says how it works and what any change to it must keep. When you change a rule here in the code, change it here too.
 
 ## Styles
 
@@ -12,6 +12,7 @@ The stage is Now Playing's 律动 pane: the song's lyrics set large over a backd
 | `partita` | 云阶 | `partitaLine` (`ui_stage_styles.go`) | Folia: a line in staggered rows, each springing in as it is sung |
 | `tilt` | 倾诉 | `tiltLine` (`ui_stage_styles.go`) | Folia: a few large lines, one leaning, characters swelling as sung |
 | `aobird` | 青鸟 | `birdStage` (`ui_stage_bird.go`) | This app's own: a line forms whole out of a mist and stays still |
+| `chorus` | 和鸣 | `chorusLine` (`ui_stage_chorus.go`) | This app's own, 青鸟's sibling: a line in full light, lit from behind, pulled into focus, one gold word, its translation in unison |
 
 Folia is [chthollyphile/folia-major](https://github.com/chthollyphile/folia-major). An unknown id, as a later version may save, draws as 流光 (`styleOf`).
 
@@ -71,6 +72,23 @@ Without them the system sans draws it. Don't add a family macOS only offers as a
 
 **Backdrop.** While 青鸟 shows, the backdrop takes its tone, `toneGlass` (`backdrop.go`): one glass for every cover. Hue 186° (`glassHue`), saturation 0.20 at the top and 0.24 at the foot, value 0.36 and 0.25 (`glassColors`). The cover shows through only as its light and dark, its grey copy (`artwork.grey`) at 4% (`glassWash`), and a light falls at 135° from 4% white (`glassLight`) to nothing by 55%. The fog takes the same hue. Lighten any of these and the contrast test fails.
 
+## 和鸣
+
+青鸟's sibling, after what the makers of a series about a school band said of its look (the review's §5, in `archive/`): high contrast, light from behind, a shallow depth of field. Where 青鸟's parts answer one another late and off to one side, here they sound together. Nothing of the series itself: no characters, places, instruments, shots, titles or music, in the style, its frames or its release notes.
+
+It shares the stage, so hot comments, interludes, the skeleton and the next line along the foot are the shared ones; it sets its own reading and translation (`captions`) and asks for its own frames (`chorusFrames`).
+
+**Type.** The line is `min(60, max(34, 0.046 w))`, weight 700, the system sans, line height 1.25, in at most two even rows broken between phrases, shrinking to 60% to fit. The reading is `max(15, 0.34 × size)`, 500, white at 84% (`chorusReading`), `0.1 × size` under the line; the translation `max(18, 0.38 × size)`, 600, `#FFF3E2` at 90% (`chorusAnswer`), `zh-Hans`, `0.35 × size` under the line or reading. All three are centred on one axis.
+
+**Motion**, with `s` the first word's start:
+
+- **Rack focus.** A line comes into focus over 0.45 s from `s − 0.15 s`: blur from 12 (scaled by size / 48) to 0, opacity in, from 4% larger. The line before goes out of focus as the stage fades it, over the 0.4 s after the next line's time, to 4% smaller. The captions go with their line.
+- **The gold.** On a line timed word by word (`Line.Timed`), the word being sung is brass gold `#E8BC5A`, turning over 0.12 s and back over 0.3 s once it ends or the next starts (`chorusGoldOf`). A line timed only as a whole has none: its words' times are guesses.
+- **Frames.** At once only while a line comes into focus or leaves it, or a word turns; a held word asks for none (`TestChorusFrameBudget`).
+- **Reduce Motion.** Opacity only, the gold at once.
+
+**Backdrop.** `toneBacklit` (`backdrop_backlit.go`): the cover's hue, saturation 0.5 to 0.75, value 0.24 at the top and 0.12 at the foot, deeper than the usual backdrop; the cover's wash at 7%; a warm light (`#FFE9C8`, 30% toward the cover's hue) behind the line at 20% (`backlitGlow`), 0.84 of the window wide, from a falloff bitmap, since MyGo has no radial gradient; seven soft discs of it out of focus away from the line, placed by the cover's tint; the sides and foot darker. Over the lightest of it the reading reads at 4.92:1, the translation at 4.93:1 and the gold word, large, at 3.34:1 (`TestCaptionsReadOverTheBackdrop`).
+
 ## Breaking lines
 
 MyGo breaks text wherever a row runs out of room, which in Japanese and Chinese is between any two characters. So the stage breaks its own: `breakRows` (`ui_stage.go`) asks `internal/linebreak` for the places a row may end, and draws the rows `NoWrap`, on lines of their own.
@@ -100,4 +118,4 @@ Then:
 
 ## Looking at it
 
-Don't assert on how it looks; look at it. `NM_FRAMES=$TMPDIR/frames go test ./internal/app -run 'Frames'` saves `stage-*.png`, `caption-*.png` and `bird-*.png` (mist, half, formed, answer, leaving, hairline, red, green and grey covers, a fast line, a long line, an English line, no serif). Never commit them.
+Don't assert on how it looks; look at it. `NM_FRAMES=$TMPDIR/frames go test ./internal/app -run 'Frames'` saves `stage-*.png`, `caption-*.png` and `bird-*.png`; with `LIVE` set too, `chorus-covers.png` sets 和鸣 over six real covers (mist, half, formed, answer, leaving, hairline, red, green and grey covers, a fast line, a long line, an English line, no serif). Never commit them.

@@ -103,6 +103,7 @@ func TestCaptionsReadOverTheBackdrop(t *testing.T) {
 	type caption struct {
 		name  string
 		color ui.Color
+		least float64 // the contrast it needs, if not 4.5:1
 	}
 	surfaces := []struct {
 		name   string
@@ -110,11 +111,16 @@ func TestCaptionsReadOverTheBackdrop(t *testing.T) {
 		y0, y1 float64 // where they sit, as parts of the window's height
 		caps   []caption
 	}{
-		{"青鸟", toneGlass, 0.35, 0.7, []caption{{"reading", birdBreath}, {"translation", birdAnswer}}},
+		{"青鸟", toneGlass, 0.35, 0.7, []caption{{"reading", birdBreath, 0}, {"translation", birdAnswer, 0}}},
 		// The foot band, from the shortest window's to the tallest's.
-		{"the foot band", toneDeep, 0.62, 0.88, []caption{{"reading", footReading}, {"translation", footTranslation}}},
+		{"the foot band", toneDeep, 0.62, 0.88, []caption{{"reading", footReading, 0}, {"translation", footTranslation, 0}}},
 		// Under the line sung, a third of the way down the list.
-		{"歌词", toneDeep, 0.3, 0.7, []caption{{"reading", listReading}, {"translation", listTranslation}}},
+		{"歌词", toneDeep, 0.3, 0.7, []caption{{"reading", listReading, 0}, {"translation", listTranslation, 0}}},
+		// Under the line, in the light behind it.
+		{"和鸣", toneBacklit, 0.42, 0.75, []caption{{"reading", chorusReading, 0}, {"translation", chorusAnswer, 0}}},
+		// The line itself, in the middle of the light: large and bold,
+		// its gold word needs 3:1.
+		{"和鸣's line", toneBacklit, 0.36, 0.58, []caption{{"gold word", chorusGold, 3}}},
 	}
 	cover := image.NewRGBA(image.Rect(0, 0, 48, 48))
 	draw.Draw(cover, cover.Bounds(), &image.Uniform{color.RGBA{255, 255, 255, 255}}, image.Point{}, draw.Src)
@@ -157,8 +163,13 @@ func TestCaptionsReadOverTheBackdrop(t *testing.T) {
 			}
 		}
 		for _, cp := range sf.caps {
-			if worst[cp.name] < 4.5 {
-				t.Errorf("%s: the %s reads at %.2f:1 over the lightest backdrop", sf.name, cp.name, worst[cp.name])
+			t.Logf("%s %s %.2f", sf.name, cp.name, worst[cp.name])
+			least := cp.least
+			if least == 0 {
+				least = 4.5
+			}
+			if worst[cp.name] < least {
+				t.Errorf("%s: the %s reads at %.2f:1 over the lightest backdrop, under %.1f:1", sf.name, cp.name, worst[cp.name], least)
 			}
 		}
 	}

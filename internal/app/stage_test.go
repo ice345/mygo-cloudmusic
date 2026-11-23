@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -362,6 +363,8 @@ func TestLineBeforeStaysGoneAfterABreak(t *testing.T) {
 			pos, mark := lines[1].At+50*time.Millisecond, "風"
 			switch style {
 			case "", "partita", "tilt":
+			case "chorus":
+				mark = "風が吹く"
 			case "aobird":
 				pos, _ = birdClockOf(&lines[1], false).condense()
 				mark = "風が吹く"
@@ -402,7 +405,7 @@ func TestStageLinesAtOneTime(t *testing.T) {
 		a.pl.Hold(10100 * time.Millisecond)
 		tt := ui.NewTester(a.view, 1200, 800)
 		tt.Frame()
-		marks, ok := map[string][]string{"": {"Hello", "Bonjour"}, "partita": {"Hello", "Bonjour"}, "tilt": {"H", "j"}, "aobird": {"Bonjour monde"}}[style]
+		marks, ok := map[string][]string{"": {"Hello", "Bonjour"}, "partita": {"Hello", "Bonjour"}, "tilt": {"H", "j"}, "aobird": {"Bonjour monde"}, "chorus": {"Hello world", "Bonjour monde"}}[style]
 		if !ok {
 			t.Fatalf("style %q: say here what of each line it shows", style)
 		}
@@ -485,8 +488,8 @@ func TestBirdAnswersFromTheRight(t *testing.T) {
 // it shrank and dimmed when 音译 came on.
 func TestFootTranslationStaysWhenTheReadingChanges(t *testing.T) {
 	for _, s := range stageStyles {
-		if s.line == nil {
-			continue // its own captions, no foot band
+		if s.line == nil || s.captions {
+			continue // its own captions under its line, no foot band's
 		}
 		a := newTestApp()
 		a.settings = defaultSettings()
@@ -517,4 +520,148 @@ func TestFootTranslationStaysWhenTheReadingChanges(t *testing.T) {
 			t.Errorf("style %q: the translation went from %v to %v as the reading came on", s.id, r0, r1)
 		}
 	}
+}
+
+// On 和鸣 one word is gold at a time, the one being sung, on a line timed
+// word by word, even where words run into each other; it fades once the
+// line is sung, and a line timed only as a whole has none.
+func TestChorusGoldOnTheWordSung(t *testing.T) {
+	sec := func(s float64) time.Duration { return time.Duration(s * float64(time.Second)) }
+	l := lyrics.Line{At: sec(10), End: sec(14), Text: "風が吹く", Timed: true, Words: []lyrics.Word{
+		{Text: "風", Start: sec(10), End: sec(11.2)}, // runs into the next
+		{Text: "が", Start: sec(11), End: sec(12)},
+		{Text: "吹く", Start: sec(12), End: sec(13)},
+	}}
+	for _, c := range []struct {
+		at   time.Duration
+		word int
+	}{{sec(10.5), 0}, {sec(11.5), 1}, {sec(12.6), 2}} {
+		gold := chorusGoldOf(&l, c.at, false)
+		for i, g := range gold {
+			if (i == c.word) != (g >= 0.99) || i != c.word && g > 0 {
+				t.Errorf("at %v: gold %v, want only word %d", c.at, gold, c.word)
+				break
+			}
+		}
+	}
+	for i, g := range chorusGoldOf(&l, sec(13.4), false) {
+		if g > 0 {
+			t.Errorf("after the line: word %d still %.2f gold", i, g)
+		}
+	}
+	l.Timed = false
+	for i, g := range chorusGoldOf(&l, sec(10.5), false) {
+		if g > 0 {
+			t.Errorf("a line timed as a whole: word %d %.2f gold", i, g)
+		}
+	}
+}
+
+// 和鸣's runs break where the rows start, inside a word if a row starts
+// there, without the spaces that end a row.
+func TestChorusRunsBreakWhereRowsDo(t *testing.T) {
+	words := []lyrics.Word{{Text: "across "}, {Text: "the "}, {Text: "quiet "}, {Text: "water"}}
+	got := chorusRuns(words, []int{11})
+	want := []chorusRun{{"across ", 0}, {"the", 1}, {"\n", -1}, {"quiet ", 2}, {"water", 3}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("%+v, want %+v", got, want)
+	}
+	words = []lyrics.Word{{Text: "風が長い"}, {Text: "廊下"}}
+	got = chorusRuns(words, []int{len("風が")})
+	want = []chorusRun{{"風が", 0}, {"\n", -1}, {"長い", 0}, {"廊下", 1}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("%+v, want %+v", got, want)
+	}
+}
+
+// 和鸣 sets the translation under its line on the line's axis, with it as
+// it comes into focus: in unison, where 青鸟's answers late, to the right.
+func TestChorusTranslationInUnison(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.settings.StageStyle = "chorus"
+	a.settings.LyricTranslation = true
+	a.pl.Cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
+	a.pl.SetLyrics([]lyrics.Line{{At: 10 * time.Second, End: 18 * time.Second, Text: "風が廊下を渡る", Lang: "ja", Translation: "风穿过走廊",
+		Words: []lyrics.Word{{Text: "風が廊下を渡る", Start: 10 * time.Second, End: 16 * time.Second}}}})
+	a.nowPlaying, a.npPane = true, paneStage
+	a.pl.Hold(10*time.Second + chorusPull)
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	line, ok := tt.Find("風が廊下を渡る")
+	answer, ok2 := tt.Find("风穿过走廊")
+	if !ok || !ok2 {
+		t.Fatalf("line shown %v, translation shown %v", ok, ok2)
+	}
+	if d := (answer.X + answer.W/2) - (line.X + line.W/2); math.Abs(float64(d)) > 1 || answer.Y < line.Y+line.H {
+		t.Errorf("the translation at %v, off the axis of its line at %v by %.1f, or not under it", answer, line, d)
+	}
+}
+
+// With NM_FRAMES and LIVE set, saves 和鸣 over real covers of many colors,
+// a word gold, with its reading and translation, to look at before it
+// ships.
+func TestChorusFrames(t *testing.T) {
+	dir := os.Getenv("NM_FRAMES")
+	if dir == "" || os.Getenv("LIVE") == "" {
+		t.Skip()
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lines := lyrics.Build(lyrics.Source{
+		YRC:         "[10000,6000](10000,900,0)風が(10900,900,0)廊下を(11800,1200,0)渡る\n[20000,4000](20000,2000,0)遠くで",
+		Translation: "[00:10.00]风穿过走廊\n[00:20.00]在远处",
+		Reading:     "[00:10.00]kaze ga rouka o wataru\n[00:20.00]tooku de",
+	})
+	var shots []image.Image
+	for _, q := range []string{"晴天 周杰伦", "夜に駆ける YOASOBI", "Lemon 米津玄師", "Ditto NewJeans", "富士山下 陈奕迅", "Blinding Lights The Weeknd"} {
+		hits, err := netease.Search(q, 1)
+		if err != nil || len(hits) == 0 {
+			t.Logf("%s: %v", q, err)
+			continue
+		}
+		tr := hits[0]
+		img, err := fetchImage(netease.Sized(tr.Album.PicURL, 600))
+		if err != nil {
+			t.Logf("%s: %v", q, err)
+			continue
+		}
+		blurred := blurImage(img)
+		art := &artwork{bmp: ui.NewBitmap(img), backdrop: ui.NewBitmap(blurred), grey: ui.NewBitmap(greyImage(blurred)), tint: dominantColor(img)}
+		a := newTestApp()
+		a.settings = defaultSettings()
+		a.settings.StageStyle = "chorus"
+		a.settings.LyricRoman, a.settings.LyricTranslation = true, true
+		url := netease.Sized(tr.Album.PicURL, 600)
+		a.art.art[url], a.art.art[url+"#backdrop"] = art, art
+		a.pl.Cue([]netease.Track{tr})
+		a.pl.SetLyrics(lines)
+		a.pl.Hold(11300 * time.Millisecond)
+		a.nowPlaying, a.npPane = true, paneStage
+		tt := ui.NewTester(a.view, 1200, 800)
+		tt.SetDark(true)
+		tt.Advance(time.Second)
+		tt.Frame()
+		shots = append(shots, tt.Image())
+	}
+	if len(shots) == 0 {
+		t.Fatal("no covers")
+	}
+	cw, ch := 600, 400
+	sheet := image.NewRGBA(image.Rect(0, 0, cw*2, ch*((len(shots)+1)/2)))
+	for i, shot := range shots {
+		b := shot.Bounds()
+		for y := range ch {
+			for x := range cw {
+				sheet.Set((i%2)*cw+x, (i/2)*ch+y, shot.At(b.Min.X+x*b.Dx()/cw, b.Min.Y+y*b.Dy()/ch))
+			}
+		}
+	}
+	f, err := os.Create(filepath.Join(dir, "chorus-covers.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	png.Encode(f, sheet)
 }
