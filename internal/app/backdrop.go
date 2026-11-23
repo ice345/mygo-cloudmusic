@@ -115,7 +115,7 @@ type backdropCache struct {
 	art    *artwork
 	tint   ui.Color
 	fog    bool
-	glass  bool      // 青鸟's tone: the same picture, paler and cooler
+	tone   backdropTone
 	at     time.Time // when it was painted
 	drift  float64   // the clouds' time, in seconds, which stops on pause
 	speed  float64   // how fast drift goes: 1 playing, 0 paused
@@ -123,9 +123,21 @@ type backdropCache struct {
 	last   time.Time
 }
 
-// backdrop paints the backdrop behind Now Playing, still or fog. glass is
-// 青鸟's tone of the same picture: a change fades as another song's does.
-func (a *app) backdrop(c *ui.Context, art *artwork, tint ui.Color, glass bool) {
+// backdropTone is how the backdrop paints a cover: in its own hue, deep, or
+// as 青鸟's glass.
+type backdropTone uint8
+
+const (
+	// toneDeep is the cover's hue, deep and rich, so that white reads
+	// over it, as NetEase's player paints it.
+	toneDeep backdropTone = iota
+	// toneGlass is 青鸟's: the same picture, paler and cooler.
+	toneGlass
+)
+
+// backdrop paints the backdrop behind Now Playing, still or fog, in tone:
+// a change of tone fades as another song's does.
+func (a *app) backdrop(c *ui.Context, art *artwork, tint ui.Color, tone backdropTone) {
 	pl := a.pl
 	fog, still := a.settings.Fog, c.Preferences().ReduceMotion
 	ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Draw(func(p *ui.Painter, r ui.Rect) {
@@ -144,27 +156,27 @@ func (a *app) backdrop(c *ui.Context, art *artwork, tint ui.Color, glass bool) {
 			}
 		}
 		now := p.Now()
-		// Another song, or 青鸟's tone: the last picture stays, fading out.
-		tone := bd.art != art || bd.tint != tint || bd.glass != glass
-		if bd.canvas != nil && tone {
+		// Another song, or another tone: the last picture stays, fading out.
+		changed := bd.art != art || bd.tint != tint || bd.tone != tone
+		if bd.canvas != nil && changed {
 			bd.canvas, bd.before, bd.fadeAt = bd.before, bd.canvas, now
 		}
 		moving := fog && gpu && !still
 		lv, live := pl.Levels()
 		moved := bd.step(now, pl.Playing() && moving, lv, live && moving)
 		due := now.Sub(bd.at) >= backdropFrame-2*time.Millisecond
-		if bd.canvas == nil || tone || bd.fog != fog || moved && due {
+		if bd.canvas == nil || changed || bd.fog != fog || moved && due {
 			if bd.canvas == nil {
 				bd.canvas = ui.NewCanvas(cw, ch)
 			}
-			bd.art, bd.tint, bd.fog, bd.glass, bd.at = art, tint, fog, glass, now
+			bd.art, bd.tint, bd.fog, bd.tone, bd.at = art, tint, fog, tone, now
 			bass := bd.level.group(0, 6)
 			bd.canvas.Draw(p, func(cp *ui.Painter) {
 				box := ui.Rect{W: float32(cw), H: float32(ch)}
 				if fog {
-					drawFog(cp, box, tint, float32(bd.drift), bass, glass)
+					drawFog(cp, box, tint, float32(bd.drift), bass, tone)
 				} else {
-					drawBackdrop(cp, box, art, tint, glass)
+					drawBackdrop(cp, box, art, tint, tone)
 				}
 			})
 		}
@@ -207,10 +219,11 @@ func (bd *backdropCache) step(now time.Time, playing bool, lv [player.Bands]floa
 	return bd.speed > 0 || bd.level.group(0, 6) > 0.004
 }
 
-// drawBackdrop paints the still backdrop in r. glass is 青鸟's tone: the
-// hue moved toward aqua, paler, with the cover seen from farther away
+// drawBackdrop paints the still backdrop in r, in tone. 青鸟's glass has
+// the hue moved toward aqua, paler, with the cover seen from farther away
 // and a window's light across the top.
-func drawBackdrop(p *ui.Painter, r ui.Rect, art *artwork, tint ui.Color, glass bool) {
+func drawBackdrop(p *ui.Painter, r ui.Rect, art *artwork, tint ui.Color, tone backdropTone) {
+	glass := tone == toneGlass
 	top, foot := backdropColors(tint)
 	wash := float32(0.1)
 	if glass {
@@ -277,19 +290,19 @@ func backdropColors(tint ui.Color) (top, foot ui.Color) {
 }
 
 // drawFog paints the fog of tint in r at drift seconds, lit by bass.
-func drawFog(p *ui.Painter, r ui.Rect, tint ui.Color, drift, bass float32, glass bool) {
-	deep, fog := fogColors(tint, glass)
+func drawFog(p *ui.Painter, r ui.Rect, tint ui.Color, drift, bass float32, tone backdropTone) {
+	deep, fog := fogColors(tint, tone)
 	fogShader().Draw(p, r, shader.Options{Uniforms: map[string]any{
 		"Time": drift, "Bass": min(bass, 1), "Deep": deep, "Fog": fog,
 	}})
 }
 
 // fogColors returns the deep shade behind the fog and the fog's own for a
-// cover of tint: its hue, rich, at the same depths whatever the cover, so
-// that white reads over them. A gray cover stays gray.
-func fogColors(tint ui.Color, glass bool) (deep, fog ui.Color) {
+// cover of tint, in tone: its hue, rich, at the same depths whatever the
+// cover, so that white reads over them. A gray cover stays gray.
+func fogColors(tint ui.Color, tone backdropTone) (deep, fog ui.Color) {
 	h, s, _ := hsv(float64(tint.R)/255, float64(tint.G)/255, float64(tint.B)/255)
-	if glass {
+	if tone == toneGlass {
 		// The same tone as the still glass: hue toward aqua, and pale.
 		if s > 0.12 {
 			h = hueToward(h, 192, 0.7)

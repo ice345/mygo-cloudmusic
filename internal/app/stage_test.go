@@ -62,7 +62,8 @@ func TestStageSparksMenu(t *testing.T) {
 // Turning the translation and the reading off and on moves none of the
 // stage's words, in any style: under the line, they lifted it as they came.
 func TestStageWordsStayWhenTheCaptionChanges(t *testing.T) {
-	for _, style := range []string{"", "partita", "tilt", "aobird"} {
+	for _, s := range stageStyles {
+		style := s.id
 		a := newTestApp()
 		a.settings = defaultSettings()
 		a.settings.LyricRoman = true
@@ -78,12 +79,14 @@ func TestStageWordsStayWhenTheCaptionChanges(t *testing.T) {
 		a.pl.Hold(12 * time.Second) // the first word has settled
 		tt := ui.NewTester(a.view, 1200, 800)
 		tt.Frame()
-		// 青鸟 draws the line as one piece, so the word is not its own text.
+		// A style that draws the line as one piece, as 青鸟 does, has no
+		// text of the word's own.
 		mark := "風"
-		if style == "aobird" {
-			mark = "風が廊下を渡る"
-		}
 		r0, ok := tt.Find(mark)
+		if !ok {
+			mark = "風が廊下を渡る"
+			r0, ok = tt.Find(mark)
+		}
 		if !ok {
 			t.Fatalf("style %q: %s is not shown", style, mark)
 		}
@@ -341,7 +344,8 @@ func TestLineBeforeStaysGoneAfterABreak(t *testing.T) {
 			LRC:         "[00:10.00]風が吹く\n" + next + "遠くで息をする\n[00:58.00]終わり",
 			Translation: "[00:10.00]风在吹\n" + next + "远处有人呼吸",
 		})
-		for _, style := range []string{"", "partita", "tilt", "aobird"} {
+		for _, s := range stageStyles {
+			style := s.id
 			a := newTestApp()
 			a.settings = defaultSettings()
 			a.settings.StageStyle = style
@@ -349,11 +353,14 @@ func TestLineBeforeStaysGoneAfterABreak(t *testing.T) {
 			a.pl.SetLyrics(lines)
 			a.nowPlaying, a.npPane = true, paneStage
 			// Just as the next line comes in: in 青鸟 as it starts to form.
-			pos := lines[1].At + 50*time.Millisecond
-			mark := "風"
-			if style == "aobird" {
+			pos, mark := lines[1].At+50*time.Millisecond, "風"
+			switch style {
+			case "", "partita", "tilt":
+			case "aobird":
 				pos, _ = birdClockOf(&lines[1], false).condense()
 				mark = "風が吹く"
+			default:
+				t.Fatalf("style %q: say here when its next line comes in", style)
 			}
 			a.pl.Hold(pos)
 			tt := ui.NewTester(a.view, 1200, 800)
@@ -376,7 +383,8 @@ func TestLineBeforeStaysGoneAfterABreak(t *testing.T) {
 func TestStageLinesAtOneTime(t *testing.T) {
 	lines := lyrics.Build(lyrics.Source{YRC: "[10000,4000](10000,2000,0)Hello(12000,2000,0) world\n" +
 		"[10000,4000](10000,2000,0)Bonjour(12000,2000,0) monde\n[20000,2000](20000,2000,0)Bye"})
-	for _, style := range []string{"", "partita", "tilt", "aobird"} {
+	for _, s := range stageStyles {
+		style := s.id
 		a := newTestApp()
 		a.settings = defaultSettings()
 		a.settings.StageStyle = style
@@ -388,7 +396,10 @@ func TestStageLinesAtOneTime(t *testing.T) {
 		a.pl.Hold(10100 * time.Millisecond)
 		tt := ui.NewTester(a.view, 1200, 800)
 		tt.Frame()
-		marks := map[string][]string{"": {"Hello", "Bonjour"}, "partita": {"Hello", "Bonjour"}, "tilt": {"H", "j"}, "aobird": {"Bonjour monde"}}[style]
+		marks, ok := map[string][]string{"": {"Hello", "Bonjour"}, "partita": {"Hello", "Bonjour"}, "tilt": {"H", "j"}, "aobird": {"Bonjour monde"}}[style]
+		if !ok {
+			t.Fatalf("style %q: say here what of each line it shows", style)
+		}
 		for _, mark := range marks {
 			if _, ok := tt.Find(mark); !ok {
 				t.Errorf("style %q: %s is not shown", style, mark)

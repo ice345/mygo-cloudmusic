@@ -20,22 +20,58 @@ import (
 // swelling as they are sung. 青鸟 is this app's own (ui_stage_bird.go):
 // a line forms whole out of a mist and stays still. It shows no hot
 // comments and throws no sparks.
-var stageStyles = []struct{ id, label string }{
-	{"", "流光"},
-	{"partita", "云阶"},
-	{"tilt", "倾诉"},
-	{"aobird", "青鸟"},
+
+// A stageStyle is one way the stage sets its lyrics, and all the menu, the
+// stage and Now Playing need to know of it: none of them asks for its id.
+type stageStyle struct {
+	id, label string
+	// line draws one line on the shared stage, which gives the style hot
+	// comments, the foot band, interludes, the skeleton and its frames.
+	line func(a *app, c *ui.Context, l *lyrics.Line, at stageAt)
+	// own draws the whole stage in place of the shared one, for a style
+	// that keeps it to itself: its empty states, breaks, frames and
+	// captions are its own, and no hot comment takes it.
+	own func(a *app, c *ui.Context, lines []lyrics.Line, loaded bool, pos time.Duration, w, h float32, accent ui.Color)
+	// lead is how long before a word is sung the style starts to show it.
+	lead time.Duration
+	// sparks says 火花 throws sparks in this style.
+	sparks bool
+	// tone is the backdrop's under the style.
+	tone backdropTone
+}
+
+// stageAt is where a line is drawn and how: at pos, at font size f, on a
+// stage w by h, the whole line at opacity fade, sparks on or off.
+type stageAt struct {
+	pos     time.Duration
+	f, w, h float32
+	fade    float32
+	accent  ui.Color
+	sparks  bool
+}
+
+var stageStyles = []stageStyle{
+	{id: "", label: "流光", line: (*app).classicLine, lead: 80 * time.Millisecond, sparks: true},
+	{id: "partita", label: "云阶", line: (*app).partitaLine, lead: 80 * time.Millisecond, sparks: true},
+	{id: "tilt", label: "倾诉", line: func(_ *app, c *ui.Context, l *lyrics.Line, at stageAt) { tiltLine(c, l, at) }, lead: tiltLead, sparks: true},
+	{id: "aobird", label: "青鸟", own: (*app).birdStage, tone: toneGlass},
+}
+
+// styleOf returns the style id names. An id it does not know, as a later
+// version may save, is 流光.
+func styleOf(id string) *stageStyle {
+	for i := range stageStyles {
+		if stageStyles[i].id == id {
+			return &stageStyles[i]
+		}
+	}
+	return &stageStyles[0]
 }
 
 // stageStyleButton names the stage's style, and opens the menu of the
 // others.
 func (a *app) stageStyleButton(c *ui.Context) {
-	label := stageStyles[0].label
-	for _, s := range stageStyles {
-		if s.id == a.settings.StageStyle {
-			label = s.label
-		}
-	}
+	style := styleOf(a.settings.StageStyle)
 	b := ui.ButtonBase(c.Key("stage-style")).Padding(6, 10, 6, 14).Radius(999).Gap(4).AlignItems(ui.Center).
 		FocusRing(false).Label("律动效果").Tooltip("律动效果")
 	bg, fg := ui.Transparent, white.Alpha(0.55)
@@ -44,19 +80,19 @@ func (a *app) stageStyleButton(c *ui.Context) {
 	}
 	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
 	b.Children(func() {
-		ui.Text(c, label).FontSize(13).FontWeight(600).TextColor(fg)
+		ui.Text(c, style.label).FontSize(13).FontWeight(600).TextColor(fg)
 		ui.Icon(c, iconDown).Size(12, 12).TextColor(fg)
 	})
 	b.Menu(func(m *ui.Menu) {
 		for _, s := range stageStyles {
-			if m.Item(s.label).Checked(a.settings.StageStyle == s.id).Chosen() && a.settings.StageStyle != s.id {
+			if m.Item(s.label).Checked(style.id == s.id).Chosen() && style.id != s.id {
 				a.settings.StageStyle = s.id
 				a.settings.save()
 			}
 		}
 		m.Separator()
-		// 青鸟 has no sparks. The choice is kept for the other styles.
-		if m.Item("火花").Checked(a.settings.StageSparks).Disabled(a.settings.StageStyle == "aobird").Chosen() {
+		// A style without sparks keeps the choice for the others.
+		if m.Item("火花").Checked(a.settings.StageSparks).Disabled(!style.sparks).Chosen() {
 			a.settings.StageSparks = !a.settings.StageSparks
 			a.settings.save()
 		}
@@ -196,8 +232,9 @@ func partitaRows(l *lyrics.Line, h float32) []partitaRow {
 // middle, each sliding in from the side of its guide as its first word is
 // due, the words in it springing in as classic's do. The whole line is at
 // opacity fade, swelling a little as it goes.
-func (a *app) partitaLine(c *ui.Context, l *lyrics.Line, pos time.Duration, f, h, fade float32, accent ui.Color) {
+func (a *app) partitaLine(c *ui.Context, l *lyrics.Line, at stageAt) {
 	const lookahead = 80 * time.Millisecond
+	pos, f, h, fade, accent := at.pos, at.f, at.h, at.fade, at.accent
 	rows := partitaRows(l, h)
 	if wordsLength(l.Words) > 40 {
 		f *= 0.8
@@ -266,7 +303,7 @@ func (a *app) partitaLine(c *ui.Context, l *lyrics.Line, pos time.Duration, f, h
 				}).
 				Children(func() {
 					for i, w := range words {
-						a.stageWord(c.Key(i), w, shapes[i], pos, f, accent)
+						a.stageWord(c.Key(i), w, shapes[i], pos, f, accent, at.sparks)
 					}
 				})
 		}
@@ -362,7 +399,8 @@ func splitParts(words []lyrics.Word, units [][2]int, n int) []tiltPart {
 // the accent, its characters up and down by turns. The whole line is at
 // opacity fade, rising a little as it goes; with sparks, each word throws
 // them as it is sung.
-func tiltLine(c *ui.Context, l *lyrics.Line, pos time.Duration, w, fade float32, accent ui.Color, sparks bool) {
+func tiltLine(c *ui.Context, l *lyrics.Line, at stageAt) {
+	pos, w, fade, accent, sparks := at.pos, at.w, at.fade, at.accent, at.sparks
 	size := min(w*0.06875, 90)
 	avail := w * 0.85
 	style := func(p tiltPart) (weight int, spacing float32) {

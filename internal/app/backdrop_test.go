@@ -76,7 +76,7 @@ func TestBackdropDriftFrames(t *testing.T) {
 		row := image.NewRGBA(image.Rect(0, 0, w*len(shots), h))
 		for i, s := range shots {
 			tt := ui.NewTester(func(c *ui.Context) {
-				ui.Box(c).Fill().Draw(func(p *ui.Painter, r ui.Rect) { drawFog(p, r, art.tint, s.drift, s.bass, false) })
+				ui.Box(c).Fill().Draw(func(p *ui.Painter, r ui.Rect) { drawFog(p, r, art.tint, s.drift, s.bass, toneDeep) })
 			}, w, h)
 			tt.Frame()
 			shot := tt.Image()

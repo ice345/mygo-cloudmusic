@@ -95,10 +95,11 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 	pl := a.pl
 	lines, loaded := pl.Lyrics()
 	w, h := c.Size()
-	// 青鸟 is not one of Folia's styles: it never gives the stage to a hot
-	// comment, and it keeps its own captions instead of the foot.
-	if a.settings.StageStyle == "aobird" {
-		a.birdStage(c, tr, lines, loaded, pl.Position(), w, h, accent)
+	style := styleOf(a.settings.StageStyle)
+	// A style that keeps the stage to itself, as 青鸟 does, never gives it
+	// to a hot comment, and sets its own captions instead of the foot.
+	if style.own != nil {
+		style.own(a, c, lines, loaded, pl.Position(), w, h, accent)
 		return
 	}
 	f := min(64, max(36, w*0.045))
@@ -128,13 +129,9 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 	// Under a hot comment there is nothing to move: the quiet asks for
 	// the frame where it ends.
 	if pl.Playing() && !(quiet && dim > 0.98) {
-		// 倾诉 shows a part of a line a little before it is sung.
-		lead := 80 * time.Millisecond
-		if a.settings.StageStyle == "tilt" {
-			lead = tiltLead
-		}
-		stageNextFrame(c, lines, cur, pos, lead)
+		stageNextFrame(c, lines, cur, pos, style.lead)
 	}
+	at := stageAt{pos: pos, f: f, w: w, h: h, fade: 1, accent: accent, sparks: style.sparks && a.settings.StageSparks}
 
 	box.Children(func() {
 		defer a.stageQuiet(c, dim, f, w)
@@ -144,7 +141,9 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 			if cur > 0 && !breakBefore(lines, cur) {
 				gone := float32((pos - lines[cur].At).Seconds()) / 0.4
 				if gone < 1 {
-					a.stageLine(c, &lines[cur-1], pos, f, w, h, 1-easeOutCubic(gone), accent)
+					before := at
+					before.fade = 1 - easeOutCubic(gone)
+					style.line(a, c, &lines[cur-1], before)
 				}
 			}
 			switch {
@@ -154,7 +153,7 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 				// A long break before the next line.
 				a.interlude(c, pos, lines[cur].End, lines[cur+1].At)
 			default:
-				a.stageLine(c, &lines[cur], pos, f, w, h, 1, accent)
+				style.line(a, c, &lines[cur], at)
 			}
 
 			a.stageFoot(c, lines, cur, pos, w)
@@ -281,17 +280,10 @@ func stageNextFrame(c *ui.Context, lines []lyrics.Line, cur int, pos, lead time.
 	c.After(wait)
 }
 
-// stageLine shows the words of l as they are at pos, the whole line at
-// opacity fade.
-func (a *app) stageLine(c *ui.Context, l *lyrics.Line, pos time.Duration, f, w, h, fade float32, accent ui.Color) {
-	switch a.settings.StageStyle {
-	case "partita":
-		a.partitaLine(c, l, pos, f, h, fade, accent)
-		return
-	case "tilt":
-		tiltLine(c, l, pos, w, fade, accent, a.settings.StageSparks)
-		return
-	}
+// classicLine shows the words of l on 流光 as they are at pos, the whole
+// line at opacity fade.
+func (a *app) classicLine(c *ui.Context, l *lyrics.Line, at stageAt) {
+	pos, f, w, h := at.pos, at.f, at.w, at.h
 	seed := float64(l.At / time.Millisecond)
 	shapes := stageShapes(c, l, f)
 	// Where the line sits: to one side or the middle, a little up or down.
@@ -300,16 +292,16 @@ func (a *app) stageLine(c *ui.Context, l *lyrics.Line, pos time.Duration, f, w, 
 
 	ui.Row(c.Key(lineKey(l))).Lang(l.Lang).Absolute().Top(0).Left(0).Right(0).Bottom(0).Padding(0, w*0.1).
 		Wrap().Justify(justify).AlignContent(ui.Center).AlignItems(ui.Center).Translate(0, lift).
-		Opacity(fade).PassThrough().Children(func() {
+		Opacity(at.fade).PassThrough().Children(func() {
 		for i, word := range l.Words {
-			a.stageWord(c.Key(i), word, shapes[i], pos, f, accent)
+			a.stageWord(c.Key(i), word, shapes[i], pos, f, at.accent, at.sparks)
 		}
 	})
 }
 
 // stageWord shows a word as it is at pos: waiting to be sung, being sung,
-// or sung.
-func (a *app) stageWord(c *ui.Context, word lyrics.Word, s wordShape, pos time.Duration, f float32, accent ui.Color) {
+// or sung, throwing sparks as it lands if sparks is set.
+func (a *app) stageWord(c *ui.Context, word lyrics.Word, s wordShape, pos time.Duration, f float32, accent ui.Color, sparks bool) {
 	const lookahead = 80 * time.Millisecond
 	start := word.Start - lookahead
 	end := max(word.End, word.Start+150*time.Millisecond)
@@ -355,7 +347,7 @@ func (a *app) stageWord(c *ui.Context, word lyrics.Word, s wordShape, pos time.D
 				TextColor(accent.Alpha(0.85 * glow)).Blur(f * 0.2).PassThrough()
 		}
 	})
-	if a.settings.StageSparks {
+	if sparks {
 		stageSparks(box, float32((pos - word.Start).Seconds()), float64(word.Start/time.Millisecond), s.last, accent)
 	}
 }

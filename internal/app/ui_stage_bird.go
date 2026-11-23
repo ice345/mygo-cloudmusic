@@ -8,7 +8,6 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/lyrics"
-	"netease-music-mygo/internal/netease"
 )
 
 // 青鸟 leaves the stage quiet. A line forms whole out of a mist and stays
@@ -49,10 +48,8 @@ func birdRest(accent ui.Color) ui.Color {
 	return ui.Hex("#B0CECC").Mix(accent, 0.15).Alpha(0.5)
 }
 
-// birdStage shows the lyrics of tr in 青鸟, as a function of pos alone.
-func (a *app) birdStage(c *ui.Context, tr *netease.Track, lines []lyrics.Line, loaded bool, pos time.Duration, w, h float32, accent ui.Color) {
-	_ = tr
-	_ = h
+// birdStage shows the lyrics playing in 青鸟, as a function of pos alone.
+func (a *app) birdStage(c *ui.Context, lines []lyrics.Line, loaded bool, pos time.Duration, w, _ float32, accent ui.Color) {
 	box := ui.Box(c.Key("stage")).Grow(1)
 	size := birdSize(w)
 	if len(lines) == 0 {

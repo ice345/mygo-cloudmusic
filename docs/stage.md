@@ -4,22 +4,22 @@ The stage is Now Playing's 律动 pane: the song's lyrics set large over a backd
 
 ## Styles
 
-`stageStyles` (`internal/app/ui_stage_styles.go`) lists them; the setting `StageStyle` holds the id.
+`stageStyles` (`internal/app/ui_stage_styles.go`) lists them, with what each does (see [Adding a style](#adding-a-style)); the setting `StageStyle` holds the id.
 
 | Id | Label | Code | From |
 |---|---|---|---|
-| `""` | 流光 | `stageLine`, `stageWord` (`ui_stage.go`) | Folia's classic: words drift, swell and glow as they are sung |
+| `""` | 流光 | `classicLine`, `stageWord` (`ui_stage.go`) | Folia's classic: words drift, swell and glow as they are sung |
 | `partita` | 云阶 | `partitaLine` (`ui_stage_styles.go`) | Folia: a line in staggered rows, each springing in as it is sung |
 | `tilt` | 倾诉 | `tiltLine` (`ui_stage_styles.go`) | Folia: a few large lines, one leaning, characters swelling as sung |
 | `aobird` | 青鸟 | `birdStage` (`ui_stage_bird.go`) | This app's own: a line forms whole out of a mist and stays still |
 
-Folia is [chthollyphile/folia-major](https://github.com/chthollyphile/folia-major). An unknown id draws as 流光.
+Folia is [chthollyphile/folia-major](https://github.com/chthollyphile/folia-major). An unknown id, as a later version may save, draws as 流光 (`styleOf`).
 
 ## What every change must keep
 
 1. **The stage is a function of where playback is.** Every opacity, blur and offset is worked out from `pl.Position()` and the lines: no state, no timers. Seeking lands on the frame playing would show, and pausing freezes it.
 2. **A line is one layer over the whole stage, keyed by its time and its text** (`lineKey`), so the line going and the line coming can overlap while one fades, and two lines a duet sings at one time are two layers. Stateful widgets get a key before they are built. Never store a `ui.Element`.
-3. **Nothing moves because something else changed.** Turning the translation or reading on or off, or a line without them, must not move the words. Anchor at the edge that shouldn't move: the foot band is anchored at its bottom, so it grows upward. `TestStageWordsStayWhenTheCaptionChanges` checks this for each style it lists; add new styles to it.
+3. **Nothing moves because something else changed.** Turning the translation or reading on or off, or a line without them, must not move the words. Anchor at the edge that shouldn't move: the foot band is anchored at its bottom, so it grows upward. `TestStageWordsStayWhenTheCaptionChanges` checks this for every style.
 4. **Frames only while something changes.** `c.AnimationFrame()` while something visibly moves; otherwise `c.After(d)` until the next change. Budgets live in `internal/app/perf_test.go`: between lines, at most 12 frames a second for every style (`TestNowPlayingFrameBudget`), and at most 1 for 青鸟 once a line has formed and in breaks (`TestBirdFrameBudget`). A new animated surface gets a budget.
 5. **Reduce Motion** (`c.Preferences().ReduceMotion`) turns movement into fades.
 
@@ -31,7 +31,7 @@ Folia is [chthollyphile/folia-major](https://github.com/chthollyphile/folia-majo
 - **The line before** fades over the first 0.4 s of the next, unless a long break came between them (`breakBefore`): then it went with the break and stays gone.
 - **A long break**, when the next line is more than 4 s after this one ends and playback is more than 1 s past its end: the interlude takes the stage. 青鸟 has its own test and draws a hairline instead.
 - **Hot comments.** With 热评 on, a hot comment takes the middle in a quiet part, the lyrics dimmed under it (`ui_quiet.go`). 青鸟 never shows one.
-- **Sparks.** 火花 throws sparks off each word as it lands, for 流光 and 倾诉. The menu disables it while 青鸟 is chosen and keeps the setting.
+- **Sparks.** 火花 throws sparks off each word as it lands, in the styles whose `sparks` is set: 流光, 云阶 and 倾诉. The menu disables it for the others and keeps the setting.
 - **Frames.** `stageNextFrame` asks at once while a word springs in, a few times a second while words only drift, and otherwise when the next word is due. 倾诉 starts a part 250 ms early (`tiltLead`).
 
 ## The foot band
@@ -59,7 +59,7 @@ A line forms whole out of a mist and stays still. Its reading sits under it, and
 - **The hairline.** 1 DIP, growing to 32% of the stage's width over 0.8 s, 0.4 s after the line has left. It fades over the 0.4 s before the next line starts condensing.
 - **Reduce Motion.** Opacity only, over 0.3 s.
 
-**Backdrop.** While 青鸟 shows, the backdrop takes its "glass" tone (`glassColors`, `backdrop.go`). The cover's hue moves 70% of the way to 192°, at saturation 0.20 at the top and 0.24 at the foot, and value 0.40 and 0.25. The cover's wash drops to 0.06, and a light falls at 135° from 8% white to nothing by 55%. A grey cover stays grey. The fog takes the same tone.
+**Backdrop.** While 青鸟 shows, the backdrop takes its tone, `toneGlass` (`glassColors`, `backdrop.go`). The cover's hue moves 70% of the way to 192°, at saturation 0.20 at the top and 0.24 at the foot, and value 0.40 and 0.25. The cover's wash drops to 0.06, and a light falls at 135° from 8% white to nothing by 55%. A grey cover stays grey. The fog takes the same tone.
 
 Known defects, on the roadmap: the answer arrives before the line has formed and sits left of centre; the captions are below 4.5:1; the line breaks inside words; red covers turn mauve and the hue jumps at 12°.
 
@@ -69,16 +69,17 @@ Known defects, on the roadmap: the answer arrives before the line has formed and
 
 ## Adding a style
 
-Today a style touches several places, because the registry holds only ids and labels:
+A style is one entry in `stageStyles` (`ui_stage_styles.go`), a `stageStyle`. The menu, `stage()` and Now Playing read what they need from it and never compare ids:
 
-1. An entry in `stageStyles`.
-2. Either a case in `stageLine`, which gives it hot comments, the foot band, interludes, the skeleton and `stageNextFrame`, or an early branch in `stage()` like 青鸟's, which must redo the empty states, the intro, breaks and outro, its own frames and its own captions.
-3. Opting out of sparks (`ui_stage_styles.go`, the 火花 item) and of hot comments: by comparing ids.
-4. A backdrop tone: `glass` is a bool from `StageStyle == "aobird"` (`ui_nowplaying.go`), threaded through `backdrop`, its cache key, `drawBackdrop`, `drawFog` and `fogColors`.
-5. Fonts by `l.Lang`, and `Lang` on the line's text.
-6. Its id in `TestStageWordsStayWhenTheCaptionChanges`; a stricter budget in `perf_test.go` if it is a quiet style; `TestStageFrames` and `TestStageCaptionFrames` pick it up by themselves.
+- `line` draws one line on the shared stage, which gives the style hot comments, the foot band, interludes, the skeleton and `stageNextFrame`. About a day of work for a style that only draws lines.
+- `own`, in place of `line`, draws the whole stage, as 青鸟 does. It then redoes the empty states, the intro, breaks and outro, its own frames and its own captions, and no hot comment takes it. Three days or more.
+- `lead` is how long before a word it starts to show it; `sparks` says 火花 applies (the menu disables it otherwise and keeps the setting); `tone` is the backdrop's (`toneDeep` or `toneGlass`).
 
-The roadmap replaces this with a registry of `stageStyle` values (sparks, hot comments, tone, lead, and the function that draws), read by the menu, `stage()` and Now Playing.
+Then:
+
+1. Fonts by `l.Lang`, and `Lang` on the line's own text only.
+2. The tests that range over `stageStyles` fail until they know what the new style shows: `TestLineBeforeStaysGoneAfterABreak` and `TestStageLinesAtOneTime`. `TestStageWordsStayWhenTheCaptionChanges`, `TestNowPlayingFrameBudget`, `TestStageFrames` and `TestStageCaptionFrames` pick it up by themselves.
+3. A stricter budget in `perf_test.go` if it is a quiet style.
 
 ## Looking at it
 
