@@ -26,7 +26,7 @@ type artwork struct {
 	bmp      *ui.Bitmap
 	backdrop *ui.Bitmap
 	grey     *ui.Bitmap // the backdrop's light and dark alone, for 青鸟's glass
-	tint     ui.Color // the cover's most vivid color
+	tint     ui.Color   // the cover's most vivid color
 	failed   bool
 	used     time.Time // when it was last asked for
 	size     int       // the bytes it keeps: its data, and the backdrop's pixels
