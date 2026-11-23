@@ -57,7 +57,7 @@ The shape springs between sizes. The lyrics ask for a frame every 40 ms while a 
 
 1. Turn the notch on. Rest on it: the card opens. Move down onto the card and press pause, next and the scrubber: each works, and the card stays open.
 2. Reset `notchGreeted` and `notch` in settings.json, play a song: the greeting shows. Click 开启.
-3. Set 刘海歌词 to 2 行 and 3 行, with 翻译 and 音译 on and off. Rest on the lyrics: nothing opens, they fade, and a click reaches the window under them. Rest on the housing: the card opens.
+3. Set 刘海歌词 to 2 行 and 3 行, with 翻译 and 音译 on and off. With 翻译 on the translation always shows, in Simplified Chinese forms, and in 3 行 with both on the rows are the line, its reading and its translation. A line too long for the strip slides along as it is sung, its edges fading (since 0.1.28). Rest on the lyrics: nothing opens, they fade, and a click reaches the window under them. Rest on the housing: the card opens.
 4. A song with a long intro: the lyrics come in with the first line, and go after the last.
 5. Launch Atoll with the notch on: ours goes, and the hint names Atoll. Quit Atoll: ours comes back.
 6. An external display set as main: note where the notch goes (it takes `NSScreen.screens[0]` today).
