@@ -58,7 +58,7 @@ Two settings, shared by every surface: `LyricTranslation` (on by default) and `L
 |---|---|---|---|
 | 歌词 list | `timedLines`, `ui_nowplaying.go` | 17 pt, 500, 55% | 17 pt, 600, 70% |
 | Foot band of 流光, 云阶 and 倾诉 | `stageFoot`, `stageCaption`, `ui_stage.go` | the first row present is 18 pt, 600, 72%; the second ×0.88 size and ×0.82 opacity | same rule |
-| 青鸟 | `birdCaptions`, `ui_stage_bird.go` | 0.32 × the line's size, 400, 46%, the system sans | 0.38 ×, 400, serif, `#F3EEDF` at 62%, 14% in from the line's left |
+| 青鸟 | `birdCaptions`, `ui_stage_bird.go` | `max(15, 0.34 ×)` the line's size, 400, `#EEF4F6` at 82%, the system sans, close under the line | `max(18, 0.38 ×)`, 400, serif, `zh-Hans`, `#F3EEDF` at 88%, its right edge the line's, 0.4 s after the first word |
 | Under the notch | `withExtra`, `ui_notch.go` | one extra row, in 2- and 3-line modes | only when the reading is off |
 | 选歌 wall, podcast captions | `ui_wall.go`, `ui_captions.go` | none | none |
 

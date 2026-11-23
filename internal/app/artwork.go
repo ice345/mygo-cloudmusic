@@ -20,10 +20,12 @@ import (
 )
 
 // artwork is a cover, decoded and ready to draw, with what the player
-// derives from it: its color, and a blurred copy to fill a backdrop.
+// derives from it: its color, and a blurred copy to fill a backdrop, in
+// color and in grey.
 type artwork struct {
 	bmp      *ui.Bitmap
 	backdrop *ui.Bitmap
+	grey     *ui.Bitmap // the backdrop's light and dark alone, for 青鸟's glass
 	tint     ui.Color // the cover's most vivid color
 	failed   bool
 	used     time.Time // when it was last asked for
@@ -116,12 +118,13 @@ func (c *artCache) get(url string, backdrop bool) *artwork {
 		c.sem <- struct{}{}
 		bmp, img, size, err := loadArt(url)
 		<-c.sem
-		var blurred *image.RGBA
+		var blurred, grey *image.RGBA
 		var tint ui.Color
 		if err == nil {
 			tint = dominantColor(img)
 			if backdrop {
 				blurred = blurImage(img)
+				grey = greyImage(blurred)
 			}
 		}
 		c.post(func() {
@@ -132,8 +135,8 @@ func (c *artCache) get(url string, backdrop bool) *artwork {
 			}
 			a := &artwork{bmp: bmp, tint: tint, used: c.now(), size: size}
 			if blurred != nil {
-				a.backdrop = ui.NewBitmap(blurred)
-				a.size += len(blurred.Pix)
+				a.backdrop, a.grey = ui.NewBitmap(blurred), ui.NewBitmap(grey)
+				a.size += len(blurred.Pix) + len(grey.Pix)
 			}
 			c.add(key, a)
 			// Shown by the frame post draws, the cover drops its pixels,
@@ -360,6 +363,16 @@ func blurImage(img image.Image) *image.RGBA {
 			out.Pix[4*i+c] = uint8(math.Max(0, math.Min(255, p[c])))
 		}
 		out.Pix[4*i+3] = 255
+	}
+	return out
+}
+
+// greyImage is img's light and dark without its colors, by luma.
+func greyImage(img *image.RGBA) *image.RGBA {
+	out := image.NewRGBA(img.Rect)
+	for i := 0; i+3 < len(img.Pix); i += 4 {
+		l := uint8((299*int(img.Pix[i]) + 587*int(img.Pix[i+1]) + 114*int(img.Pix[i+2]) + 500) / 1000)
+		out.Pix[i], out.Pix[i+1], out.Pix[i+2], out.Pix[i+3] = l, l, l, img.Pix[i+3]
 	}
 	return out
 }

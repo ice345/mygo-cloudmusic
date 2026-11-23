@@ -45,23 +45,31 @@ Folia is [chthollyphile/folia-major](https://github.com/chthollyphile/folia-majo
 
 ## 青鸟
 
-A line forms whole out of a mist and stays still. Its reading sits under it, and its translation answers late, off to the right. In breaks a hairline holds the place. No hot comments, no sparks, no foot band and no next line: the empty space is the point.
+A line forms whole out of a mist and stays still. Its reading sits close under it, and its translation answers late, from the right. In breaks a hairline holds the place. No hot comments, no sparks, no foot band and no next line: the empty space is the point.
 
-**Type.** The line is `min(56, max(32, 0.04 w))`, weight 400, line height 1.3, letter spacing 0.10 em for CJK and 0.01 em for Latin, in at most two even rows broken between phrases, shrinking to fit (`birdFit`). Families (`birdFonts`), each system asked only for what it installs: for `ja` lines, Hiragino Mincho ProN on macOS, Yu Mincho on Windows, Noto Serif CJK JP elsewhere; for everything else, Songti SC, SimSun, Noto Serif CJK SC. Without them the system sans draws it. Don't add a family macOS only offers as a download (YuMincho and the like): asking CoreText for one can wait on the system's font catalog, and stalled a Mac in CI for ten minutes. The reading is `max(13, 0.32 × size)` in the system font; the translation `max(14, 0.38 × size)` in `birdFontZH`, tracking 0.14 em, starting 14% in from the line block's left, at most two lines.
+**Type.** The line is `min(56, max(32, 0.04 w))`, weight 400, line height 1.3, letter spacing 0.10 em for CJK and 0.01 em for Latin, in at most two even rows broken between phrases, shrinking to fit (`birdFit`). Families (`birdFonts`), each system asked only for what it installs:
 
-**Colours.** `birdInk` `#EEF4F6` for the line; `birdBreath` white at 46% for the reading; `birdAnswer` `#F3EEDF` at 62% for the translation; `birdRest` `#B0CECC` mixed 15% toward the cover's accent, at 50%, for the hairline.
+| Line | macOS | Windows | Elsewhere |
+|---|---|---|---|
+| `ja` | Hiragino Mincho ProN | Yu Mincho | Noto Serif CJK JP |
+| `ko` | AppleMyungjo | Batang | Noto Serif CJK KR |
+| anything else | Songti SC | SimSun | Noto Serif CJK SC |
+
+Without them the system sans draws it. Don't add a family macOS only offers as a download (YuMincho and the like): asking CoreText for one can wait on the system's font catalog, and stalled a Mac in CI for ten minutes.
+
+**Captions.** The reading is `max(15, 0.34 × size)`, weight 400, in the system sans with no `Lang`, centred, `0.1 × size` under the line. The translation is `max(18, 0.38 × size)` in `birdFontZH`, `zh-Hans`, tracking 0.14 em, `0.35 × size` under the line or the reading. Both take at most two even rows; neither takes its width from the line, so a one-character line keeps its translation on one row. The translation's right edge is the line's; one wider than the line sets out from the line's middle instead, to the right.
+
+**Colours.** `birdInk` `#EEF4F6` for the line; `birdBreath` `#EEF4F6` at 82% for the reading; `birdAnswer` `#F3EEDF` at 88% for the translation; `birdRest` `#B0CECC` mixed 15% toward the cover's accent, at 50%, for the hairline. Over the lightest glass, under a white cover, the reading reads at 4.87:1 and the translation at 5.1:1; `TestCaptionsReadOverTheBackdrop` holds both above 4.5:1.
 
 **Motion**, with `s` the first word's start (or the line's time) and `e` its end:
 
 - **Condensing.** It takes `D = clamp(0.45 (e − s), 0.6 s, 1.8 s)` and starts `min(0.3 s, D/3)` before `s`. Opacity follows a smoothstep; blur goes from 9 (scaled by size / 48) to 0; the line rises 3 DIP. No scale, no per-word light.
-- **The answer** comes in from 0.4 s after condensing starts, over 0.9 s, from 36 DIP to the right.
+- **The answer** comes in from `s + 0.4 s`, whatever the line's length, over 0.9 s, from 36 DIP to the right (`birdAnswerTimes`). It goes 0.4 s after the line starts to, over as long, blurring to 4. Waiting for the line to form would halve its reading time on a 3 s line.
 - **Leaving.** Over 0.45 s, starting 0.15 s before the next line starts condensing, blurring to 4. Before a break of more than 4 s, it leaves at `e + 0.8 s` over 0.7 s.
 - **The hairline.** 1 DIP, growing to 32% of the stage's width over 0.8 s, 0.4 s after the line has left. It fades over the 0.4 s before the next line starts condensing.
 - **Reduce Motion.** Opacity only, over 0.3 s.
 
-**Backdrop.** While 青鸟 shows, the backdrop takes its tone, `toneGlass` (`glassColors`, `backdrop.go`). The cover's hue moves 70% of the way to 192°, at saturation 0.20 at the top and 0.24 at the foot, and value 0.40 and 0.25. The cover's wash drops to 0.06, and a light falls at 135° from 8% white to nothing by 55%. A grey cover stays grey. The fog takes the same tone.
-
-Known defects, on the roadmap: the answer arrives before the line has formed and sits left of centre; the captions are below 4.5:1; the translation still wraps where MyGo runs out of room; red covers turn mauve and the hue jumps at 12°.
+**Backdrop.** While 青鸟 shows, the backdrop takes its tone, `toneGlass` (`backdrop.go`): one glass for every cover. Hue 186° (`glassHue`), saturation 0.20 at the top and 0.24 at the foot, value 0.36 and 0.25 (`glassColors`). The cover shows through only as its light and dark, its grey copy (`artwork.grey`) at 4% (`glassWash`), and a light falls at 135° from 4% white (`glassLight`) to nothing by 55%. The fog takes the same hue. Lighten any of these and the contrast test fails.
 
 ## Breaking lines
 

@@ -148,7 +148,8 @@ func TestBirdKeepsSparks(t *testing.T) {
 // With NM_FRAMES set, saves 青鸟 at the moments and covers the style is
 // reviewed with: mist, half-formed, formed, the answer, leaving, the
 // hairline, three covers, the toggles, a fast line, a long line, an
-// English line, and the sans fallback.
+// English line, the sans fallback, a one-character line with a long
+// translation, and a Korean line.
 func TestBirdFrames(t *testing.T) {
 	dir := os.Getenv("NM_FRAMES")
 	if dir == "" {
@@ -171,15 +172,15 @@ func TestBirdFrames(t *testing.T) {
 		a.settings.LyricRoman = roman
 		a.settings.LyricTranslation = trans
 		if font != "" {
-			prevJA, prevZH := birdFontJA, birdFontZH
-			birdFontJA, birdFontZH = font, font
-			defer func() { birdFontJA, birdFontZH = prevJA, prevZH }()
+			prevJA, prevKO, prevZH := birdFontJA, birdFontKO, birdFontZH
+			birdFontJA, birdFontKO, birdFontZH = font, font, font
+			defer func() { birdFontJA, birdFontKO, birdFontZH = prevJA, prevKO, prevZH }()
 		}
 		tr := netease.Track{ID: 3, Name: "青鸟", Artists: []netease.Artist{{Name: "誰"}}, Duration: 120000, Album: netease.Album{PicURL: name}}
 		if tint != (ui.Color{}) {
 			img := image.NewRGBA(image.Rect(0, 0, 48, 48))
 			draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{tint.R, tint.G, tint.B, 255}}, image.Point{}, draw.Src)
-			art := &artwork{bmp: ui.NewBitmap(img), backdrop: ui.NewBitmap(blurImage(img)), tint: tint}
+			art := &artwork{bmp: ui.NewBitmap(img), backdrop: ui.NewBitmap(blurImage(img)), grey: ui.NewBitmap(greyImage(blurImage(img))), tint: tint}
 			url := netease.Sized(name, 600)
 			a.art.art[url] = art
 			a.art.art[url+"#backdrop"] = art
@@ -222,6 +223,11 @@ func TestBirdFrames(t *testing.T) {
 	en := line("across the quiet water", 10*time.Second, 18*time.Second, "", "越过安静的水面", "")
 	save("bird-english", []lyrics.Line{en}, 12*time.Second, false, true, ui.Color{}, "")
 	save("bird-sans", []lyrics.Line{ja}, 12*time.Second, true, true, ui.Color{}, "NoSuchFamily")
+	one := line("風", 10*time.Second, 18*time.Second, "ja", "风在吹，吹过整条走廊", "kaze")
+	save("bird-one", []lyrics.Line{one}, 12*time.Second, true, true, ui.Color{}, "")
+	ko := line("너의 모든 걸 원해 지금 이대로 영원히", 10*time.Second, 18*time.Second, "ko", "想要你的全部，就这样直到永远", "neoui modeun geol wonhae")
+	save("bird-korean", []lyrics.Line{ko}, 12*time.Second, true, true, ui.Color{}, "")
+	save("bird-answer-late", []lyrics.Line{ja}, 10300*time.Millisecond, true, true, ui.Color{}, "")
 }
 
 // With NM_FRAMES set, saves one frame of each stage style with a reading
@@ -403,6 +409,72 @@ func TestStageLinesAtOneTime(t *testing.T) {
 		for _, mark := range marks {
 			if _, ok := tt.Find(mark); !ok {
 				t.Errorf("style %q: %s is not shown", style, mark)
+			}
+		}
+	}
+}
+
+// 青鸟's translation comes in 0.4 s after the line's first word, whatever
+// the line's length, and goes 0.4 s after the line starts to: it came with
+// a long line still forming, 0.1 s after its first word.
+func TestBirdAnswersAfterTheLine(t *testing.T) {
+	for _, length := range []time.Duration{2 * time.Second, 8 * time.Second} {
+		l := lyrics.Line{At: 10 * time.Second, End: 10*time.Second + length, Text: "風が吹く",
+			Words: []lyrics.Word{{Text: "風が吹く", Start: 10 * time.Second, End: 10*time.Second + length/2}}}
+		next := lyrics.Line{At: l.End + time.Second, End: l.End + 4*time.Second, Text: "遠くで"}
+		clock := birdClockOf(&l, false)
+		at := func(pos time.Duration) float32 { return birdAnswerShown(clock, &l, &next, pos, false, false).k }
+		if k := at(l.At + 390*time.Millisecond); k > 0 {
+			t.Errorf("a %v line: its translation is %.2f in 0.39 s after its first word", length, k)
+		}
+		if k := at(l.At + 1400*time.Millisecond); k < 0.99 {
+			t.Errorf("a %v line: its translation is only %.2f in 1.4 s after its first word", length, k)
+		}
+		leave, _, _ := birdLeave(&l, &next, false, false)
+		if op, _, _, _ := birdLook(clock, &l, &next, leave+450*time.Millisecond, 48, false, false); op > 0.01 {
+			t.Fatalf("a %v line: still %.2f there once it has left", length, op)
+		}
+		if k := at(leave + 300*time.Millisecond); k < 0.99 {
+			t.Errorf("a %v line: its translation goes with it, %.2f 0.3 s after it starts to leave", length, k)
+		}
+	}
+}
+
+// 青鸟's translation answers from the right: its right edge is the line's,
+// and one wider than the line sets out from the line's middle, in one row.
+// It started 14% in from the line's left, as wide as the line at most, so
+// it sat left of centre and stacked a one-character line's a character a
+// row.
+func TestBirdAnswersFromTheRight(t *testing.T) {
+	for _, c := range []struct{ text, translation string }{
+		{"風が廊下を渡る", "风穿过走廊"},
+		{"風", "风在吹，吹过整条走廊"},
+	} {
+		a := newTestApp()
+		a.settings = defaultSettings()
+		a.settings.StageStyle = "aobird"
+		a.pl.Cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
+		a.pl.SetLyrics([]lyrics.Line{{At: 10 * time.Second, End: 18 * time.Second, Text: c.text, Lang: "ja", Translation: c.translation,
+			Words: []lyrics.Word{{Text: c.text, Start: 10 * time.Second, End: 16 * time.Second}}}})
+		a.nowPlaying, a.npPane = true, paneStage
+		a.pl.Hold(14 * time.Second)
+		tt := ui.NewTester(a.view, 1200, 800)
+		tt.Frame()
+		line, ok := tt.Find(c.text)
+		answer, ok2 := tt.Find(c.translation)
+		if !ok || !ok2 {
+			t.Fatalf("%s: line shown %v, translation shown %v", c.text, ok, ok2)
+		}
+		if answer.W <= line.W {
+			if d := (answer.X + answer.W) - (line.X + line.W); math.Abs(float64(d)) > 1 {
+				t.Errorf("%s: the translation ends %.1f from the line's right edge", c.text, d)
+			}
+		} else {
+			if mid := line.X + line.W/2; math.Abs(float64(answer.X-mid)) > 1 {
+				t.Errorf("%s: the translation, wider than the line, starts at %.1f, not its middle %.1f", c.text, answer.X, mid)
+			}
+			if answer.H > 2*birdAnswerSize(birdSize(1200)) {
+				t.Errorf("%s: the translation takes %.0f high, more than a row", c.text, answer.H)
 			}
 		}
 	}

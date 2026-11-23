@@ -2,8 +2,10 @@ package app
 
 import (
 	"image"
+	"image/color"
 	"image/draw"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -91,4 +93,79 @@ func TestBackdropDriftFrames(t *testing.T) {
 	f, _ := os.Create(filepath.Join(dir, "drift.png"))
 	defer f.Close()
 	png.Encode(f, out)
+}
+
+// Each surface's reading and translation read at 4.5:1 or more over the
+// lightest still backdrop where they sit: a pale cover of any hue, its
+// wash white. 青鸟's were about 3:1 and 3.7:1 over its glass.
+func TestCaptionsReadOverTheBackdrop(t *testing.T) {
+	type caption struct {
+		name  string
+		color ui.Color
+	}
+	surfaces := []struct {
+		name   string
+		tone   backdropTone
+		y0, y1 float64 // where they sit, as parts of the window's height
+		caps   []caption
+	}{
+		{"青鸟", toneGlass, 0.35, 0.7, []caption{{"reading", birdBreath}, {"translation", birdAnswer}}},
+	}
+	cover := image.NewRGBA(image.Rect(0, 0, 48, 48))
+	draw.Draw(cover, cover.Bounds(), &image.Uniform{color.RGBA{255, 255, 255, 255}}, image.Point{}, draw.Src)
+	blurred := blurImage(cover)
+	art := &artwork{backdrop: ui.NewBitmap(blurred), grey: ui.NewBitmap(greyImage(blurred))}
+	var tints []ui.Color
+	for hue := 0.0; hue < 360; hue += 30 {
+		for _, sat := range []float64{0.2, 0.6, 0.95} {
+			tints = append(tints, hsvColor(hue, sat, 0.85))
+		}
+	}
+	tints = append(tints, ui.RGB(200, 200, 200))
+	for _, sf := range surfaces {
+		worst := map[string]float64{}
+		for _, tint := range tints {
+			tt := ui.NewTester(func(c *ui.Context) {
+				ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Draw(func(p *ui.Painter, r ui.Rect) {
+					drawBackdrop(p, r, art, tint, sf.tone)
+				})
+			}, 300, 200)
+			tt.Frame()
+			img := tt.Image()
+			b := img.Bounds()
+			for y := b.Min.Y + int(sf.y0*float64(b.Dy())); y < b.Min.Y+int(sf.y1*float64(b.Dy())); y++ {
+				for x := b.Min.X; x < b.Max.X; x++ {
+					r, g, bl, _ := img.At(x, y).RGBA()
+					bg := [3]float64{float64(r) / 65535, float64(g) / 65535, float64(bl) / 65535}
+					for _, cp := range sf.caps {
+						a := float64(cp.color.A) / 255
+						fg := [3]float64{}
+						for i, v := range []uint8{cp.color.R, cp.color.G, cp.color.B} {
+							fg[i] = float64(v)/255*a + bg[i]*(1-a)
+						}
+						ratio := (luminance(fg) + 0.05) / (luminance(bg) + 0.05)
+						if w, ok := worst[cp.name]; !ok || ratio < w {
+							worst[cp.name] = ratio
+						}
+					}
+				}
+			}
+		}
+		for _, cp := range sf.caps {
+			if worst[cp.name] < 4.5 {
+				t.Errorf("%s: the %s reads at %.2f:1 over the lightest backdrop", sf.name, cp.name, worst[cp.name])
+			}
+		}
+	}
+}
+
+// luminance is an sRGB color's relative luminance, as WCAG defines it.
+func luminance(c [3]float64) float64 {
+	lin := func(v float64) float64 {
+		if v <= 0.04045 {
+			return v / 12.92
+		}
+		return math.Pow((v+0.055)/1.055, 2.4)
+	}
+	return 0.2126*lin(c[0]) + 0.7152*lin(c[1]) + 0.0722*lin(c[2])
 }

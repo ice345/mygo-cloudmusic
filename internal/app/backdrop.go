@@ -219,28 +219,34 @@ func (bd *backdropCache) step(now time.Time, playing bool, lv [player.Bands]floa
 	return bd.speed > 0 || bd.level.group(0, 6) > 0.004
 }
 
-// drawBackdrop paints the still backdrop in r, in tone. 青鸟's glass has
-// the hue moved toward aqua, paler, with the cover seen from farther away
-// and a window's light across the top.
+// drawBackdrop paints the still backdrop in r, in tone. 青鸟's glass is one
+// cool glass for every cover, the cover only its light and dark seen from
+// farther away, with a window's light across the top.
 func drawBackdrop(p *ui.Painter, r ui.Rect, art *artwork, tint ui.Color, tone backdropTone) {
 	glass := tone == toneGlass
 	top, foot := backdropColors(tint)
-	wash := float32(0.1)
+	wash, washed := float32(0.1), (*ui.Bitmap)(nil)
+	if art != nil {
+		washed = art.backdrop
+	}
 	if glass {
-		top, foot = glassColors(tint)
-		wash = 0.06
+		top, foot = glassColors()
+		wash, washed = glassWash, nil
+		if art != nil {
+			washed = art.grey
+		}
 	}
 	p.FillGradient(r, ui.LinearGradient{Angle: 180, Oklab: true, Stops: []ui.GradientStop{
 		{Color: top, At: 0}, {Color: foot, At: 1},
 	}}, 0)
-	if art != nil && art.backdrop != nil {
-		// The cover, blurred, as a faint wash of its own colors.
-		p.ImageRegion(art.backdrop, ui.Rect{W: 48, H: 48}, coverRect(r, 48, 48), ui.ImageOptions{Tint: white.Alpha(wash)})
+	if washed != nil {
+		// The cover, blurred, as a faint wash.
+		p.ImageRegion(washed, ui.Rect{W: 48, H: 48}, coverRect(r, 48, 48), ui.ImageOptions{Tint: white.Alpha(wash)})
 	}
 	if glass {
 		// Light from a window, falling off before the foot.
 		p.FillGradient(r, ui.LinearGradient{Angle: 135, Stops: []ui.GradientStop{
-			{Color: white.Alpha(0.08), At: 0}, {Color: white.Alpha(0), At: 0.55},
+			{Color: white.Alpha(glassLight), At: 0}, {Color: white.Alpha(0), At: 0.55},
 		}}, 0)
 	}
 	// Darker toward the foot, under the controls.
@@ -249,26 +255,20 @@ func drawBackdrop(p *ui.Painter, r ui.Rect, art *artwork, tint ui.Color, tone ba
 	}}, 0)
 }
 
-// glassColors returns 青鸟's top and foot for a cover of tint: its hue
-// moved most of the way to aqua, pale enough to feel like air, still
-// dark enough for white. A gray cover stays gray.
-func glassColors(tint ui.Color) (top, foot ui.Color) {
-	h, s, _ := hsv(float64(tint.R)/255, float64(tint.G)/255, float64(tint.B)/255)
-	if s > 0.12 {
-		h = hueToward(h, 192, 0.7)
-		return hsvColor(h, 0.20, 0.40), hsvColor(h, 0.24, 0.25)
-	}
-	return hsvColor(h, 0, 0.40), hsvColor(h, 0, 0.25)
-}
+// 青鸟's glass is one tone for every cover, a cool, thick glass: its hue,
+// how much of the cover's light and dark shows through it, and how bright
+// the window's light is across its top. Its captions read over it at 4.5:1
+// (TestCaptionsReadOverTheBackdrop).
+const (
+	glassHue   = 186
+	glassWash  = 0.04
+	glassLight = 0.04
+)
 
-// hueToward moves h, in degrees, t of the way to to, by the short arc.
-func hueToward(h, to, t float64) float64 {
-	d := math.Mod(to-h+540, 360) - 180
-	h = math.Mod(h+d*t, 360)
-	if h < 0 {
-		h += 360
-	}
-	return h
+// glassColors returns the top and foot of 青鸟's glass: pale enough to
+// feel like air, still dark enough for white.
+func glassColors() (top, foot ui.Color) {
+	return hsvColor(glassHue, 0.20, 0.36), hsvColor(glassHue, 0.24, 0.25)
 }
 
 // coverRect returns where an image of w×h goes to cover r, centered.
@@ -303,12 +303,8 @@ func drawFog(p *ui.Painter, r ui.Rect, tint ui.Color, drift, bass float32, tone 
 func fogColors(tint ui.Color, tone backdropTone) (deep, fog ui.Color) {
 	h, s, _ := hsv(float64(tint.R)/255, float64(tint.G)/255, float64(tint.B)/255)
 	if tone == toneGlass {
-		// The same tone as the still glass: hue toward aqua, and pale.
-		if s > 0.12 {
-			h = hueToward(h, 192, 0.7)
-			s = 0.22
-		}
-		return hsvColor(h, s, 0.32), hsvColor(h, min(s*1.2, 0.28), 0.62)
+		// The same glass as the still one, whatever the cover.
+		return hsvColor(glassHue, 0.22, 0.32), hsvColor(glassHue, 0.26, 0.62)
 	}
 	if s > 0.12 {
 		s = min(max(s*1.3, 0.6), 0.85)

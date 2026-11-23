@@ -12,36 +12,58 @@ import (
 )
 
 // 青鸟 leaves the stage quiet. A line forms whole out of a mist and stays
-// still: no per-word light, no scale, no sparks. Its reading sits under it,
-// and its translation answers late, off to the right. In a break a hairline
-// holds the place. Hot comments never take this style, and it draws no foot
-// and no next line: the empty space is the point. The release notes should
-// say the same.
+// still: no per-word light, no scale, no sparks. Its reading sits close
+// under it, and its translation answers late, from the right. In a break a
+// hairline holds the place. Hot comments never take this style, and it
+// draws no foot and no next line: the empty space is the point. The
+// release notes should say the same.
 
-// birdFontJA and birdFontZH are the serif families for a Japanese line and
-// for everything else. A test points them at a family that does not exist.
-var birdFontJA, birdFontZH = birdFonts(runtime.GOOS)
+// birdFontJA, birdFontKO and birdFontZH are the serif families for a
+// Japanese line, a Korean one, and everything else. A test points them at
+// a family that does not exist.
+var birdFontJA, birdFontKO, birdFontZH = birdFonts(runtime.GOOS)
 
-// birdFonts returns the serif families goos installs, for a Japanese line
-// and for everything else: macOS's own, Windows's, and Noto's elsewhere.
-// Each system is asked only for its own. Asked for YuMincho, which it only
-// offers as a download, macOS can wait on its font catalog: a Mac in CI
-// waited ten minutes.
-func birdFonts(goos string) (ja, zh string) {
+// birdFonts returns the serif families goos installs, for a Japanese
+// line, a Korean one and everything else: macOS's own, Windows's, and
+// Noto's elsewhere. Each system is asked only for its own. Asked for
+// YuMincho, which it only offers as a download, macOS can wait on its font
+// catalog: a Mac in CI waited ten minutes.
+func birdFonts(goos string) (ja, ko, zh string) {
 	switch goos {
 	case "darwin":
-		return "Hiragino Mincho ProN", "Songti SC"
+		return "Hiragino Mincho ProN", "AppleMyungjo", "Songti SC"
 	case "windows":
-		return "Yu Mincho", "SimSun"
+		return "Yu Mincho", "Batang", "SimSun"
 	}
-	return "Noto Serif CJK JP", "Noto Serif CJK SC"
+	return "Noto Serif CJK JP", "Noto Serif CJK KR", "Noto Serif CJK SC"
 }
 
+// birdFontOf is the serif family for a line in lang.
+func birdFontOf(lang string) string {
+	switch lang {
+	case "ja":
+		return birdFontJA
+	case "ko":
+		return birdFontKO
+	}
+	return birdFontZH
+}
+
+// 青鸟's colors: the line, its reading and its translation. The captions
+// read at 4.5:1 or more over the glass under them
+// (TestCaptionsReadOverTheBackdrop).
 var (
 	birdInk    = ui.Hex("#EEF4F6")
-	birdBreath = white.Alpha(0.46)
-	birdAnswer = ui.Hex("#F3EEDF").Alpha(0.62)
+	birdBreath = ui.Hex("#EEF4F6").Alpha(0.82)
+	birdAnswer = ui.Hex("#F3EEDF").Alpha(0.88)
 )
+
+// birdReadingSize and birdAnswerSize are the reading's and the
+// translation's sizes under a line of size: the reading a third of it,
+// Latin looking smaller than Chinese at one size, and the translation never
+// smaller than the reading, nor than 18.
+func birdReadingSize(size float32) float32 { return max(15, size*0.34) }
+func birdAnswerSize(size float32) float32  { return max(18, size*0.38) }
 
 // birdRest is the hairline: a pale teal, half there, pulled a little
 // toward the cover's accent.
@@ -61,11 +83,11 @@ func (a *app) birdStage(c *ui.Context, lines []lyrics.Line, loaded bool, pos tim
 					return
 				}
 				if a.pl.LyricsFailed() {
-					a.lyricsFailedNote(c, max(14, size*0.38))
+					a.lyricsFailedNote(c, birdAnswerSize(size))
 					return
 				}
-				ui.Text(c, "纯音乐，请欣赏").Font(birdFontZH).FontSize(max(14, size*0.38)).FontWeight(400).
-					LetterSpacing(size * 0.38 * 0.14).TextColor(birdAnswer)
+				ui.Text(c, "纯音乐，请欣赏").Font(birdFontZH).Lang("zh-Hans").FontSize(birdAnswerSize(size)).FontWeight(400).
+					LetterSpacing(birdAnswerSize(size) * 0.14).TextColor(birdAnswer)
 			})
 		})
 		return
@@ -122,15 +144,13 @@ func (a *app) birdLine(c *ui.Context, l, next *lyrics.Line, pos time.Duration, w
 	long := next == nil || next.At-l.End > 4*time.Second
 	text := l.Text
 	cjk := birdCJK(text)
-	font := birdFontZH
-	if l.Lang == "ja" {
-		font = birdFontJA
-	}
+	font := birdFontOf(l.Lang)
 	avail := w * 0.8
 	size := birdSize(w)
 	rows, size, spacing, lineW, two := birdFit(c, text, l.Lang, font, size, avail, cjk)
-	op, blur, dy, gone := birdLook(clock, l, next, pos, size, reduce, long)
-	if op < 0.004 {
+	op, blur, dy, _ := birdLook(clock, l, next, pos, size, reduce, long)
+	answer := birdAnswerShown(clock, l, next, pos, reduce, long)
+	if op < 0.004 && answer.k < 0.004 {
 		return
 	}
 	ui.Box(c.Key(lineKey(l))).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Children(func() {
@@ -144,13 +164,18 @@ func (a *app) birdLine(c *ui.Context, l, next *lyrics.Line, pos time.Duration, w
 				LetterSpacing(spacing).LineHeight(1.3).NoWrap().
 				TextAlign(ui.Center).TextColor(birdInk)
 		})
-		a.birdCaptions(c, l, pos, clock, size, lineW, dy, blur, op, gone, two, reduce)
+		a.birdCaptions(c, l, size, lineW, w, dy, blur, op, answer, two, reduce)
 	})
 }
 
-// birdCaptions hangs l's reading and translation under the line, the
-// reading with the line and the translation late, from the right.
-func (a *app) birdCaptions(c *ui.Context, l *lyrics.Line, pos time.Duration, clock birdClock, size, lineW, dy, blur, op, gone float32, two, reduce bool) {
+// birdCaptions hangs l's reading and translation under the line, which is
+// size and lineW wide on a stage w wide: the reading close under it, with
+// it, and the translation as its own group, coming late from the right as
+// answer says. The answer's right edge is the line's; one wider than the
+// line sets out from the line's middle instead, to the right. Neither
+// takes its width from the line: a one-character line stacked its
+// translation a character a row.
+func (a *app) birdCaptions(c *ui.Context, l *lyrics.Line, size, lineW, w, dy, blur, op float32, answer birdAnswerLook, two, reduce bool) {
 	reading, translation := a.lyricReading(*l), a.lyricTranslation(*l)
 	if reading == "" && translation == "" {
 		return
@@ -159,37 +184,50 @@ func (a *app) birdCaptions(c *ui.Context, l *lyrics.Line, pos time.Duration, clo
 	if two {
 		half = size * 1.3
 	}
-	gap := size * 0.6
-	block := float32(0)
+	wide := max(lineW, w*0.4)
+	rSize, tSize := birdReadingSize(size), birdAnswerSize(size)
+	tSpan := ui.Span{Font: birdFontZH, Size: tSize, Weight: 400, LetterSpacing: tSize * 0.14}
+	var rRows, tRows string
+	var tW float32
+	block, first := float32(0), size*0.35
 	if reading != "" {
-		gap = size * 0.35
-		block += max(13, size*0.32) * 1.2
+		rRows, _ = breakRows(c, reading, "", 2, wide, ui.Span{Size: rSize, Weight: 400})
+		block += float32(strings.Count(rRows, "\n")+1) * rSize * 1.2
+		first = size * 0.1
 	}
+	flush := true
 	if translation != "" {
-		if reading != "" {
-			block += 4
+		tRows, tW = breakRows(c, translation, "zh-Hans", 2, wide, tSpan)
+		if tW > lineW {
+			flush = false
+			tRows, tW = breakRows(c, translation, "zh-Hans", 2, w*0.4, tSpan)
 		}
-		block += max(14, size*0.38) * 1.3
-	}
-	k2, ax, ablur := birdAnswerMotion(clock, pos, reduce)
-	ui.Column(c.Key("cap")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Center().
-		Translate(0, half+gap+block/2+dy).Children(func() {
 		if reading != "" {
-			rd := ui.Text(c, reading).FontSize(max(13, size*0.32)).FontWeight(400).
-				TextAlign(ui.Center).TextColor(birdBreath).MaxWidth(lineW).Opacity(op)
+			block += size * 0.35
+		}
+		block += float32(strings.Count(tRows, "\n")+1) * tSize * 1.3
+	}
+	ui.Column(c.Key("cap")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Center().Gap(size*0.35).
+		Translate(0, half+first+block/2+dy).Children(func() {
+		if reading != "" {
+			rd := ui.Text(c, rRows).FontSize(rSize).FontWeight(400).LineHeight(1.2).NoWrap().
+				TextAlign(ui.Center).TextColor(birdBreath).Opacity(op)
 			if !reduce && blur > 0.05 {
 				rd.Blur(blur)
 			}
 		}
 		if translation != "" {
-			// The answer's left edge sits in from the line's left.
-			ui.Row(c).Width(max(lineW, 1)).Children(func() {
-				ui.Box(c).Width(lineW * 0.14)
-				tr := ui.Text(c, translation).Font(birdFontZH).FontSize(max(14, size*0.38)).FontWeight(400).
-					LetterSpacing(max(14, size*0.38)*0.14).LineHeight(1.3).MaxLines(2).MaxWidth(lineW*0.86).
-					TextColor(birdAnswer).Opacity(k2*(1-gone)).Translate(ax, 0)
-				if !reduce && ablur > 0.05 {
-					tr.Blur(ablur)
+			// Flush with the line's right edge, or from its middle.
+			box, align := max(lineW, 1), ui.End
+			if !flush {
+				box, align = 2*tW, ui.Start
+			}
+			ui.Row(c).Width(box).Justify(ui.End).Children(func() {
+				tr := ui.Text(c, tRows).Font(birdFontZH).Lang("zh-Hans").FontSize(tSize).FontWeight(400).
+					LetterSpacing(tSize*0.14).LineHeight(1.3).NoWrap().TextAlign(align).
+					TextColor(birdAnswer).Opacity(answer.k).Translate(answer.x, 0)
+				if !reduce && answer.blur > 0.05 {
+					tr.Blur(answer.blur)
 				}
 			})
 		}
@@ -220,19 +258,36 @@ func birdLook(clock birdClock, l, next *lyrics.Line, pos time.Duration, size flo
 	return opacity, blur, dy, gone
 }
 
-func birdAnswerMotion(clock birdClock, pos time.Duration, reduce bool) (k, x, blur float32) {
-	start, _ := clock.condense()
-	start += 400 * time.Millisecond
+// birdAnswerLook is how the translation shows: how far in, and how far
+// right of its place and how blurred while it comes.
+type birdAnswerLook struct{ k, x, blur float32 }
+
+// birdAnswerTimes are when l's translation comes in, from 0.4 s after its
+// first word, whatever the line's length, and when it goes, 0.4 s after
+// the line starts to leave: a second voice, after the first. It came with
+// the line still forming. ok is false when it never goes.
+func birdAnswerTimes(clock birdClock, l, next *lyrics.Line, long, reduce bool) (in, inEnd, out, outEnd time.Duration, ok bool) {
 	dur := 900 * time.Millisecond
 	if reduce {
 		dur = 300 * time.Millisecond
 	}
-	t := birdSpan(pos, start, start+dur)
-	k = easeOutCubic(t)
-	if reduce {
-		return k, 0, 0
+	in = clock.s + 400*time.Millisecond
+	ls, le, ok := birdLeave(l, next, long, reduce)
+	return in, in + dur, ls + 400*time.Millisecond, le + 400*time.Millisecond, ok
+}
+
+// birdAnswerShown is how l's translation shows at pos.
+func birdAnswerShown(clock birdClock, l, next *lyrics.Line, pos time.Duration, reduce, long bool) birdAnswerLook {
+	in, inEnd, out, outEnd, leaves := birdAnswerTimes(clock, l, next, long, reduce)
+	k := easeOutCubic(birdSpan(pos, in, inEnd))
+	gone := float32(0)
+	if leaves {
+		gone = easeOutCubic(birdSpan(pos, out, outEnd))
 	}
-	return k, 36 * (1 - k), 1.5 * (1 - k)
+	if reduce {
+		return birdAnswerLook{k: k * (1 - gone)}
+	}
+	return birdAnswerLook{k: k * (1 - gone), x: 36 * (1 - k), blur: 1.5*(1-k) + 4*gone}
 }
 
 // birdClock is when a line forms: s the first word, e the line's end,
@@ -391,20 +446,18 @@ func (a *app) birdSchedule(lines []lyrics.Line, pos time.Duration, reduce bool) 
 		clock := birdClockOf(l, reduce)
 		cs, ce := clock.condense()
 		mark(cs, ce)
-		if a.lyricTranslation(*l) != "" {
-			as, _ := clock.condense()
-			as += 400 * time.Millisecond
-			dur := 900 * time.Millisecond
-			if reduce {
-				dur = 300 * time.Millisecond
-			}
-			mark(as, as+dur)
-		}
 		var next *lyrics.Line
 		if i+1 < len(lines) {
 			next = &lines[i+1]
 		}
 		long := next == nil || next.At-l.End > 4*time.Second
+		if a.lyricTranslation(*l) != "" {
+			in, inEnd, out, outEnd, leaves := birdAnswerTimes(clock, l, next, long, reduce)
+			mark(in, inEnd)
+			if leaves {
+				mark(out, outEnd)
+			}
+		}
 		if ls, le, ok := birdLeave(l, next, long, reduce); ok {
 			mark(ls, le)
 		}
