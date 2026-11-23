@@ -641,10 +641,12 @@ func (n *notch) idle(c *ui.Context, open, left float32) {
 	})
 }
 
-// A stripRow is one row of the lyrics under the notch.
+// A stripRow is one row of the lyrics under the notch: a line, or its
+// reading or translation, in lang ("" for a line's own).
 type stripRow struct {
 	line   *lyrics.Line
 	text   string
+	lang   string
 	fill   bool
 	alpha  float32
 	size   float32
@@ -689,39 +691,44 @@ func (n *notch) lyricStrip(c *ui.Context, w, shown float32) {
 	n.stripFrames(c, lines, cur, pos)
 }
 
+// stripRows are the rows under the notch at pos. One row is the line sung.
+// Two add its translation, or else its reading, or else the next line.
+// Three add the line before as well, or, with both the reading and the
+// translation on, show the line sung over them both: the meaning gave way
+// to the reading, and the translation never showed with it.
 func (n *notch) stripRows(lines []lyrics.Line, cur int, pos time.Duration) []stripRow {
 	if n.inBreak(lines, cur, pos) {
 		return []stripRow{{line: &lines[cur+1], text: lines[cur+1].Text, alpha: 0.38, size: 13.5, weight: 600}}
 	}
 	current := stripRow{line: &lines[cur], text: lines[cur].Text, fill: true, alpha: 1, size: 13.5, weight: 600}
+	reading, translation := n.a.lyricReading(lines[cur]), n.a.lyricTranslation(lines[cur])
+	readingRow := stripRow{text: reading, alpha: 0.55, size: 11.5, weight: 500}
+	translationRow := stripRow{text: translation, lang: "zh-Hans", alpha: 0.62, size: 11.5, weight: 500}
+	extra := func(rows []stripRow) []stripRow {
+		switch {
+		case translation != "":
+			return append(rows, translationRow)
+		case reading != "":
+			return append(rows, readingRow)
+		case cur+1 < len(lines):
+			return append(rows, stripRow{line: &lines[cur+1], text: lines[cur+1].Text, alpha: 0.55, size: 11.5, weight: 500})
+		}
+		return rows
+	}
 	switch n.a.settings.NotchLyrics {
 	case 1:
 		return []stripRow{current}
 	case 2:
-		return n.withExtra([]stripRow{current}, lines, cur)
-	default:
-		var rows []stripRow
-		if cur > 0 {
-			rows = append(rows, stripRow{line: &lines[cur-1], text: lines[cur-1].Text, alpha: 0.55, size: 11.5, weight: 500})
-		}
-		rows = append(rows, current)
-		return n.withExtra(rows, lines, cur)
+		return extra([]stripRow{current})
 	}
-}
-
-// withExtra adds the reading or the translation under the line sung, or
-// the next line when neither is on. One row of lyrics never shows them.
-func (n *notch) withExtra(rows []stripRow, lines []lyrics.Line, cur int) []stripRow {
-	if r := n.a.lyricReading(lines[cur]); r != "" {
-		return append(rows, stripRow{text: r, alpha: 0.55, size: 11.5, weight: 500})
+	if reading != "" && translation != "" {
+		return []stripRow{current, readingRow, translationRow}
 	}
-	if t := n.a.lyricTranslation(lines[cur]); t != "" {
-		return append(rows, stripRow{text: t, alpha: 0.55, size: 11.5, weight: 500})
+	var rows []stripRow
+	if cur > 0 {
+		rows = append(rows, stripRow{line: &lines[cur-1], text: lines[cur-1].Text, alpha: 0.55, size: 11.5, weight: 500})
 	}
-	if cur+1 < len(lines) {
-		return append(rows, stripRow{line: &lines[cur+1], text: lines[cur+1].Text, alpha: 0.55, size: 11.5, weight: 500})
-	}
-	return rows
+	return extra(append(rows, current))
 }
 
 // inBreak reports a gap of at least 5 seconds, a second after its last word.
@@ -736,27 +743,83 @@ func (n *notch) inBreak(lines []lyrics.Line, cur int, pos time.Duration) bool {
 	return pos >= last+time.Second
 }
 
+// stripLine draws a row at most maxW wide. The line sung fills word by
+// word; too wide for the row, it shows through a window that follows the
+// word being sung, rather than ending in an ellipsis that could hide it.
 func (n *notch) stripLine(c *ui.Context, row stripRow, pos time.Duration, maxW float32) {
 	size := row.size
 	weight := row.weight
-	if tw, _ := c.MeasureText(0, ui.Span{Text: row.text, Size: size, Weight: weight}); tw > maxW && size > 11 {
-		size = 11
-	}
-	lang := ""
+	lang := row.lang
 	if row.line != nil {
 		lang = row.line.Lang
 	}
+	span := ui.Span{Text: row.text, Size: size, Weight: weight, Lang: lang}
+	tw, _ := c.MeasureText(0, span)
+	if tw > maxW && size > 11 {
+		size, span.Size = 11, 11
+		tw, _ = c.MeasureText(0, span)
+	}
 	if row.fill && row.line != nil && len(row.line.Words) > 0 {
-		ui.RichText(c).FontSize(size).FontWeight(weight).SingleLine().MaxWidth(maxW).Lang(lang).Children(func() {
-			for i, wd := range row.line.Words {
-				lit := clamp01(float32((pos - wd.Start).Seconds() / max(0.05, (wd.End-wd.Start).Seconds())))
-				ui.Text(c.Key(i), wd.Text).TextColor(white.Alpha(0.38 + 0.62*lit))
+		words := func(e ui.Element) {
+			e.FontSize(size).FontWeight(weight).Lang(lang).Children(func() {
+				for i, wd := range row.line.Words {
+					lit := clamp01(float32((pos - wd.Start).Seconds() / max(0.05, (wd.End-wd.Start).Seconds())))
+					ui.Text(c.Key(i), wd.Text).TextColor(white.Alpha(0.38 + 0.62*lit))
+				}
+			})
+		}
+		if tw <= maxW {
+			words(ui.RichText(c).SingleLine().MaxWidth(maxW))
+			return
+		}
+		offset := stripWindow(row.line.Words, pos, tw, maxW, func(s string) float32 {
+			span.Text = s
+			w, _ := c.MeasureText(0, span)
+			return w
+		})
+		ui.Box(c.Key("window")).Width(maxW).ClipX().Children(func() {
+			words(ui.RichText(c).NoWrap().Translate(-offset, 0))
+			// The cut edges fade into the black of the shell.
+			fade := func(left bool) {
+				g := ui.LinearGradient{Angle: 90, Stops: []ui.GradientStop{{Color: ui.RGB(0, 0, 0), At: 0}, {Color: ui.RGBA(0, 0, 0, 0), At: 1}}}
+				e := ui.Box(c).Absolute().Top(0).Bottom(0).Width(14).PassThrough()
+				if left {
+					e.Left(0)
+				} else {
+					e.Right(0)
+					g.Angle = 270
+				}
+				e.LinearGradient(g)
+			}
+			if offset > 0.5 {
+				fade(true)
+			}
+			if offset < tw-maxW-0.5 {
+				fade(false)
 			}
 		})
 		return
 	}
 	ui.Text(c, row.text).FontSize(size).FontWeight(weight).SingleLine().MaxWidth(maxW).Lang(lang).
 		TextColor(white.Alpha(row.alpha))
+}
+
+// stripWindow is how far into a line tw wide a window maxW wide starts at
+// pos, so that the place being sung, which moves through each word as it
+// is sung, stays 60% of the way across it, once the line has gone that far.
+// width measures text as the line is set.
+func stripWindow(words []lyrics.Word, pos time.Duration, tw, maxW float32, width func(string) float32) float32 {
+	at, before := float32(0), ""
+	for _, wd := range words {
+		if pos < wd.Start {
+			break
+		}
+		w := width(wd.Text)
+		lit := clamp01(float32((pos - wd.Start).Seconds() / max(0.05, (wd.End-wd.Start).Seconds())))
+		at = width(before) + w*lit
+		before += wd.Text
+	}
+	return min(max(0, at-maxW*0.6), tw-maxW)
 }
 
 // stripFrames asks for a frame while a word fills, and otherwise waits

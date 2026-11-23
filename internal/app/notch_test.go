@@ -237,8 +237,8 @@ func TestNotchCardKeepsThePointer(t *testing.T) {
 }
 
 // With NM_FRAMES set, saves the lyrics under the notch: one line filling,
-// two and three lines, the next line during a break, and the strip faded
-// under the pointer.
+// two and three lines, the next line during a break, the strip faded
+// under the pointer, and a line too wide for it.
 func TestNotchLyricStripFrames(t *testing.T) {
 	dir := os.Getenv("NM_FRAMES")
 	if dir == "" {
@@ -297,6 +297,25 @@ func TestNotchLyricStripFrames(t *testing.T) {
 	save("notch-lyrics-break", n)
 	n.under = true
 	save("notch-lyrics-under", n)
+
+	// A line too wide for the strip, sung most of the way.
+	a = newTestApp()
+	a.settings = defaultSettings()
+	a.settings.Notch = true
+	a.settings.NotchLyrics = 3
+	a.settings.LyricRoman, a.settings.LyricTranslation = true, true
+	n = &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
+	a.notch = n
+	var words []lyrics.Word
+	for i, w := range []string{"風が", "長い", "廊下を", "渡って", "夜の", "向こうまで", "続いていく"} {
+		at := time.Duration(i) * time.Second
+		words = append(words, lyrics.Word{Text: w, Start: at, End: at + 900*time.Millisecond})
+	}
+	a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 30000}})
+	a.pl.SetLyrics([]lyrics.Line{{At: 0, End: 8 * time.Second, Text: "風が長い廊下を渡って夜の向こうまで続いていく", Lang: "ja",
+		Reading: "kaze ga nagai rouka o watatte yoru no mukou made tsuzuite iku", Translation: "风穿过长长的走廊，一直走到夜的那一边", Words: words}})
+	a.pl.Hold(5500 * time.Millisecond)
+	save("notch-lyrics-long", n)
 }
 
 // With NM_FRAMES set, saves the notch as it greets, growing and grown, and
@@ -370,5 +389,69 @@ func TestNotchStripComesAndGoesOnTime(t *testing.T) {
 		if builds == before {
 			t.Errorf("%s: not built as the strip changes", c.name)
 		}
+	}
+}
+
+// Under the notch, the translation shows whenever it is on: with two rows
+// over the reading, and with three under the line and its reading. The
+// reading took the one extra row, and the translation never showed with
+// it.
+func TestNotchKeepsTheTranslation(t *testing.T) {
+	for _, rows := range []int{2, 3} {
+		a := newTestApp()
+		a.settings = defaultSettings()
+		a.settings.Notch = true
+		a.settings.NotchLyrics = rows
+		a.settings.LyricRoman, a.settings.LyricTranslation = true, true
+		n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
+		a.notch = n
+		a.pl.Cue([]netease.Track{{ID: 7, Name: "歌", Duration: 30000}})
+		a.pl.SetLyrics([]lyrics.Line{
+			{At: 0, End: 3 * time.Second, Text: "前の"},
+			{At: 4 * time.Second, End: 8 * time.Second, Text: "風が吹く", Lang: "ja", Reading: "kaze ga fuku", Translation: "风在吹"},
+		})
+		a.pl.Hold(5 * time.Second)
+		tt := ui.NewTester(n.view, int(n.winW), int(n.winH))
+		tt.Frame()
+		if _, ok := tt.Find("风在吹"); !ok {
+			t.Errorf("%d rows: the translation is not shown", rows)
+		}
+		if _, ok := tt.Find("kaze ga fuku"); ok != (rows == 3) {
+			t.Errorf("%d rows: the reading shown %v", rows, ok)
+		}
+	}
+}
+
+// A line too wide for the notch shows through a window that moves on as
+// it is sung, never back, from its start to its end: it ended in an
+// ellipsis, which hid the words sung last.
+func TestNotchWindowFollowsTheWord(t *testing.T) {
+	var words []lyrics.Word
+	for i := range 10 {
+		at := time.Duration(i) * time.Second
+		words = append(words, lyrics.Word{Text: "word ", Start: at, End: at + 800*time.Millisecond})
+	}
+	width := func(s string) float32 { return float32(len(s)) * 6 } // 30 a word
+	tw, maxW := float32(300), float32(120)
+	last := float32(-1)
+	for pos := time.Duration(0); pos <= 10*time.Second; pos += 100 * time.Millisecond {
+		off := stripWindow(words, pos, tw, maxW, width)
+		if off < last {
+			t.Fatalf("at %v the window went back, from %.1f to %.1f", pos, last, off)
+		}
+		// The place being sung is inside the window.
+		if i := int(pos / time.Second); i < 10 {
+			lit := clamp01(float32((pos - words[i].Start).Seconds() / 0.8))
+			if at := float32(i)*30 + 30*lit; at < off || at > off+maxW {
+				t.Fatalf("at %v the word sung, at %.1f, is outside the window from %.1f", pos, at, off)
+			}
+		}
+		last = off
+	}
+	if last != tw-maxW {
+		t.Errorf("at the end the window starts at %.1f, not at the end's %.1f", last, tw-maxW)
+	}
+	if off := stripWindow(words, 0, tw, maxW, width); off != 0 {
+		t.Errorf("at the start the window starts at %.1f", off)
 	}
 }
