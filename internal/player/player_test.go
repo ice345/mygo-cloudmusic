@@ -1,7 +1,6 @@
 package player
 
 import (
-	"fmt"
 	"math"
 	"net"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -282,17 +282,19 @@ func TestNetworkErrorKeepsTheTrack(t *testing.T) {
 }
 
 // A track that can't play is still skipped, and so is one NetEase won't
-// stream; a refusal, like the network, stops on the track it reached.
+// stream; a refusal, like the network, stops on the track it reached, and
+// says why in NetEase's words: the reason, as a risk it saw in the
+// network, was dropped for a sentence that said only to try again.
 func TestUnplayableSkipsAndRefusalStays(t *testing.T) {
 	p, settle, _ := offline(t, func(id int64, _ string) (*netease.Stream, error) {
 		if id == 1 {
 			return nil, netease.ErrUnavailable
 		}
-		return nil, fmt.Errorf("netease: song url: code -460: %w", netease.ErrRefused)
+		return nil, &netease.RefusedError{Code: -460, Message: "检测到您的网络环境存在风险，请稍后再试"}
 	})
 	p.load(0)
 	settle()
-	if p.Current().ID != 2 || p.Playing() || p.Err() == "" {
+	if p.Current().ID != 2 || p.Playing() || !strings.Contains(p.Err(), "网络环境存在风险") {
 		t.Fatalf("track %d, playing %v, err %q", p.Current().ID, p.Playing(), p.Err())
 	}
 }

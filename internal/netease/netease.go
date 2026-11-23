@@ -393,6 +393,20 @@ var ErrUnavailable = errors.New("this song isn't available to stream")
 // again later, it may play.
 var ErrRefused = errors.New("netease turned the request away")
 
+// A RefusedError is NetEase turning a request away: its code, as -460, and
+// what it said, as 检测到您的网络环境存在风险，请稍后再试. It is ErrRefused.
+type RefusedError struct {
+	Code    int
+	Message string
+}
+
+func (e *RefusedError) Error() string {
+	return fmt.Sprintf("netease: refused, code %d %s", e.Code, e.Message)
+}
+
+// Is makes a RefusedError ErrRefused.
+func (e *RefusedError) Is(target error) bool { return target == ErrRefused }
+
 // Stream is where a track streams from, and what it is.
 type Stream struct {
 	URL  string `json:"-"`
@@ -419,8 +433,9 @@ func Lossless(level string) bool { return level == "lossless" || level == "hires
 // the eapi, which carries the session, so VIP songs play for subscribers.
 func SongURL(id int64, level string) (*Stream, error) {
 	var res struct {
-		Code int `json:"code"`
-		Data []struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    []struct {
 			Stream
 			URL           string          `json:"url"`
 			Peak          *float64        `json:"peak"`
@@ -436,7 +451,7 @@ func SongURL(id int64, level string) (*Stream, error) {
 		return nil, err
 	}
 	if res.Code != 200 {
-		return nil, fmt.Errorf("netease: song url: code %d: %w", res.Code, ErrRefused)
+		return nil, &RefusedError{Code: res.Code, Message: res.Message}
 	}
 	if len(res.Data) == 0 || res.Data[0].URL == "" {
 		return nil, ErrUnavailable

@@ -681,7 +681,13 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 				// Nothing says the track can't play: it stays, paused
 				// where it was, and plays when asked again (TogglePlay).
 				p.err = "网络连接失败，请检查网络后重试"
-				if errors.Is(err, netease.ErrRefused) {
+				var refused *netease.RefusedError
+				switch {
+				case errors.As(err, &refused) && refused.Message != "":
+					// In NetEase's words, which say whether it is the network
+					// (-460, 检测到您的网络环境存在风险) or the session.
+					p.err = "网易云音乐拒绝了播放：" + refused.Message
+				case errors.Is(err, netease.ErrRefused):
 					p.err = "网易云音乐暂时拒绝了请求，请稍后重试"
 				}
 				p.playing = false
