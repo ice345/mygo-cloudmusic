@@ -2,10 +2,12 @@ package app
 
 import (
 	"math"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/linebreak"
 	"netease-music-mygo/internal/lyrics"
 	"netease-music-mygo/internal/netease"
 )
@@ -221,7 +223,8 @@ func (a *app) stageFoot(c *ui.Context, lines []lyrics.Line, cur int, pos time.Du
 
 // stageCaption sets l's reading and translation as rows of the stage's
 // foot, shown as far in as shown: the first at the size the translation
-// always had there, the second a step quieter, as Folia stacks them.
+// always had there, the second a step quieter, as Folia stacks them. Each
+// takes at most two even rows, broken between phrases.
 func (a *app) stageCaption(c *ui.Context, l *lyrics.Line, shown, w float32) {
 	reading, translation := a.lyricReading(*l), a.lyricTranslation(*l)
 	if reading == "" && translation == "" {
@@ -235,7 +238,8 @@ func (a *app) stageCaption(c *ui.Context, l *lyrics.Line, shown, w float32) {
 				size, weight, alpha = size*0.88, 500, alpha*0.82
 			}
 			first = false
-			ui.Text(c, text).FontSize(size).FontWeight(weight).TextColor(white.Alpha(alpha)).TextAlign(ui.Center).MaxLines(2)
+			rows, _ := breakRows(c, text, "", 2, w*0.72, ui.Span{Size: size, Weight: weight})
+			ui.Text(c, rows).FontSize(size).FontWeight(weight).TextColor(white.Alpha(alpha)).TextAlign(ui.Center).NoWrap()
 		}
 		if reading != "" {
 			row(reading)
@@ -363,4 +367,23 @@ func (a *app) interlude(c *ui.Context, pos, from, to time.Duration) {
 			ui.Box(c.Key(i)).Size(16, 16).Radius(8).Background(white.Alpha(0.2+0.7*lit)).Scale(breath, breath)
 		}
 	})
+}
+
+// breakRows sets text in at most n rows no wider than max, broken between
+// its phrases (linebreak) rather than wherever a row runs out of room, as
+// even as they go, measured as span sets them. It returns the rows on
+// lines of their own, for a text drawn NoWrap, and the widest row's width.
+func breakRows(c *ui.Context, text, lang string, n int, limit float32, span ui.Span) (string, float32) {
+	span.Lang = lang
+	width := func(s string) float32 {
+		span.Text = s
+		w, _ := c.MeasureText(0, span)
+		return w
+	}
+	rows := linebreak.Rows(linebreak.Phrases(text, lang), n, limit, width)
+	widest := float32(0)
+	for _, r := range rows {
+		widest = max(widest, width(r))
+	}
+	return strings.Join(rows, "\n"), widest
 }

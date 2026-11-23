@@ -34,6 +34,7 @@ go test ./...        # 运行测试
 - [MyGo](https://github.com/egoist/mygo)：原生 UI 与应用框架
 - [NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi)：eapi 加密与登录流程的参考
 - [folia-major](https://github.com/chthollyphile/folia-major)：歌词动画效果的参考
+- [BudouX](https://github.com/google/budoux)：日文与中文歌词的断行（模型以 Apache-2.0 授权，见 `internal/linebreak/models`）
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)、[Qwen3-ASR](https://github.com/QwenLM/Qwen3-ASR) 与 [Silero VAD](https://github.com/snakers4/silero-vad)：本机语音识别
 
 本项目与网易云音乐官方无关，音乐版权归各权利人所有。

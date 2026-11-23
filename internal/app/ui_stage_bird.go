@@ -2,6 +2,7 @@ package app
 
 import (
 	"runtime"
+	"strings"
 	"time"
 	"unicode"
 
@@ -127,7 +128,7 @@ func (a *app) birdLine(c *ui.Context, l, next *lyrics.Line, pos time.Duration, w
 	}
 	avail := w * 0.8
 	size := birdSize(w)
-	size, spacing, lineW, two := birdFit(c, text, font, size, avail, cjk)
+	rows, size, spacing, lineW, two := birdFit(c, text, l.Lang, font, size, avail, cjk)
 	op, blur, dy, gone := birdLook(clock, l, next, pos, size, reduce, long)
 	if op < 0.004 {
 		return
@@ -139,8 +140,8 @@ func (a *app) birdLine(c *ui.Context, l, next *lyrics.Line, pos time.Duration, w
 			words.Blur(blur)
 		}
 		words.Children(func() {
-			ui.Text(c, text).Font(font).Lang(l.Lang).FontSize(size).FontWeight(400).
-				LetterSpacing(spacing).LineHeight(1.3).MaxLines(2).MaxWidth(avail).
+			ui.Text(c, rows).Font(font).Lang(l.Lang).FontSize(size).FontWeight(400).
+				LetterSpacing(spacing).LineHeight(1.3).NoWrap().
 				TextAlign(ui.Center).TextColor(birdInk)
 		})
 		a.birdCaptions(c, l, pos, clock, size, lineW, dy, blur, op, gone, two, reduce)
@@ -423,23 +424,31 @@ func (a *app) birdSchedule(lines []lyrics.Line, pos time.Duration, reduce bool) 
 	return busy, wait
 }
 
-func birdFit(c *ui.Context, text, font string, size, avail float32, cjk bool) (fit, spacing, width float32, two bool) {
+// birdFit sets text in at most two even rows avail wide, broken between
+// its phrases, shrinking it as far as half its size until they fit. It
+// returns the rows, on lines of their own, the size and letter spacing
+// they take, the widest row's width, and whether there are two.
+func birdFit(c *ui.Context, text, lang, font string, size, avail float32, cjk bool) (rows string, fit, spacing, width float32, two bool) {
 	em := float32(0.01)
 	if cjk {
 		em = 0.10
 	}
-	spacing = size * em
-	tw, _ := c.MeasureText(0, ui.Span{Text: text, Font: font, Size: size, Weight: 400, LetterSpacing: spacing})
+	span := func(size float32) ui.Span {
+		return ui.Span{Font: font, Size: size, Weight: 400, LetterSpacing: size * em}
+	}
+	base := size
+	tw, _ := c.MeasureText(0, ui.Span{Text: text, Font: font, Size: size, Weight: 400, LetterSpacing: size * em, Lang: lang})
 	if tw > avail*2 && tw > 0 {
 		size *= max(0.5, avail*2/tw)
-		spacing = size * em
-		tw, _ = c.MeasureText(0, ui.Span{Text: text, Font: font, Size: size, Weight: 400, LetterSpacing: spacing})
 	}
-	two = tw > avail
-	if tw > avail {
-		tw = avail
+	rows, widest := breakRows(c, text, lang, 2, avail, span(size))
+	if widest > avail && widest > 0 {
+		// Phrases too long to share evenly: smaller, as rows scale with it.
+		small := max(size*avail/widest, base*0.5)
+		widest *= small / size
+		size = small
 	}
-	return size, spacing, max(tw, 1), two
+	return rows, size, size * em, max(min(widest, avail), 1), strings.Contains(rows, "\n")
 }
 
 func birdCJK(s string) bool {

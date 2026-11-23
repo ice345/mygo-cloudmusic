@@ -40,14 +40,14 @@ Folia is [chthollyphile/folia-major](https://github.com/chthollyphile/folia-majo
 
 - `Absolute().Left(0).Right(0).Bottom(24)`, centred, passing the pointer through, inside the dimmed `sung` box so a hot comment dims it too.
 - Rows from top to bottom: the reading, the translation, then the next line (14 pt, 32%, one line).
-- The first caption row present is 18 pt, weight 600, 72% white; the second ×0.88 the size, weight 500, ×0.82 the opacity. Each at most 72% of the stage wide and two lines.
+- The first caption row present is 18 pt, weight 600, 72% white; the second ×0.88 the size, weight 500, ×0.82 the opacity. Each at most 72% of the stage wide, in at most two even rows broken between phrases (`breakRows`, below).
 - One line's captions at a time: the old ones fade over the first 120 ms after the new line's time, and the new ones come in from 120 ms over 250 ms, rising 6 DIP. In a long break they fade over 400 ms with their line.
 
 ## 青鸟
 
 A line forms whole out of a mist and stays still. Its reading sits under it, and its translation answers late, off to the right. In breaks a hairline holds the place. No hot comments, no sparks, no foot band and no next line: the empty space is the point.
 
-**Type.** The line is `min(56, max(32, 0.04 w))`, weight 400, line height 1.3, letter spacing 0.10 em for CJK and 0.01 em for Latin, at most two lines, shrinking to fit (`birdFit`). Families (`birdFonts`), each system asked only for what it installs: for `ja` lines, Hiragino Mincho ProN on macOS, Yu Mincho on Windows, Noto Serif CJK JP elsewhere; for everything else, Songti SC, SimSun, Noto Serif CJK SC. Without them the system sans draws it. Don't add a family macOS only offers as a download (YuMincho and the like): asking CoreText for one can wait on the system's font catalog, and stalled a Mac in CI for ten minutes. The reading is `max(13, 0.32 × size)` in the system font; the translation `max(14, 0.38 × size)` in `birdFontZH`, tracking 0.14 em, starting 14% in from the line block's left, at most two lines.
+**Type.** The line is `min(56, max(32, 0.04 w))`, weight 400, line height 1.3, letter spacing 0.10 em for CJK and 0.01 em for Latin, in at most two even rows broken between phrases, shrinking to fit (`birdFit`). Families (`birdFonts`), each system asked only for what it installs: for `ja` lines, Hiragino Mincho ProN on macOS, Yu Mincho on Windows, Noto Serif CJK JP elsewhere; for everything else, Songti SC, SimSun, Noto Serif CJK SC. Without them the system sans draws it. Don't add a family macOS only offers as a download (YuMincho and the like): asking CoreText for one can wait on the system's font catalog, and stalled a Mac in CI for ten minutes. The reading is `max(13, 0.32 × size)` in the system font; the translation `max(14, 0.38 × size)` in `birdFontZH`, tracking 0.14 em, starting 14% in from the line block's left, at most two lines.
 
 **Colours.** `birdInk` `#EEF4F6` for the line; `birdBreath` white at 46% for the reading; `birdAnswer` `#F3EEDF` at 62% for the translation; `birdRest` `#B0CECC` mixed 15% toward the cover's accent, at 50%, for the hairline.
 
@@ -61,7 +61,16 @@ A line forms whole out of a mist and stays still. Its reading sits under it, and
 
 **Backdrop.** While 青鸟 shows, the backdrop takes its tone, `toneGlass` (`glassColors`, `backdrop.go`). The cover's hue moves 70% of the way to 192°, at saturation 0.20 at the top and 0.24 at the foot, and value 0.40 and 0.25. The cover's wash drops to 0.06, and a light falls at 135° from 8% white to nothing by 55%. A grey cover stays grey. The fog takes the same tone.
 
-Known defects, on the roadmap: the answer arrives before the line has formed and sits left of centre; the captions are below 4.5:1; the line breaks inside words; red covers turn mauve and the hue jumps at 12°.
+Known defects, on the roadmap: the answer arrives before the line has formed and sits left of centre; the captions are below 4.5:1; the translation still wraps where MyGo runs out of room; red covers turn mauve and the hue jumps at 12°.
+
+## Breaking lines
+
+MyGo breaks text wherever a row runs out of room, which in Japanese and Chinese is between any two characters. So the stage breaks its own: `breakRows` (`ui_stage.go`) asks `internal/linebreak` for the places a row may end, and draws the rows `NoWrap`, on lines of their own.
+
+- **Where a row may end:** at spaces, the only place Korean and the languages spaced into words break; and between the phrases of Japanese and Chinese, as [BudouX](https://github.com/google/budoux) finds them (its v0.10.4 models, in `internal/linebreak/models`). A run with kana is read as Japanese, other Chinese characters as Chinese. A row never starts with a closing mark or a small kana, and never ends with an opening mark.
+- **Which of those:** one row if the whole fits; else as few as fit, as even as can be, a break after punctuation or a space counting as an eighth of the whole narrower. A phrase wider than the row on its own breaks between its characters.
+
+`TestRowsNeverBreakInsideAWord` holds this. The 歌词 list still wraps as MyGo does: its width is known only once it is laid out.
 
 ## The backdrop
 
