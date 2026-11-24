@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strconv"
 	"testing"
 
 	"netease-music-mygo/internal/music"
@@ -128,4 +129,34 @@ func savedLists(pls ...netease.Playlist) []music.Playlist {
 		out = append(out, mp)
 	}
 	return out
+}
+
+// ntrack names a NetEase song or episode in the comments, as the app keeps them.
+func ntrack(n int64) trackKey { return trackKey{netease.SourceID, strconv.FormatInt(n, 10)} }
+
+// commentSource is a source whose comments, and likes of them, are what a test
+// says; one it was not told of is unsupported.
+type commentSource struct {
+	music.Unsupported
+	comments func(trackID string, offset int) (*music.CommentPage, error)
+	like     func(trackID, commentID string, on bool) error
+}
+
+func (*commentSource) Info() music.Info {
+	return music.Info{ID: netease.SourceID, Name: "评论音源"}
+}
+func (s *commentSource) Can(what string) bool {
+	return what == "comments" && s.comments != nil || what == "likeComment" && s.like != nil
+}
+func (s *commentSource) Comments(id string, offset int) (*music.CommentPage, error) {
+	if s.comments == nil {
+		return nil, music.ErrUnsupported
+	}
+	return s.comments(id, offset)
+}
+func (s *commentSource) LikeComment(id, comment string, on bool) error {
+	if s.like == nil {
+		return music.ErrUnsupported
+	}
+	return s.like(id, comment, on)
 }

@@ -108,10 +108,13 @@ func (a *app) nowPlayingView(c *ui.Context) {
 
 func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, accent ui.Color, w, h float32, pointerIn bool) {
 	pl := a.pl
-	a.commentsFor(tr)
+	a.commentsFor()
 	// An episode has what it is about and its captions in place of lyrics;
 	// a song, lyrics in place of those.
 	switch program := tr.ProgramID != 0; {
+	case a.npPane == paneComments && !a.canComment():
+		// A source with no comments has no tab for them.
+		a.npPane = paneQueue
 	case program && a.npPane == paneWall:
 		a.npPane = paneQueue
 	case program && (a.npPane == paneLyrics || a.npPane == paneStage):
@@ -231,7 +234,7 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 				case paneLyrics:
 					a.lyricsPane(c, tr, h)
 				case paneComments:
-					a.commentsPane(c, tr)
+					a.commentsPane(c)
 				case paneProgram:
 					a.programPane(c, tr)
 				case paneCaptions:
@@ -311,9 +314,17 @@ func (a *app) npTabs() []npTab {
 		if a.captionsShown() {
 			tabs = append(tabs, npTab{paneCaptions, "字幕"})
 		}
-		return append(tabs, npTab{paneQueue, "待播清单"}, npTab{paneComments, "评论"})
+		tabs = append(tabs, npTab{paneQueue, "待播清单"})
+		if a.canComment() {
+			tabs = append(tabs, npTab{paneComments, "评论"})
+		}
+		return tabs
 	}
-	return []npTab{{paneLyrics, "歌词"}, {paneStage, "律动"}, {paneQueue, "待播清单"}, {paneWall, "选歌"}, {paneComments, "评论"}}
+	tabs := []npTab{{paneLyrics, "歌词"}, {paneStage, "律动"}, {paneQueue, "待播清单"}, {paneWall, "选歌"}}
+	if a.canComment() {
+		tabs = append(tabs, npTab{paneComments, "评论"})
+	}
+	return tabs
 }
 
 // lyricReading is the line's reading while the listener wants it. A song

@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/lyrics"
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -28,24 +29,25 @@ const (
 // quietState is the quiet parts of the song Now Playing shows, and the
 // comment shown in one, kept as it fades away.
 type quietState struct {
-	track  int64
+	track  trackKey
 	lines  int  // how many lines they were found among
 	none   bool // the song has no lyrics: neither loading, nor failed to come
 	quiets []lyrics.Quiet
-	cm     *netease.Comment
+	cm     *music.Comment
 }
 
 // quietComment returns the hot comment to show at pos, nil for none, and
 // how long until that changes, 0 for never.
-func (a *app) quietComment(tr *netease.Track, lines []lyrics.Line, loaded bool, pos time.Duration) (*netease.Comment, time.Duration) {
+func (a *app) quietComment(tr *netease.Track, lines []lyrics.Line, loaded bool, pos time.Duration) (*music.Comment, time.Duration) {
 	if !a.settings.HotComments {
 		return nil, 0
 	}
 	qs := &a.quiet
 	// Lyrics that failed to come are no sign of a song without words.
 	none := len(lines) == 0 && loaded && !a.pl.LyricsFailed()
-	if qs.track != tr.ID || qs.lines != len(lines) || qs.none != none || qs.quiets == nil {
-		qs.track, qs.lines, qs.none = tr.ID, len(lines), none
+	key := a.currentKey()
+	if qs.track != key || qs.lines != len(lines) || qs.none != none || qs.quiets == nil {
+		qs.track, qs.lines, qs.none = key, len(lines), none
 		qs.quiets = lyrics.Quiets(lines, tr.Length(), quietLeast)
 		if none && tr.Length() >= quietLeast {
 			qs.quiets = []lyrics.Quiet{{From: 0, To: tr.Length()}}
@@ -54,10 +56,10 @@ func (a *app) quietComment(tr *netease.Track, lines []lyrics.Line, loaded bool, 
 			qs.quiets = []lyrics.Quiet{}
 		}
 	}
-	var hot []*netease.Comment
-	if cs := &a.comments; cs.track == tr.ID {
+	var hot []*music.Comment
+	if cs := &a.comments; cs.track == key {
 		for i := range cs.hot {
-			if n := utf8.RuneCountInString(cs.hot[i].Content); n > 0 && n <= quietRunes {
+			if n := utf8.RuneCountInString(cs.hot[i].Text); n > 0 && n <= quietRunes {
 				hot = append(hot, &cs.hot[i])
 			}
 		}
@@ -149,7 +151,7 @@ func (a *app) hotCard(c *ui.Context, dim, size float32, place func(ui.Element)) 
 		Padding(16, 12).Gap(14).Radius(14).FocusRing(false).Label("查看评论")
 	place(card)
 	// Each comment rises in on its own as it takes the last one's place.
-	seen := ui.Local(card, "seen", func() int64 { return 0 })
+	seen := ui.Local(card, "seen", func() string { return "" })
 	if *seen != cm.ID {
 		*seen = cm.ID
 		card.Jump("in", 0)
@@ -164,14 +166,14 @@ func (a *app) hotCard(c *ui.Context, dim, size float32, place func(ui.Element)) 
 			ui.Icon(c, iconComment).Size(14, 14)
 			ui.Text(c, "热评").FontSize(12.5).FontWeight(700).LetterSpacing(0.6)
 		})
-		ui.Text(c, cm.Content).FontSize(size).FontWeight(600).LineHeight(1.5).TextColor(white.Alpha(0.92)).MaxLines(6)
+		ui.Text(c, cm.Text).FontSize(size).FontWeight(600).LineHeight(1.5).TextColor(white.Alpha(0.92)).MaxLines(6)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			a.avatar(c, cm.User.AvatarURL, 22, white.Alpha(0.1))
-			ui.Text(c, cm.User.Nickname).FontSize(13).TextColor(white.Alpha(0.6)).SingleLine().Shrink(1).MinWidth(0)
-			if cm.LikedCount > 0 {
+			a.avatar(c, cm.AvatarURL, 22, white.Alpha(0.1))
+			ui.Text(c, cm.Author).FontSize(13).TextColor(white.Alpha(0.6)).SingleLine().Shrink(1).MinWidth(0)
+			if cm.Likes > 0 {
 				ui.Row(c).Gap(4).AlignItems(ui.Center).Margin(0, 0, 0, 6).TextColor(white.Alpha(0.45)).Children(func() {
 					ui.Icon(c, iconThumb).Size(13, 13)
-					ui.Text(c, count(cm.LikedCount)).FontSize(12).FontFeatures("tnum")
+					ui.Text(c, count(cm.Likes)).FontSize(12).FontFeatures("tnum")
 				})
 			}
 		})

@@ -6,23 +6,15 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"netease-music-mygo/internal/netease"
-)
-
-// These load a page of a thread's comments, and like a comment or unlike
-// it, with NetEase; tests replace them.
-var (
-	threadComments = netease.ThreadComments
-	likeComment    = netease.LikeComment
+	"netease-music-mygo/internal/music"
 )
 
 // commentState is the comments of the song or episode Now Playing shows:
 // the hot ones, and the latest, loaded a page at a time as they scroll.
 type commentState struct {
-	track   int64
-	thread  string // whose comments they are, as NetEase names it
-	hot     []netease.Comment
-	latest  []netease.Comment
+	track   trackKey // whose comments they are
+	hot     []music.Comment
+	latest  []music.Comment
 	total   int
 	more    bool
 	loaded  bool
@@ -34,14 +26,34 @@ type commentState struct {
 // commentPage is how many comments a page loads.
 const commentPage = 30
 
-// commentsFor makes the comments those of tr, loading their first page
-// once it changed: Now Playing does it as it shows, for the count on the
-// pane's tab.
-func (a *app) commentsFor(tr *netease.Track) *commentState {
+// currentKey names the track playing or loading, or nothing.
+func (a *app) currentKey() trackKey {
+	if mt := a.pl.Current(); mt != nil {
+		return trackKey{mt.Source, mt.ID}
+	}
+	return trackKey{}
+}
+
+// canComment says whether the source of the track playing shows its comments:
+// those of one that does not are left out.
+func (a *app) canComment() bool { return a.can(a.currentKey().source, "comments") }
+
+// can says whether the source of that ID does what is asked.
+func (a *app) can(source, what string) bool {
+	src := a.source(source)
+	return src != nil && src.Can(what)
+}
+
+// commentsFor makes the comments those of the track playing, loading their
+// first page once it changed: Now Playing does it as it shows, for the count
+// on the pane's tab.
+func (a *app) commentsFor() *commentState {
 	cs := &a.comments
-	if cs.track != tr.ID {
-		*cs = commentState{track: tr.ID, thread: tr.Thread()}
-		a.loadComments()
+	if key := a.currentKey(); cs.track != key {
+		*cs = commentState{track: key}
+		if a.can(key.source, "comments") {
+			a.loadComments()
+		}
 	}
 	return cs
 }
@@ -52,12 +64,17 @@ func (a *app) loadComments() {
 	if cs.loading {
 		return
 	}
-	thread, offset := cs.thread, len(cs.latest)
+	key, offset := cs.track, len(cs.latest)
+	src := a.source(key.source)
+	if src == nil {
+		cs.err = "评论加载失败"
+		return
+	}
 	cs.loading, cs.err = true, ""
 	go func() {
-		page, err := threadComments(thread, offset, commentPage)
+		page, err := src.Comments(key.id, offset)
 		a.post(func() {
-			if cs.thread != thread {
+			if cs.track != key {
 				return
 			}
 			cs.loading = false
@@ -70,16 +87,16 @@ func (a *app) loadComments() {
 				cs.hot = page.Hot
 			}
 			// New comments shift the pages: those already shown come again.
-			seen := make(map[int64]bool, len(cs.latest))
+			seen := make(map[string]bool, len(cs.latest))
 			for _, cm := range cs.latest {
 				seen[cm.ID] = true
 			}
-			for _, cm := range page.Latest {
+			for _, cm := range page.Comments {
 				if !seen[cm.ID] {
 					cs.latest = append(cs.latest, cm)
 				}
 			}
-			cs.total, cs.more = page.Total, page.More && len(page.Latest) > 0
+			cs.total, cs.more = page.Total, page.More && len(page.Comments) > 0
 		})
 	}()
 }
@@ -166,13 +183,13 @@ func count(n int) string {
 
 type commentKey struct {
 	hot bool
-	id  int64
+	id  string
 }
 
 // commentsPane lists the comments of tr: the hot ones, then the latest,
 // which load on as they scroll into view.
-func (a *app) commentsPane(c *ui.Context, tr *netease.Track) {
-	cs := a.commentsFor(tr)
+func (a *app) commentsPane(c *ui.Context) {
+	cs := a.commentsFor()
 	if len(cs.hot) == 0 && len(cs.latest) == 0 {
 		if cs.loading || !cs.loaded && cs.err == "" {
 			ui.Column(c).Grow(1).Padding(4, 8, 0, 0).Gap(2).Children(func() {
@@ -244,27 +261,26 @@ func commentHeading(c *ui.Context, title string) {
 
 // commentRow is a comment: who wrote it, what, and what it replies to,
 // when, from where, and how many liked it, with a thumb to like it too.
-func (a *app) commentRow(c *ui.Context, cm *netease.Comment, now time.Time) {
+func (a *app) commentRow(c *ui.Context, cm *music.Comment, now time.Time) {
 	ui.Row(c).Padding(12).Gap(12).Radius(12).AlignItems(ui.Start).Children(func() {
-		a.avatar(c, cm.User.AvatarURL, 34, white.Alpha(0.1))
+		a.avatar(c, cm.AvatarURL, 34, white.Alpha(0.1))
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(6).Children(func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, cm.User.Nickname).FontSize(13).FontWeight(600).TextColor(white.Alpha(0.6)).SingleLine().Shrink(1).MinWidth(0)
+				ui.Text(c, cm.Author).FontSize(13).FontWeight(600).TextColor(white.Alpha(0.6)).SingleLine().Shrink(1).MinWidth(0)
 				ui.Spacer(c)
 				a.commentLike(c.Key("like"), cm)
 			})
-			ui.Text(c, cm.Content).FontSize(15).LineHeight(1.55).TextColor(white.Alpha(0.92))
-			if len(cm.BeReplied) > 0 {
-				r := cm.BeReplied[0]
+			ui.Text(c, cm.Text).FontSize(15).LineHeight(1.55).TextColor(white.Alpha(0.92))
+			if r := cm.Reply; r != nil {
 				ui.Box(c).Padding(8, 12).Radius(10).Background(white.Alpha(0.07)).Children(func() {
 					ui.RichText(c,
-						ui.Span{Text: "@" + r.User.Nickname + "：", Color: white.Alpha(0.75), Weight: 600},
-						ui.Span{Text: r.Content, Color: white.Alpha(0.6)},
+						ui.Span{Text: "@" + r.Author + "：", Color: white.Alpha(0.75), Weight: 600},
+						ui.Span{Text: r.Text, Color: white.Alpha(0.6)},
 					).FontSize(13).LineHeight(1.5).MaxLines(3)
 				})
 			}
 			meta := commentTime(time.UnixMilli(cm.Time), now)
-			if loc := cm.IPLocation.Location; loc != "" {
+			if loc := cm.Location; loc != "" {
 				meta += " · " + loc
 			}
 			ui.Text(c, meta).FontSize(11.5).TextColor(white.Alpha(0.38))
@@ -274,10 +290,20 @@ func (a *app) commentRow(c *ui.Context, cm *netease.Comment, now time.Time) {
 
 // commentLike is a comment's thumb, with how many liked it, which likes it
 // or unlikes it: in red once liked.
-func (a *app) commentLike(c *ui.Context, cm *netease.Comment) {
+func (a *app) commentLike(c *ui.Context, cm *music.Comment) {
 	label, fg := "赞", white.Alpha(0.42)
 	if cm.Liked {
 		label, fg = "取消赞", a.pal.accent
+	}
+	if !a.can(a.comments.track.source, "likeComment") {
+		// A source that cannot like comments says how many did, and no more.
+		if cm.Likes > 0 {
+			ui.Row(c).Gap(4).AlignItems(ui.Center).TextColor(fg).Children(func() {
+				ui.Icon(c, iconThumb).Size(13, 13)
+				ui.Text(c, count(cm.Likes)).FontSize(12).FontFeatures("tnum")
+			})
+		}
+		return
 	}
 	b := ui.ButtonBase(c).Gap(4).Padding(3, 6).Margin(-3, -6).Radius(999).AlignItems(ui.Center).FocusRing(false).Label(label)
 	if b.Hovered() && !cm.Liked {
@@ -290,8 +316,8 @@ func (a *app) commentLike(c *ui.Context, cm *netease.Comment) {
 			icon = iconThumbFill
 		}
 		ui.Icon(c, icon).Size(13, 13)
-		if cm.LikedCount > 0 {
-			ui.Text(c, count(cm.LikedCount)).FontSize(12).FontFeatures("tnum")
+		if cm.Likes > 0 {
+			ui.Text(c, count(cm.Likes)).FontSize(12).FontFeatures("tnum")
 		}
 	})
 	if b.Clicked() {
@@ -302,21 +328,25 @@ func (a *app) commentLike(c *ui.Context, cm *netease.Comment) {
 // toggleCommentLike likes a comment, or unlikes it, at once in the app and
 // then with NetEase, which may refuse: it goes back then. Signed out, it
 // asks the listener to sign in.
-func (a *app) toggleCommentLike(id int64) {
+func (a *app) toggleCommentLike(id string) {
 	if a.account == nil {
 		a.openLogin()
 		return
 	}
 	cs := &a.comments
-	thread, like := cs.thread, true
+	key, like := cs.track, true
 	if cm := cs.find(id); cm != nil {
 		like = !cm.Liked
 	}
 	cs.setLiked(id, like)
+	src := a.source(key.source)
 	go func() {
-		err := likeComment(thread, id, like)
+		err := music.ErrUnsupported
+		if src != nil {
+			err = src.LikeComment(key.id, id, like)
+		}
 		a.post(func() {
-			if err != nil && cs.thread == thread {
+			if err != nil && cs.track == key {
 				cs.setLiked(id, !like)
 				a.toast = "操作失败，请稍后再试"
 			}
@@ -325,8 +355,8 @@ func (a *app) toggleCommentLike(id int64) {
 }
 
 // find returns the comment id, hot or latest, or nil.
-func (cs *commentState) find(id int64) *netease.Comment {
-	for _, list := range [][]netease.Comment{cs.hot, cs.latest} {
+func (cs *commentState) find(id string) *music.Comment {
+	for _, list := range [][]music.Comment{cs.hot, cs.latest} {
 		for i := range list {
 			if list[i].ID == id {
 				return &list[i]
@@ -338,15 +368,15 @@ func (cs *commentState) find(id int64) *netease.Comment {
 
 // setLiked marks the comment id liked, or not, counting the listener in or
 // out, both where it is hot and where it is latest.
-func (cs *commentState) setLiked(id int64, like bool) {
-	for _, list := range [][]netease.Comment{cs.hot, cs.latest} {
+func (cs *commentState) setLiked(id string, like bool) {
+	for _, list := range [][]music.Comment{cs.hot, cs.latest} {
 		for i := range list {
 			if cm := &list[i]; cm.ID == id && cm.Liked != like {
 				cm.Liked = like
 				if like {
-					cm.LikedCount++
+					cm.Likes++
 				} else {
-					cm.LikedCount = max(cm.LikedCount-1, 0)
+					cm.Likes = max(cm.Likes-1, 0)
 				}
 			}
 		}
@@ -355,7 +385,7 @@ func (cs *commentState) setLiked(id int64, like bool) {
 
 // avatar shows a listener's picture, round, over empty while it loads.
 func (a *app) avatar(c *ui.Context, url string, size float32, empty ui.Color) {
-	bmp := bitmap(a.art.get(netease.Sized(url, int(size*3)), false))
+	bmp := bitmap(a.art.get(sizedImage(url, int(size*3)), false))
 	box := ui.Box(c).Size(size, size).Radius(size / 2).Shrink(0)
 	in := artIn(box, bmp)
 	if in < 1 {
