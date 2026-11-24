@@ -52,7 +52,7 @@
 
 Podcast captions run sherpa-onnx, whose libraries the app downloads with the model from this repository's `sherpa-onnx-<version>` prerelease, not from the app's own releases. A prerelease never becomes the latest that updates look for. `internal/speech/natives.go` names each file with its digests; both come from `scripts/sherpa`, and they only change with sherpa-onnx's version.
 
-No macOS build has loaded them yet: 0.1.27 shipped without that check, which blocks 0.1.28 (`docs/lyrics.md`, Podcast captions). The macOS libraries keep sherpa-onnx's own ad-hoc signatures, which this repository's builds load: they are signed ad hoc, and MyGo turns on the hardened runtime only for a real identity. If this repository later signs with a Developer ID, library validation will refuse them: pack them again with `-sign` and that identity, and upload the new ones over the old.
+A macOS build loaded them on Apple silicon on 2026-11-24, which 0.1.27 had shipped without; an Intel Mac has not (`docs/lyrics.md`, Podcast captions). The macOS libraries keep sherpa-onnx's own ad-hoc signatures, which this repository's builds load: they are signed ad hoc, and MyGo turns on the hardened runtime only for a real identity. If this repository later signs with a Developer ID, library validation will refuse them: pack them again with `-sign` and that identity, and upload the new ones over the old.
 
 To make them, from the repository's root (the script reads the repository from `mygo.json`'s `updates.github`):
 

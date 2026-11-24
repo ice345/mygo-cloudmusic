@@ -77,11 +77,13 @@ The 歌词 list's captions are those of the line sung; the other lines fade with
 
 Episodes get captions written on the device, set like lyrics in the 字幕 tab (`ui_captions.go`, `captions.go`, `internal/speech`). The listener downloads the 语音识别模型 once, from 下载模型 in that tab or in settings under 播客字幕. That download is Qwen3-ASR's model from its own sources, and sherpa-onnx's libraries and Silero's voice detector from this repository's `sherpa-onnx-2.0.1` prerelease (`internal/speech/natives.go`; how they are made is in `RELEASING.md`). Each file is checked against its digest. The lines come from `speech.Lines`; they have no words, translation or reading.
 
-> **Pending verification.** The libraries moved to this repository in `b57aaa2`, and 0.1.27 shipped without trying them on a Mac: no Mac was available. On Linux every file was downloaded anonymously and matched its digest, and the macOS libraries were checked to carry sherpa-onnx's ad-hoc signatures, which this repository's ad-hoc-signed builds load. No macOS build has loaded them yet. This blocks 0.1.28 ([`roadmap.md`](roadmap.md#2-before-0128-blocks-the-release) §2). On a Mac, Apple silicon and Intel if both are at hand:
+> **Verified on 2026-11-24**, on an Apple-silicon Mac. The libraries moved to this repository in `b57aaa2`, and 0.1.27 shipped without trying them on a Mac. On Linux every file was downloaded anonymously and matched its digest. On the Mac the libraries and the model download, load and transcribe a minute of speech in 24 s (`TestTranscribe`, `TestNativesLive`), and by hand, in the app, by the listener:
 >
-> 1. In 0.1.27's build, with no model downloaded, open settings and press 下载模型: the download finishes without 「下载失败，请检查网络后重试」.
-> 2. Turn on 播客字幕 and play an episode: captions appear in its 字幕 tab within a minute, and follow playback.
-> 3. Quit and open the app again: the model and libraries are not downloaded again.
+> 1. With no model downloaded, 下载模型 in settings finishes without 「下载失败，请检查网络后重试」.
+> 2. With 播客字幕 on, an episode's captions appear in its 字幕 tab within a minute, and follow playback.
+> 3. After quitting and opening the app again, the model and libraries are not downloaded again.
+>
+> Not done: an Intel Mac. The libraries for it are checked only by their digests.
 
 ## Not doing
 
