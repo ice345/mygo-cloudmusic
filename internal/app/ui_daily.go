@@ -161,7 +161,7 @@ func recordOut(out float32) float32 { return 30 + 46*out }
 // dailyPlaying reports whether the day's songs are what plays, and whether
 // they play now rather than paused.
 func (a *app) dailyPlaying() (ours, playing bool) {
-	q, cur := a.pl.Queue(), a.pl.Current()
+	q, cur := a.queued(), a.current()
 	if cur == nil || len(q) != len(a.daily) || len(q) == 0 || q[0].ID != a.daily[0].ID || q[len(q)-1].ID != a.daily[len(q)-1].ID {
 		return false, false
 	}
@@ -340,7 +340,7 @@ func (a *app) dailyPlayButton(c *ui.Context, songs []netease.Track, ours, playin
 		if ours {
 			a.pl.TogglePlay()
 		} else {
-			a.pl.PlayQueue(songs, firstPlayable(songs))
+			a.playQueue(songs, firstPlayable(songs))
 		}
 	}
 }
@@ -348,7 +348,7 @@ func (a *app) dailyPlayButton(c *ui.Context, songs []netease.Track, ours, playin
 // dailyPicks lists the day's first songs, numbered, the one playing with
 // its bars; each plays the day's songs from it.
 func (a *app) dailyPicks(c *ui.Context, songs []netease.Track, ours bool) {
-	cur := a.pl.Current()
+	cur := a.current()
 	ui.Column(c.Key("picks")).Width(236).Shrink(0).Gap(2).Children(func() {
 		for i := range min(3, len(songs)) {
 			tr := &songs[i]
@@ -374,7 +374,7 @@ func (a *app) dailyPicks(c *ui.Context, songs []netease.Track, ours bool) {
 				})
 			})
 			if row.Clicked() {
-				a.pl.PlayQueue(songs, i)
+				a.playQueue(songs, i)
 			}
 		}
 	})
@@ -501,13 +501,13 @@ func (a *app) dailyPage(c *ui.Context) {
 						if a.pl.Shuffle() {
 							a.pl.ToggleShuffle()
 						}
-						a.pl.PlayQueue(songs, firstPlayable(songs))
+						a.playQueue(songs, firstPlayable(songs))
 					}
 					if pillButton(c.Key("shuffle"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).Clicked() {
 						if !a.pl.Shuffle() {
 							a.pl.ToggleShuffle()
 						}
-						a.pl.PlayQueue(songs, firstPlayable(songs))
+						a.playQueue(songs, firstPlayable(songs))
 					}
 				})
 			})

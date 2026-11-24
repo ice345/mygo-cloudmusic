@@ -23,7 +23,7 @@ func TestCoveredPageKeepsItsPlace(t *testing.T) {
 	for i := range 40 {
 		a.charts = append(a.charts, netease.Playlist{ID: int64(100 + i), Name: fmt.Sprintf("榜单%d", i+1)})
 	}
-	a.pl.Cue([]netease.Track{{ID: 9999, Name: "一张相片"}})
+	a.cue([]netease.Track{{ID: 9999, Name: "一张相片"}})
 	tt := ui.NewTester(a.view, 1200, 800)
 
 	for _, r := range []route{{page: pagePlaylist, id: 42}, {page: pageCharts}} {

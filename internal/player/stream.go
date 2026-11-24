@@ -16,7 +16,7 @@ import (
 	"github.com/egoist/mygo/audio"
 	gomp3 "github.com/hajimehoshi/go-mp3"
 
-	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/music"
 )
 
 // A download fetches a song as it plays: readers wait for the bytes they
@@ -100,7 +100,7 @@ func (d *download) run(ctx context.Context, url string) {
 		finish(err)
 		return
 	}
-	req.Header.Set("User-Agent", netease.UserAgent)
+	req.Header.Set("User-Agent", music.Agent)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		finish(err)

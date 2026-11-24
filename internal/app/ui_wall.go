@@ -185,7 +185,7 @@ func (a *app) wallSong(c *ui.Context, tr *netease.Track, art *artwork, top, h fl
 // last foot above its foot, frost the height of the frost over its top.
 func (a *app) wall(c *ui.Context, y, w, h, top, foot, frost float32) {
 	pl, ws := a.pl, &a.wallState
-	queue := pl.Queue()
+	queue := a.queued()
 	l := layWall(len(queue), w, h, top, foot)
 	playing := -1
 	if order, at := pl.PlayOrder(); at >= 0 && at < len(order) {
@@ -193,7 +193,7 @@ func (a *app) wall(c *ui.Context, y, w, h, top, foot, frost float32) {
 	}
 	// Shown, the wall brings the song playing to its middle; after, it
 	// glides to the next as little as shows it, unless held.
-	if tr := pl.Current(); tr != nil && tr.ID != ws.track && playing >= 0 {
+	if tr := a.current(); tr != nil && tr.ID != ws.track && playing >= 0 {
 		if ws.track == 0 {
 			ws.pan, ws.off = ui.Point{}, l.centre(playing, w, h, top, foot)
 		} else if !l.shows(playing, addPoint(ws.shown, ws.pan), w, h, top, foot) {

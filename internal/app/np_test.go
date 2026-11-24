@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -14,7 +15,7 @@ func TestNowPlayingClosesAsOneLayer(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
 	tr := netease.Track{ID: 1, Name: "宝船", Artists: []netease.Artist{{Name: "DOUDOU"}}, Duration: 200000}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	a.pl.SetLyrics(nil)
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.SetDark(false)
@@ -52,7 +53,7 @@ func TestQueueStaysAsATrackIsPlayed(t *testing.T) {
 	for i := range 12 {
 		tracks = append(tracks, netease.Track{ID: int64(i + 1), Name: fmt.Sprintf("歌%02d", i), Duration: 200000})
 	}
-	a.pl.Cue(tracks)
+	a.cue(tracks)
 	a.nowPlaying, a.npPane = true, paneQueue
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -62,7 +63,7 @@ func TestQueueStaysAsATrackIsPlayed(t *testing.T) {
 	}
 	tt.Frame()
 	tt.Frame()
-	if got := a.pl.Current().Name; got != "歌05" {
+	if got := a.current().Name; got != "歌05" {
 		t.Fatalf("playing %q, want 歌05", got)
 	}
 	// The tracks before it are still listed, as they were.
@@ -87,7 +88,7 @@ func TestLyricsPaneBeforePlayer(t *testing.T) {
 func TestPrevGoesBackASong(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.pl.Cue([]netease.Track{{ID: 1, Name: "一", Duration: 200000}, {ID: 2, Name: "二", Duration: 200000}})
+	a.cue([]netease.Track{{ID: 1, Name: "一", Duration: 200000}, {ID: 2, Name: "二", Duration: 200000}})
 	a.pl.SetLyrics(nil)
 	a.pl.Hold(30 * time.Second)
 	a.nowPlaying = true
@@ -99,7 +100,7 @@ func TestPrevGoesBackASong(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if id := a.pl.Current().ID; id != 2 {
+	if id := a.current().ID; id != 2 {
 		t.Errorf("playing %d, want the one before, 2", id)
 	}
 }
@@ -109,12 +110,12 @@ func TestPrevGoesBackASong(t *testing.T) {
 func TestNowPlayingHoldsStillWithoutBadge(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.pl.Cue([]netease.Track{{ID: 1, Name: "一", Duration: 200000}})
+	a.cue([]netease.Track{{ID: 1, Name: "一", Duration: 200000}})
 	a.pl.SetLyrics(nil)
 	a.nowPlaying = true
 	tt := ui.NewTester(a.view, 1200, 800)
 	var at []float32
-	for _, st := range []*netease.Stream{{Level: "lossless"}, nil} {
+	for _, st := range []*music.Stream{{Quality: "lossless"}, nil} {
 		a.pl.SetStream(st)
 		tt.Frame()
 		tt.Advance(time.Second)
@@ -144,7 +145,7 @@ func TestCmdNumberChoosesTab(t *testing.T) {
 	} {
 		a := newTestApp()
 		a.settings = defaultSettings()
-		a.pl.Cue([]netease.Track{c.track})
+		a.cue([]netease.Track{c.track})
 		a.pl.SetLyrics(nil)
 		a.nowPlaying = true
 		tt := ui.NewTester(a.view, 1200, 800)
@@ -169,7 +170,7 @@ func TestCmdNumberChoosesTab(t *testing.T) {
 func TestNowPlayingTabsStayPut(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.pl.Cue([]netease.Track{{ID: 1, Name: "一", Duration: 200000}})
+	a.cue([]netease.Track{{ID: 1, Name: "一", Duration: 200000}})
 	a.pl.SetLyrics(nil)
 	a.nowPlaying = true
 	tt := ui.NewTester(a.view, 1200, 800)

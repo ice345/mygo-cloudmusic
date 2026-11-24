@@ -28,7 +28,7 @@ func (a *app) pickUp(uid int64) {
 	go func() {
 		plays, err := recentPlays(100)
 		a.post(func() {
-			if err != nil || a.profile == nil || a.profile.UserID != uid || a.pl.Current() != nil {
+			if err != nil || a.profile == nil || a.profile.UserID != uid || a.current() != nil {
 				return
 			}
 			songs, last, ok := lastStretch(plays, time.Now())
@@ -39,7 +39,7 @@ func (a *app) pickUp(uid int64) {
 			for i := range order {
 				order[i] = i
 			}
-			a.pl.Restore(player.Session{Queue: songs, Order: order, At: len(songs) - 1})
+			a.pl.Restore(player.Session{Queue: netease.ToTracks(songs), Order: order, At: len(songs) - 1})
 			a.picked = pickedUp{id: last.Track.ID, heard: heardAt(last, time.Now())}
 			where := "上次"
 			if d := deviceName(last.Device); d != "" {

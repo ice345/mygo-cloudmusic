@@ -1,8 +1,9 @@
 package player
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,13 +11,14 @@ import (
 	"sync"
 	"time"
 
-	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/music"
 )
 
 // Cache keeps the songs played on disk, so that they play again at once,
-// and without the network: each as <id>-<level>.mp3 or .flac, with what
-// its stream was beside it in <id>-<level>.json. Once they take more than
-// the limit, those played longest ago go first.
+// and without the network: each as <key>-<level>.mp3 or .flac, named for its
+// source and its ID at the source (see cacheKey), with what its stream was
+// beside it in <key>-<level>.json. Once they take more than the limit, those
+// played longest ago go first.
 type Cache struct {
 	dir string
 
@@ -37,64 +39,98 @@ func (c *Cache) SetLimit(limit int64) {
 	c.prune("")
 }
 
-func cacheKey(id int64, level string) string { return fmt.Sprintf("%d-%s", id, level) }
+// legacySource is NetEase's ID among the sources: its songs keep the names
+// they had before there were sources, <id>-<level>, so that what was kept
+// plays still, and is not fetched again. An episode's audio is the
+// "<audio>@<program>" ID's first part.
+const legacySource = "netease"
+
+// cacheKey names a song's files, whatever the source's IDs look like: they
+// are the source's, and may hold anything, a path included.
+func cacheKey(source, id, level string) string {
+	if source == legacySource {
+		if audio, _, _ := strings.Cut(id, "@"); audio != "" && strings.Trim(audio, "0123456789") == "" {
+			return audio + "-" + level
+		}
+	}
+	sum := sha256.Sum256([]byte(source + "\x00" + id))
+	return hex.EncodeToString(sum[:16]) + "-" + level
+}
+
+// songTypes are the formats that are kept.
+var songTypes = []string{"mp3", "flac"}
 
 // keepable reports whether a song of level and type ext may be kept: they
 // name its file, so only those known, which keep it in the cache's folder.
-func keepable(level, ext string) bool {
-	return slices.Contains(netease.Levels, level) && (ext == "mp3" || ext == "flac")
+// levels are the source's, the worst first.
+func keepable(levels []string, level, ext string) bool {
+	return slices.Contains(levels, level) && slices.Contains(songTypes, ext)
+}
+
+// keptMeta is what is kept of a song's stream beside it. Its names are those it
+// has always had.
+type keptMeta struct {
+	Size  int64   `json:"size"`
+	Type  string  `json:"type"`
+	Level string  `json:"level"`
+	Gain  float64 `json:"gain"`
+	Peak  float64 `json:"peak"`
+}
+
+func (m keptMeta) stream() *music.Stream {
+	return &music.Stream{Size: m.Size, Type: m.Type, Quality: m.Level, Gain: m.Gain, Peak: m.Peak}
 }
 
 // lookup returns a song kept at level or a better one, open to read, with
-// its stream.
-func (c *Cache) lookup(id int64, level string) (*download, *netease.Stream, bool) {
+// its stream. levels are the source's, the worst first.
+func (c *Cache) lookup(source, id, level string, levels []string) (*download, *music.Stream, bool) {
 	if c == nil {
 		return nil, nil, false
 	}
-	at := max(slices.Index(netease.Levels, level), 0)
-	for _, lv := range netease.Levels[at:] {
-		key := cacheKey(id, lv)
-		meta, err := os.ReadFile(filepath.Join(c.dir, key+".json"))
+	at := max(slices.Index(levels, level), 0)
+	for _, lv := range levels[at:] {
+		key := cacheKey(source, id, lv)
+		raw, err := os.ReadFile(filepath.Join(c.dir, key+".json"))
 		if err != nil {
 			continue
 		}
-		var st netease.Stream
-		if json.Unmarshal(meta, &st) != nil || !keepable(lv, st.Type) {
+		var m keptMeta
+		if json.Unmarshal(raw, &m) != nil || !keepable(levels, lv, m.Type) {
 			continue
 		}
-		path := filepath.Join(c.dir, key+"."+st.Type)
+		path := filepath.Join(c.dir, key+"."+m.Type)
 		f, err := os.Open(path)
 		if err != nil {
 			continue
 		}
-		if info, err := f.Stat(); err != nil || info.Size() != st.Size {
+		if info, err := f.Stat(); err != nil || info.Size() != m.Size {
 			f.Close()
 			continue
 		}
 		// Played now: the last to go.
 		now := time.Now()
 		os.Chtimes(path, now, now)
-		return opened(f, st.Size), &st, true
+		return opened(f, m.Size), m.stream(), true
 	}
 	return nil, nil, false
 }
 
 // download fetches the song of the stream st into a file, to keep once it
 // has all come in; or into memory, if the cache would not keep it.
-func (c *Cache) download(id int64, st *netease.Stream) *download {
+func (c *Cache) download(source, id string, st *music.Stream, levels []string) *download {
 	part := c.part(st)
 	if part == nil {
 		return startDownload(st.URL, st.Size, nil, nil)
 	}
 	return startDownload(st.URL, st.Size, part, func(path string, n int64) (string, bool) {
-		return c.keep(id, st, path, n)
+		return c.keep(source, id, st, levels, path, n)
 	})
 }
 
 // part makes a file for a song of the stream st to come into, or returns
 // nil if the cache would not keep it. Each has a name of its own: the same
 // song played again while it still comes in has another.
-func (c *Cache) part(st *netease.Stream) *os.File {
+func (c *Cache) part(st *music.Stream) *os.File {
 	if c == nil {
 		return nil
 	}
@@ -118,28 +154,27 @@ func (c *Cache) part(st *netease.Stream) *os.File {
 // keep keeps the song of the stream st, n bytes, from the file part, which
 // is closed, and drops what is over the limit then. It returns where the
 // song is: kept, or still at part.
-func (c *Cache) keep(id int64, st *netease.Stream, part string, n int64) (string, bool) {
+func (c *Cache) keep(source, id string, st *music.Stream, levels []string, part string, n int64) (string, bool) {
 	c.mu.Lock()
 	limit := c.limit
 	c.mu.Unlock()
 	if n > limit/4 {
 		return part, false
 	}
-	kept := *st
+	kept := keptMeta{Size: n, Type: st.Type, Level: st.Quality, Gain: st.Gain, Peak: st.Peak}
 	if kept.Type == "" {
 		kept.Type = "mp3"
 	}
-	kept.Size = n
-	if !keepable(kept.Level, kept.Type) {
+	if !keepable(levels, kept.Level, kept.Type) {
 		return part, false
 	}
-	key := cacheKey(id, kept.Level)
-	meta, _ := json.Marshal(kept)
+	key := cacheKey(source, id, kept.Level)
+	raw, _ := json.Marshal(kept)
 	path := filepath.Join(c.dir, key+"."+kept.Type)
 	if os.Rename(part, path) != nil {
 		return part, false
 	}
-	os.WriteFile(filepath.Join(c.dir, key+".json"), meta, 0o600)
+	os.WriteFile(filepath.Join(c.dir, key+".json"), raw, 0o600)
 	c.prune(path)
 	return path, true
 }

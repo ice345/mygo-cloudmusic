@@ -31,7 +31,7 @@ func TestBackAndForward(t *testing.T) {
 	}
 
 	// Back closes Now Playing before it leaves the page under it.
-	a.pl.Cue([]netease.Track{{ID: 1, Name: "一张相片"}})
+	a.cue([]netease.Track{{ID: 1, Name: "一张相片"}})
 	a.nowPlaying = true
 	tt.Frame()
 	tt.Key(0, ui.KeyBack)

@@ -19,7 +19,7 @@ func TestSongMenuCopies(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
 	tr := netease.Track{ID: 1859245776, Name: "宝船", Artists: []netease.Artist{{Name: "DOUDOU"}, {Name: "小明"}}, Duration: 200000}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	a.pl.SetLyrics(nil)
 	a.nowPlaying = true
 	tt := ui.NewTester(a.view, 1200, 800)
@@ -73,7 +73,7 @@ func TestSongMenuOnRightClick(t *testing.T) {
 	if want := "https://music.163.com/song?id=2"; copied != want {
 		t.Errorf("copied %q, want %q", copied, want)
 	}
-	if a.pl.Current() != nil {
+	if a.current() != nil {
 		t.Error("the right click played the song")
 	}
 }

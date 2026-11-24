@@ -16,7 +16,7 @@ import (
 
 	"github.com/egoist/mygo/audio"
 
-	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/music"
 )
 
 func TestPlayEmptyQueue(t *testing.T) {
@@ -41,7 +41,7 @@ func (silence) Read(b []float32) (int, error) { clear(b); return len(b), nil }
 func posted() (chan func(), *Player) {
 	ch := make(chan func(), 16)
 	p := New(func(fn func()) { ch <- fn })
-	p.Cue([]netease.Track{{ID: 1, Name: "一", Duration: 600000}})
+	p.Cue([]music.Track{{ID: "1", Name: "一", Duration: 600000}})
 	out := audio.NewPlayer(silence{})
 	out.SetVolume(0)
 	out.Play()
@@ -130,13 +130,13 @@ func TestSeekTwicePlaysOn(t *testing.T) {
 // in it already.
 func TestRadioRefills(t *testing.T) {
 	p := &Player{at: -1}
-	p.Cue([]netease.Track{{ID: 1}, {ID: 2}})
+	p.Cue([]music.Track{{ID: "1"}, {ID: "2"}})
 	asked := 0
-	p.AttachRadio("fm:DEFAULT", func(got func([]netease.Track)) {
+	p.AttachRadio("fm:DEFAULT", func(got func([]music.Track)) {
 		asked++
-		got([]netease.Track{{ID: 2}, {ID: 3}})
+		got([]music.Track{{ID: "2"}, {ID: "3"}})
 	})
-	if asked != 1 || len(p.Queue()) != 3 || p.Queue()[2].ID != 3 {
+	if asked != 1 || len(p.Queue()) != 3 || p.Queue()[2].ID != "3" {
 		t.Fatalf("asked %d, queue %v", asked, p.Queue())
 	}
 	if p.Radio() != "fm:DEFAULT" {
@@ -151,15 +151,15 @@ func TestRadioRefills(t *testing.T) {
 
 func TestNormGain(t *testing.T) {
 	for _, c := range []struct {
-		st   *netease.Stream
+		st   *music.Stream
 		want float64
 	}{
 		{nil, 1},
-		{&netease.Stream{}, 1},
-		{&netease.Stream{Gain: -6.6, Peak: 1}, math.Pow(10, -2.6/20)},
+		{&music.Stream{}, 1},
+		{&music.Stream{Gain: -6.6, Peak: 1}, math.Pow(10, -2.6/20)},
 		// Quiet, it is lifted, but not past its peak.
-		{&netease.Stream{Gain: 3, Peak: 0.8}, 1.25},
-		{&netease.Stream{Gain: -4, Peak: 0}, 1},
+		{&music.Stream{Gain: 3, Peak: 0.8}, 1.25},
+		{&music.Stream{Gain: -4, Peak: 0}, 1},
 	} {
 		if g := normGain(c.st); math.Abs(g-c.want) > 1e-9 {
 			t.Errorf("%+v: %v, want %v", c.st, g, c.want)
@@ -167,36 +167,40 @@ func TestNormGain(t *testing.T) {
 	}
 }
 
+// nlevels are NetEase's levels of audio, the worst first, which the tests
+// of the cache keep songs by.
+var nlevels = []string{"standard", "higher", "exhigh", "lossless", "hires"}
+
 // The cache gives back what it kept, at the level asked for or a better
 // one, and drops what was played longest ago once over its limit.
 func TestCache(t *testing.T) {
 	dir := t.TempDir()
 	c := NewCache(dir, 400)
-	store := func(id int64, st *netease.Stream, n int) {
+	store := func(id string, st *music.Stream, n int) {
 		f := c.part(st)
 		f.Write(make([]byte, n))
 		f.Close()
-		c.keep(id, st, f.Name(), int64(n))
+		c.keep("netease", id, st, nlevels, f.Name(), int64(n))
 	}
-	store(1, &netease.Stream{Level: "lossless", Type: "flac", Gain: -3}, 100)
-	dl, st, ok := c.lookup(1, "exhigh")
-	if !ok || dl.size != 100 || st.Type != "flac" || st.Gain != -3 {
+	store("1", &music.Stream{Quality: "lossless", Type: "flac", Gain: -3}, 100)
+	dl, st, ok := c.lookup("netease", "1", "exhigh", nlevels)
+	if !ok || dl.size != 100 || st.Type != "flac" || st.Gain != -3 || st.Quality != "lossless" {
 		t.Fatalf("lookup: %v %+v", ok, st)
 	}
 	dl.Close()
-	if _, _, ok := c.lookup(1, "hires"); ok {
+	if _, _, ok := c.lookup("netease", "1", "hires", nlevels); ok {
 		t.Error("found a lossless song for Hi-Res")
 	}
 	old := time.Now().Add(-time.Hour)
 	os.Chtimes(filepath.Join(dir, "1-lossless.flac"), old, old)
-	store(2, &netease.Stream{Level: "exhigh", Type: "mp3"}, 100)
-	store(3, &netease.Stream{Level: "exhigh", Type: "mp3"}, 100)
-	store(4, &netease.Stream{Level: "exhigh", Type: "mp3"}, 100)
-	store(5, &netease.Stream{Level: "exhigh", Type: "mp3"}, 100)
-	if _, _, ok := c.lookup(1, "standard"); ok {
+	store("2", &music.Stream{Quality: "exhigh", Type: "mp3"}, 100)
+	store("3", &music.Stream{Quality: "exhigh", Type: "mp3"}, 100)
+	store("4", &music.Stream{Quality: "exhigh", Type: "mp3"}, 100)
+	store("5", &music.Stream{Quality: "exhigh", Type: "mp3"}, 100)
+	if _, _, ok := c.lookup("netease", "1", "standard", nlevels); ok {
 		t.Error("kept the song played longest ago")
 	}
-	if dl, _, ok := c.lookup(5, "standard"); !ok {
+	if dl, _, ok := c.lookup("netease", "5", "standard", nlevels); !ok {
 		t.Error("dropped the song just kept")
 	} else {
 		dl.Close()
@@ -210,19 +214,44 @@ func TestCache(t *testing.T) {
 	}
 }
 
+// NetEase's songs keep the names they had before there were sources, so what
+// was kept plays still, and an episode's is its audio's; any other source's
+// are named for the source and a hash of the ID, which may hold anything, so
+// that nothing it says leaves the cache's folder or meets another source's.
+func TestCacheKeyNamesFiles(t *testing.T) {
+	for _, c := range []struct{ source, id, want string }{
+		{"netease", "1321033921", "1321033921-exhigh"},
+		{"netease", "555@777", "555-exhigh"},
+	} {
+		if got := cacheKey(c.source, c.id, "exhigh"); got != c.want {
+			t.Errorf("%s %q: %q, want %q", c.source, c.id, got, c.want)
+		}
+	}
+	for _, c := range []struct{ source, id string }{
+		{"netease", "../x"}, {"netease", "@1"}, {"netease", ""}, {"plug", "1"}, {"plug", "../../x"}, {"plug", "file:///a/b.mp3"},
+	} {
+		if got := cacheKey(c.source, c.id, "high"); strings.ContainsAny(got, `/\.:`) || !strings.HasSuffix(got, "-high") || len(got) != 32+len("-high") {
+			t.Errorf("%s %q: %q", c.source, c.id, got)
+		}
+	}
+	if cacheKey("plug", "1", "high") == cacheKey("other", "1", "high") {
+		t.Error("two sources' songs have one name")
+	}
+}
+
 // Leaving a radio keeps the song playing and those before it, drops those
 // it queued after, and asks it for no more.
 func TestEndRadio(t *testing.T) {
 	p := &Player{at: -1}
-	p.Cue([]netease.Track{{ID: 1}, {ID: 2}, {ID: 3}, {ID: 4}})
+	p.Cue([]music.Track{{ID: "1"}, {ID: "2"}, {ID: "3"}, {ID: "4"}})
 	p.at, p.track = 1, &p.queue[1]
 	asked := 0
-	p.AttachRadio("heart", func(got func([]netease.Track)) { asked++ })
+	p.AttachRadio("heart", func(got func([]music.Track)) { asked++ })
 	p.EndRadio()
-	if p.Radio() != "" || p.Current().ID != 2 {
+	if p.Radio() != "" || p.Current().ID != "2" {
 		t.Fatalf("radio %q, current %v", p.Radio(), p.Current())
 	}
-	if q := p.Queue(); len(q) != 2 || q[0].ID != 1 || q[1].ID != 2 {
+	if q := p.Queue(); len(q) != 2 || q[0].ID != "1" || q[1].ID != "2" {
 		t.Fatalf("queue %v", q)
 	}
 	p.refill()
@@ -231,10 +260,28 @@ func TestEndRadio(t *testing.T) {
 	}
 }
 
-// offline is a player of three tracks whose songURL is f, for the tests
-// of tracks that fail to load; settle runs what it posts until the
+// fakeSource is a source whose stream and lyrics are what a test says.
+type fakeSource struct {
+	music.Unsupported
+	stream func(id, quality string) (*music.Stream, error)
+	lyrics func(id string) (*music.Lyrics, error)
+}
+
+func (*fakeSource) Info() music.Info { return music.Info{ID: "fake", Name: "测试音源"} }
+func (f *fakeSource) Stream(id, quality string) (*music.Stream, error) {
+	return f.stream(id, quality)
+}
+func (f *fakeSource) Lyrics(id string) (*music.Lyrics, error) {
+	if f.lyrics == nil {
+		return nil, music.ErrUnsupported
+	}
+	return f.lyrics(id)
+}
+
+// offline is a player of three tracks whose source's stream is f, for the
+// tests of tracks that fail to load; settle runs what it posts until the
 // current track has loaded or failed, and until until done says so.
-func offline(t *testing.T, f func(int64, string) (*netease.Stream, error)) (p *Player, settle func(), until func(done func() bool)) {
+func offline(t *testing.T, f func(string, string) (*music.Stream, error)) (p *Player, settle func(), until func(done func() bool)) {
 	t.Helper()
 	p, _, until = offlineCh(t, f)
 	return p, func() { t.Helper(); until(func() bool { return !p.loading }) }, until
@@ -242,14 +289,21 @@ func offline(t *testing.T, f func(int64, string) (*netease.Stream, error)) (p *P
 
 // offlineCh is offline with the channel what is posted comes on, and with
 // no automatic retries, which the tests of them set.
-func offlineCh(t *testing.T, f func(int64, string) (*netease.Stream, error)) (p *Player, ch chan func(), until func(done func() bool)) {
+func offlineCh(t *testing.T, f func(string, string) (*music.Stream, error)) (p *Player, ch chan func(), until func(done func() bool)) {
 	t.Helper()
-	prev, prevRetries := songURL, refusalRetries
-	songURL, refusalRetries = f, nil
-	t.Cleanup(func() { songURL, refusalRetries = prev, prevRetries })
+	prevRetries := refusalRetries
+	refusalRetries = nil
+	t.Cleanup(func() { refusalRetries = prevRetries })
 	ch = make(chan func(), 64)
 	p = New(func(fn func()) { ch <- fn })
-	p.queue = []netease.Track{{ID: 1, Name: "一"}, {ID: 2, Name: "二"}, {ID: 3, Name: "三"}}
+	src := &fakeSource{stream: f}
+	p.Source = func(id string) music.Source {
+		if id == "fake" {
+			return src
+		}
+		return nil
+	}
+	p.queue = []music.Track{{ID: "1", Source: "fake", Name: "一"}, {ID: "2", Source: "fake", Name: "二"}, {ID: "3", Source: "fake", Name: "三"}}
 	p.order = []int{0, 1, 2}
 	until = func(done func() bool) {
 		t.Helper()
@@ -285,39 +339,69 @@ func dialError() error {
 // at 0:00, and saved that over the session.
 func TestNetworkErrorKeepsTheTrack(t *testing.T) {
 	asked := 0
-	p, settle, _ := offline(t, func(int64, string) (*netease.Stream, error) {
+	p, settle, _ := offline(t, func(string, string) (*music.Stream, error) {
 		asked++
 		return nil, dialError()
 	})
 	p.Restore(Session{Queue: p.queue, Order: p.order, At: 1, Position: 95000})
 	settle()
 	s, _ := p.Session()
-	if p.Current().ID != 2 || s.At != 1 || s.Position != 95000 || p.Playing() || p.Err() == "" {
-		t.Fatalf("offline: track %d, at %d, %dms, playing %v, err %q", p.Current().ID, s.At, s.Position, p.Playing(), p.Err())
+	if p.Current().ID != "2" || s.At != 1 || s.Position != 95000 || p.Playing() || p.Err() == "" {
+		t.Fatalf("offline: track %s, at %d, %dms, playing %v, err %q", p.Current().ID, s.At, s.Position, p.Playing(), p.Err())
 	}
 
 	p.TogglePlay()
 	settle()
-	if asked != 2 || p.Current().ID != 2 || p.Position() != 95*time.Second {
-		t.Fatalf("play again: asked %d times, track %d at %v", asked, p.Current().ID, p.Position())
+	if asked != 2 || p.Current().ID != "2" || p.Position() != 95*time.Second {
+		t.Fatalf("play again: asked %d times, track %s at %v", asked, p.Current().ID, p.Position())
 	}
 }
 
-// A track that can't play is still skipped, and so is one NetEase won't
+// A track that can't play is still skipped, and so is one its source won't
 // stream; a refusal, like the network, stops on the track it reached, and
-// says why in NetEase's words: the reason, as a risk it saw in the
+// says why in the source's words: the reason, as a risk it saw in the
 // network, was dropped for a sentence that said only to try again.
 func TestUnplayableSkipsAndRefusalStays(t *testing.T) {
-	p, settle, _ := offline(t, func(id int64, _ string) (*netease.Stream, error) {
-		if id == 1 {
-			return nil, netease.ErrUnavailable
+	p, settle, _ := offline(t, func(id string, _ string) (*music.Stream, error) {
+		if id == "1" {
+			return nil, music.Fail(music.ErrUnavailable, "这首歌需要 VIP 才能播放")
 		}
-		return nil, &netease.RefusedError{Code: -460, Message: "检测到您的网络环境存在风险，请稍后再试"}
+		return nil, music.Fail(music.ErrRefused, "检测到您的网络环境存在风险，请稍后再试")
 	})
 	p.load(0)
 	settle()
-	if p.Current().ID != 2 || p.Playing() || !strings.Contains(p.Err(), "网络环境存在风险") {
-		t.Fatalf("track %d, playing %v, err %q", p.Current().ID, p.Playing(), p.Err())
+	if p.Current().ID != "2" || p.Playing() || !strings.Contains(p.Err(), "测试音源拒绝了播放：检测到您的网络环境存在风险") {
+		t.Fatalf("track %s, playing %v, err %q", p.Current().ID, p.Playing(), p.Err())
+	}
+}
+
+// A track that can't play says why in its source's words, as a song for
+// VIPs or an episode to buy, or plainly if the source gave none; one whose
+// source is gone is skipped, saying so.
+func TestUnavailableSaysWhy(t *testing.T) {
+	for name, c := range map[string]struct {
+		err  error
+		want string
+	}{
+		"with a reason": {music.Fail(music.ErrUnavailable, "这期节目需要购买才能收听"), "这期节目需要购买才能收听"},
+		"without":       {music.ErrUnavailable, "这首歌无法播放"},
+	} {
+		p, settle, _ := offline(t, func(string, string) (*music.Stream, error) { return nil, c.err })
+		p.queue = p.queue[:1]
+		p.order = p.order[:1]
+		p.load(0)
+		settle()
+		if p.Err() != c.want || p.Playing() {
+			t.Errorf("%s: err %q, playing %v", name, p.Err(), p.Playing())
+		}
+	}
+	p, settle, _ := offline(t, nil)
+	p.Source = func(string) music.Source { return nil }
+	p.queue, p.order = p.queue[:1], p.order[:1]
+	p.load(0)
+	settle()
+	if p.Err() != "找不到这首歌的音源" {
+		t.Errorf("no source: err %q", p.Err())
 	}
 }
 
@@ -334,17 +418,17 @@ func TestCutStreamStays(t *testing.T) {
 		w.Write([]byte("ID3")) // and then the connection drops
 	}))
 	defer srv.Close()
-	p, settle, _ := offline(t, func(id int64, _ string) (*netease.Stream, error) {
+	p, settle, _ := offline(t, func(id string, _ string) (*music.Stream, error) {
 		path := "/cut"
-		if id == 1 {
+		if id == "1" {
 			path = "/gone"
 		}
-		return &netease.Stream{URL: srv.URL + path, Size: 100000}, nil
+		return &music.Stream{URL: srv.URL + path, Size: 100000}, nil
 	})
 	p.load(0)
 	settle()
-	if p.Current().ID != 2 || p.Playing() || p.Err() == "" {
-		t.Fatalf("track %d, playing %v, err %q", p.Current().ID, p.Playing(), p.Err())
+	if p.Current().ID != "2" || p.Playing() || p.Err() == "" {
+		t.Fatalf("track %s, playing %v, err %q", p.Current().ID, p.Playing(), p.Err())
 	}
 }
 
@@ -354,17 +438,17 @@ func TestCutStreamStays(t *testing.T) {
 // lyrics, 纯音乐，请欣赏, until the song was played again.
 func TestLyricsFailureIsNotNone(t *testing.T) {
 	asked, back := 0, false
-	prevFetch, prevAgain := fetchLyrics, lyricsAgain
-	defer func() { fetchLyrics, lyricsAgain = prevFetch, prevAgain }()
-	fetchLyrics = func(int64) (netease.LyricTexts, error) {
+	prevAgain := lyricsAgain
+	defer func() { lyricsAgain = prevAgain }()
+	lyricsAgain = time.Millisecond
+	p, _, until := offline(t, func(string, string) (*music.Stream, error) { return nil, dialError() })
+	p.Source("fake").(*fakeSource).lyrics = func(string) (*music.Lyrics, error) {
 		asked++
 		if back {
-			return netease.LyricTexts{LRC: "[00:01.00]回来了"}, nil
+			return &music.Lyrics{LRC: "[00:01.00]回来了"}, nil
 		}
-		return netease.LyricTexts{}, dialError()
+		return nil, dialError()
 	}
-	lyricsAgain = time.Millisecond
-	p, _, until := offline(t, func(int64, string) (*netease.Stream, error) { return nil, dialError() })
 	loaded := func() bool { _, ok := p.Lyrics(); return ok }
 
 	p.load(0)
@@ -384,6 +468,17 @@ func TestLyricsFailureIsNotNone(t *testing.T) {
 	}
 }
 
+// A source with no lyrics at all gives none, as a song without them: not a
+// failure to ask again for and offer a retry of.
+func TestSourceWithoutLyricsIsNoFailure(t *testing.T) {
+	p, _, until := offline(t, func(string, string) (*music.Stream, error) { return nil, dialError() })
+	p.load(0)
+	until(func() bool { _, ok := p.Lyrics(); return ok })
+	if lines, _ := p.Lyrics(); p.LyricsFailed() || len(lines) != 0 {
+		t.Fatalf("failed %v, %d lines", p.LyricsFailed(), len(lines))
+	}
+}
+
 // A seek on a track whose audio has not loaded still tells the app, so
 // that the notch's lyrics move to the line there: they stayed on the
 // credits, though the progress bar had moved.
@@ -397,21 +492,21 @@ func TestSeekBeforeLoadTellsTheApp(t *testing.T) {
 	}
 }
 
-// A refusal NetEase says to try again after is asked again by itself, as many
+// A refusal its source says to try again after is asked again by itself, as many
 // times as there are waits, and then the track stays, paused, as it did
 // before: the listener had to press play, and the refusals came and went.
 func TestRefusalIsAskedForAgainByItself(t *testing.T) {
 	var asked atomic.Int32
-	p, ch, until := offlineCh(t, func(int64, string) (*netease.Stream, error) {
+	p, ch, until := offlineCh(t, func(string, string) (*music.Stream, error) {
 		asked.Add(1)
-		return nil, &netease.RefusedError{Code: -460, Message: "检测到您的网络环境存在风险，请稍后再试"}
+		return nil, music.Fail(music.ErrRefused, "检测到您的网络环境存在风险，请稍后再试")
 	})
 	refusalRetries = []time.Duration{time.Millisecond, time.Millisecond}
 	p.load(0)
 	until(func() bool { return asked.Load() == 3 && !p.loading })
 	runFor(ch, 40*time.Millisecond)
-	if asked.Load() != 3 || p.Current().ID != 1 || p.Playing() || strings.Contains(p.Err(), "自动重试") || !strings.Contains(p.Err(), "网络环境存在风险") {
-		t.Fatalf("asked %d times, track %d, playing %v, err %q", asked.Load(), p.Current().ID, p.Playing(), p.Err())
+	if asked.Load() != 3 || p.Current().ID != "1" || p.Playing() || strings.Contains(p.Err(), "自动重试") || !strings.Contains(p.Err(), "网络环境存在风险") {
+		t.Fatalf("asked %d times, track %s, playing %v, err %q", asked.Load(), p.Current().ID, p.Playing(), p.Err())
 	}
 }
 
@@ -419,9 +514,9 @@ func TestRefusalIsAskedForAgainByItself(t *testing.T) {
 // itself: nobody wanted it to play.
 func TestRestoredTrackIsNotAskedForAfterARefusal(t *testing.T) {
 	var asked atomic.Int32
-	p, ch, until := offlineCh(t, func(int64, string) (*netease.Stream, error) {
+	p, ch, until := offlineCh(t, func(string, string) (*music.Stream, error) {
 		asked.Add(1)
-		return nil, &netease.RefusedError{Code: -460, Message: "检测到您的网络环境存在风险，请稍后再试"}
+		return nil, music.Fail(music.ErrRefused, "检测到您的网络环境存在风险，请稍后再试")
 	})
 	refusalRetries = []time.Duration{time.Millisecond}
 	p.Restore(Session{Queue: p.queue, Order: p.order, At: 1, Position: 95000})

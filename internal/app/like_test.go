@@ -26,7 +26,7 @@ func TestLikeFromPlayerBar(t *testing.T) {
 	a.settings = defaultSettings()
 	a.profile = &netease.Profile{UserID: 1, Nickname: "小明"}
 	tr := netease.Track{ID: 7, Name: "宝船", Artists: []netease.Artist{{Name: "DOUDOU"}}, Duration: 200000}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	a.pl.SetLyrics(nil)
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Advance(time.Second)
@@ -72,7 +72,7 @@ func TestLikeEpisode(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
 	a.profile = &netease.Profile{UserID: 1}
-	a.pl.Cue([]netease.Track{{ID: 13, Name: "第一期", ProgramID: 3, PodcastID: 5, Duration: 600000}})
+	a.cue([]netease.Track{{ID: 13, Name: "第一期", ProgramID: 3, PodcastID: 5, Duration: 600000}})
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Advance(time.Second)
 	tt.Frame()
@@ -152,7 +152,7 @@ func TestLikeEpisodeRow(t *testing.T) {
 	if id := wait(t, liked, "the like"); id != 42 || !a.likedPrograms[42] {
 		t.Errorf("liked %d", id)
 	}
-	if a.pl.Current() != nil {
+	if a.current() != nil {
 		t.Error("the heart played the episode")
 	}
 }
@@ -170,7 +170,7 @@ func TestLikeBurstFrames(t *testing.T) {
 	a.settings = defaultSettings()
 	a.profile = &netease.Profile{UserID: 1}
 	tr := netease.Track{ID: 7, Name: "宝船", Duration: 200000}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.SetDark(true)
 	tt.Advance(time.Second)
@@ -220,7 +220,7 @@ func stageFrames(t *testing.T, style, path string) {
 	a.settings = defaultSettings()
 	a.settings.StageStyle = style
 	tr := netease.Track{ID: 7, Name: "海屿你", Artists: []netease.Artist{{Name: "马也_Crabbit"}}, Duration: 200000}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	a.pl.SetLyrics(lyrics.Build(lyrics.Source{
 		LRC:         "[00:13.00]我从不主动示弱\n[00:30.56]曾经的那些发生过的开心和难过",
 		Translation: "[00:13.00]I never show weakness first\n[00:30.56]The joy and sorrow that once happened",
@@ -283,7 +283,7 @@ func TestBackdropFrame(t *testing.T) {
 			a.art.art[netease.Sized(tr.Album.PicURL, size)+"#backdrop"] = &bd
 		}
 	}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	a.pl.SetLyrics(lyrics.Build(lyrics.Source{
 		LRC:         "[00:00.00]作词: 織田あすか\n[00:01.00]作曲: 藤田淳平(Elements Garden)\n[00:02.00]编曲: 藤田淳平(Elements Garden)\n[00:15.00]悴んだ心 ふるえる眼差し\n[00:20.00]世界で 僕は ひとりぼっちだった\n[00:25.00]散ることしか知らない春は\n[00:30.00]毎年 冷たくあしらう",
 		Translation: "[00:15.00]内心满是憔悴 眼神颤抖不止\n[00:20.00]我在这世界孤独一人\n[00:25.00]在不断凋零的春季中\n[00:30.00]每年都只感受到冰冷",
@@ -326,7 +326,7 @@ func TestSmokeFrames(t *testing.T) {
 			a.art.art[netease.Sized(tr.Album.PicURL, size)+"#backdrop"] = &bd
 		}
 	}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	a.pl.SetLyrics(nil)
 	a.pl.Hold(75 * time.Second)
 	a.settings.Smoke = true
@@ -371,7 +371,7 @@ func TestPlayerBarWidths(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
 	tr := netease.Track{ID: 7, Name: "那些你很冒险的梦 (Live)", Artists: []netease.Artist{{Name: "林俊杰"}, {Name: "JJ Lin"}}, Duration: 199000}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	a.pl.Seek(25 * time.Second)
 	widths := []int{880, 1000, 1180}
 	var strip *image.RGBA
@@ -404,7 +404,7 @@ func TestVolumePopoverFrames(t *testing.T) {
 		a := newTestApp()
 		a.settings = defaultSettings()
 		tr := netease.Track{ID: 7, Name: "春日影", Artists: []netease.Artist{{Name: "MyGO!!!!!"}}, Duration: 199000}
-		a.pl.Cue([]netease.Track{tr})
+		a.cue([]netease.Track{tr})
 		a.volume = 0.63
 		tt := ui.NewTester(a.view, 1000, 600)
 		tt.SetDark(dark)
@@ -473,7 +473,7 @@ func TestLikeCurrent(t *testing.T) {
 	likeSong = func(int64, bool) error { return nil }
 	defer func() { likeSong = netease.Like }()
 	a := newTestApp()
-	a.pl.Cue([]netease.Track{{ID: 7, Name: "宝船"}})
+	a.cue([]netease.Track{{ID: 7, Name: "宝船"}})
 	a.profile = &netease.Profile{UserID: 1}
 	a.likeCurrent()
 	if !a.liked[7] || a.toast != "已添加到我喜欢的音乐" {
@@ -486,7 +486,7 @@ func TestLikeCurrent(t *testing.T) {
 	// An episode playing: the episode, not its audio.
 	likeProgram = func(int64, bool) error { return nil }
 	defer func() { likeProgram = netease.LikeProgram }()
-	a.pl.Cue([]netease.Track{{ID: 13, Name: "第一期", ProgramID: 3}})
+	a.cue([]netease.Track{{ID: 13, Name: "第一期", ProgramID: 3}})
 	a.likeCurrent()
 	if !a.likedPrograms[3] || a.liked[13] {
 		t.Fatalf("episode liked %v, its audio %v", a.likedPrograms[3], a.liked[13])

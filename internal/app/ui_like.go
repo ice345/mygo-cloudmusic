@@ -100,7 +100,7 @@ func (a *app) isLiked(tr *netease.Track) bool {
 // likeCurrent likes the song or episode playing, or unlikes it, from the
 // keyboard (⌘D), which shows no heart: a toast says which it did.
 func (a *app) likeCurrent() {
-	tr := a.pl.Current()
+	tr := a.current()
 	if tr == nil {
 		return
 	}

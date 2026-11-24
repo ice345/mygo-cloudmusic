@@ -16,7 +16,7 @@ func playingApp() (*app, *ui.Tester, *int) {
 	a := newTestApp()
 	a.settings = defaultSettings()
 	tr := netease.Track{ID: 7, Name: "宝船", Artists: []netease.Artist{{Name: "DOUDOU"}}, Duration: 200000}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	// A line every 10 seconds, sung over the first 5 of them.
 	var lrc string
 	for i := range 12 {
@@ -88,7 +88,7 @@ func TestBirdFrameBudget(t *testing.T) {
 	a.settings = defaultSettings()
 	a.settings.StageStyle = "aobird"
 	tr := netease.Track{ID: 7, Name: "風", Artists: []netease.Artist{{Name: "誰"}}, Duration: 80000}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	a.pl.SetLyrics([]lyrics.Line{
 		{At: 0, End: 10 * time.Second, Text: "風が吹く", Words: []lyrics.Word{{Text: "風が吹く", Start: 0, End: 8 * time.Second}}},
 		{At: 30 * time.Second, End: 40 * time.Second, Text: "次", Words: []lyrics.Word{{Text: "次", Start: 30 * time.Second, End: 38 * time.Second}}},
@@ -112,7 +112,7 @@ func TestNotchLyricFrames(t *testing.T) {
 	a.settings.NotchLyrics = 1
 	n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
 	a.notch = n
-	a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 20000}})
+	a.cue([]netease.Track{{ID: 7, Name: "风", Duration: 20000}})
 	a.pl.SetLyrics([]lyrics.Line{{
 		At: 0, End: 6 * time.Second, Text: "风在吹",
 		Words: []lyrics.Word{
@@ -145,8 +145,9 @@ func TestBackdropFadeEnds(t *testing.T) {
 	a, tt, _ := coverApp(t)
 	a.art.art[netease.Sized("a", 600)+"#backdrop"] = &artwork{tint: ui.RGB(200, 40, 40)}
 	a.art.art[netease.Sized("b", 600)+"#backdrop"] = &artwork{tint: ui.RGB(40, 40, 200)}
-	q := a.pl.Queue()
-	q[1].Album.PicURL, q[2].Album.PicURL = "a", "b"
+	// The songs after the first have covers, and the second is playing.
+	a.cue([]netease.Track{{ID: 1, Name: "一"}, {ID: 2, Name: "二", Album: netease.Album{PicURL: "a"}}, {ID: 3, Name: "三", Album: netease.Album{PicURL: "b"}}})
+	a.pl.Next()
 	tt.Frame()
 	a.pl.Next()
 	tt.Frame()
@@ -167,7 +168,7 @@ func TestChorusFrameBudget(t *testing.T) {
 	a.settings = defaultSettings()
 	a.settings.StageStyle = "chorus"
 	tr := netease.Track{ID: 7, Name: "風", Artists: []netease.Artist{{Name: "誰"}}, Duration: 80000}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	a.pl.SetLyrics([]lyrics.Line{
 		{At: 0, End: 10 * time.Second, Text: "風が吹く", Timed: true, Words: []lyrics.Word{{Text: "風が吹く", Start: 0, End: 8 * time.Second}}},
 		{At: 30 * time.Second, End: 40 * time.Second, Text: "次", Timed: true, Words: []lyrics.Word{{Text: "次", Start: 30 * time.Second, End: 38 * time.Second}}},

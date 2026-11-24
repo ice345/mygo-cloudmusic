@@ -23,7 +23,7 @@ func wallApp(t *testing.T, n, at int) (*app, *ui.Tester) {
 	for i := range n {
 		tracks = append(tracks, netease.Track{ID: int64(i + 1), Name: fmt.Sprintf("歌%03d", i), Duration: 200000})
 	}
-	a.pl.Cue(tracks)
+	a.cue(tracks)
 	if at > 0 {
 		a.pl.Jump(at)
 	}
@@ -53,7 +53,7 @@ func TestWallPlaysTheCoverClicked(t *testing.T) {
 	a, tt := wallApp(t, 300, 0)
 	r := find(t, tt, "歌003")
 	drag(tt, r, -300, 200*time.Millisecond)
-	if got := a.pl.Current().Name; got != "歌000" {
+	if got := a.current().Name; got != "歌000" {
 		t.Fatalf("a drag played %s", got)
 	}
 	if moved := find(t, tt, "歌003"); moved.X > r.X-280 || moved.X < r.X-320 {
@@ -63,7 +63,7 @@ func TestWallPlaysTheCoverClicked(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if got := a.pl.Current().Name; got != "歌005" {
+	if got := a.current().Name; got != "歌005" {
 		t.Errorf("playing %s, want 歌005", got)
 	}
 }
@@ -88,7 +88,7 @@ func TestWallPlaysTheCoverSwaying(t *testing.T) {
 		}
 		tt.ClickAt(x, r.Y+r.H/2)
 		tt.Frame()
-		if got := a.pl.Current().Name; got != "歌005" {
+		if got := a.current().Name; got != "歌005" {
 			t.Fatalf("clicked at its edge, swayed %v, played %s", sway, got)
 		}
 		return
@@ -159,11 +159,16 @@ func TestWallFrames(t *testing.T) {
 	for _, n := range []int{300, 7} {
 		a, tt := wallApp(t, n, min(n-1, 40))
 		colors := []ui.Color{ui.RGB(220, 120, 160), ui.RGB(90, 140, 220), ui.RGB(240, 200, 110), ui.RGB(120, 200, 170), ui.RGB(170, 120, 230)}
-		for i := range a.pl.Queue() {
+		// The same songs, with covers, queued again: a track's record is the
+		// player's, so it is not changed in place.
+		tracks := a.queued()
+		for i := range tracks {
 			url := fmt.Sprintf("art%d", i)
-			a.pl.Queue()[i].Album.PicURL = url
+			tracks[i].Album.PicURL = url
 			a.art.art[netease.Sized(url, 240)] = &artwork{bmp: solidBitmap(colors[i%len(colors)]), tint: colors[i%len(colors)]}
 		}
+		a.cue(tracks)
+		a.pl.Jump(min(n-1, 40))
 		tt.Advance(time.Second)
 		tt.Frame()
 		save := func(name string) {

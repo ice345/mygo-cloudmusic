@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/lyrics"
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -22,7 +23,7 @@ const npSettle = 600 * time.Millisecond
 // open and whether it has come to rest, open or closed. Call it once a
 // build, before the window's content.
 func (a *app) npState(c *ui.Context) (open, settled bool) {
-	open = a.nowPlaying && a.pl.Current() != nil
+	open = a.nowPlaying && a.current() != nil
 	now := c.Now()
 	if open != a.npOpen {
 		a.npOpen, a.npChangedAt = open, now
@@ -55,7 +56,7 @@ func (a *app) nowPlayingLayer(c *ui.Context, open, settled bool) {
 		pose = ui.Pose{}
 	}
 	layer.AnimatePose(pose, npSpring)
-	if !open && settled || a.pl.Current() == nil {
+	if !open && settled || a.current() == nil {
 		// Closed: nothing to paint or click.
 		layer.Invisible()
 		a.queueAt, a.wallState.track = -1, 0
@@ -71,8 +72,7 @@ func (a *app) nowPlayingLayer(c *ui.Context, open, settled bool) {
 // nowPlayingView fills the window with what plays: its cover over a slow
 // drift of its own colors, the controls, and lyrics that follow the song.
 func (a *app) nowPlayingView(c *ui.Context) {
-	pl := a.pl
-	tr := pl.Current()
+	tr := a.current()
 	w, h := c.Size()
 	art := a.art.get(netease.Sized(tr.Album.PicURL, 600), true)
 	// The colors stay the last song's while its cover loads, rather than
@@ -306,7 +306,7 @@ type npTab struct {
 // npTabs returns the tabs of Now Playing, in order, for what plays: ⌘1
 // chooses the first, ⌘2 the second, and on.
 func (a *app) npTabs() []npTab {
-	if tr := a.pl.Current(); tr != nil && tr.ProgramID != 0 {
+	if tr := a.current(); tr != nil && tr.ProgramID != 0 {
 		tabs := []npTab{{paneProgram, "简介"}}
 		if a.captionsShown() {
 			tabs = append(tabs, npTab{paneCaptions, "字幕"})
@@ -422,12 +422,12 @@ func (a *app) radioChip(c *ui.Context, name string) {
 }
 
 // qualityBadge marks a lossless stream, as it plays.
-func qualityBadge(c *ui.Context, st *netease.Stream) {
-	if st == nil || !netease.Lossless(st.Level) {
+func qualityBadge(c *ui.Context, st *music.Stream) {
+	if st == nil || !netease.Lossless(st.Quality) {
 		return
 	}
 	label := "无损"
-	if st.Level == "hires" {
+	if st.Quality == "hires" {
 		label = "Hi-Res"
 	}
 	ui.Text(c, label).FontSize(9.5).FontWeight(800).LetterSpacing(0.6).TextColor(ui.Hex("#f5d58a")).
@@ -778,7 +778,7 @@ func (a *app) queuePane(c *ui.Context) {
 	a.queueList.Key = func(row int) any { return order[row] }
 	ui.List(c.Key("queue"), &a.queueList, len(order), func(r int) {
 		i := order[r]
-		tr := &pl.Queue()[i]
+		tr := a.fromMusic(a.pl.Queue()[i])
 		playing := r == at
 		row := ui.ButtonBase(c.Key(i)).Height(58).PaddingX(10).Gap(14).Radius(12).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
 			ContextMenu(a.songItems(tr, 0))

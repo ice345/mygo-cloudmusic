@@ -49,7 +49,7 @@ func skeletonApp(set func(a *app)) *app {
 	a := newTestApp()
 	a.settings = defaultSettings()
 	a.homeLoading = true
-	a.pl.Cue([]netease.Track{{ID: 1, Name: "春日影"}})
+	a.cue([]netease.Track{{ID: 1, Name: "春日影"}})
 	set(a)
 	return a
 }

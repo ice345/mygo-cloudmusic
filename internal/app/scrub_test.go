@@ -17,7 +17,7 @@ func TestScrubSeeksOnRelease(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
 	tr := netease.Track{ID: 7, Name: "宝船", Duration: 200000}
-	a.pl.Cue([]netease.Track{tr, {ID: 8, Name: "下一首"}})
+	a.cue([]netease.Track{tr, {ID: 8, Name: "下一首"}})
 	a.pl.SetLyrics(nil)
 	out := audio.NewPlayer(&silence{})
 	out.SetVolume(0)
@@ -44,7 +44,7 @@ func TestScrubSeeksOnRelease(t *testing.T) {
 	if pos := a.pl.Position(); pos > 10*time.Second {
 		t.Fatalf("seeked to %v while dragging", pos)
 	}
-	if a.pl.Current().ID != 7 {
+	if a.current().ID != 7 {
 		t.Fatal("went to the next song while dragging")
 	}
 	tt.Move(at(0.6), y-40)

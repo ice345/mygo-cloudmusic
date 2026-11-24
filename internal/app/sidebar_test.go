@@ -21,7 +21,7 @@ func TestSidebarPlaylistCollapse(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			a := editTestApp()
 			a.playlists[tc.playlist] = &netease.Playlist{ID: tc.playlist, Name: tc.row}
-			a.pl.Cue(a.playlists[10].Tracks)
+			a.cue(a.playlists[10].Tracks)
 			before := a.route
 			tt := ui.NewTester(a.view, 1200, 800)
 			tt.Frame()
@@ -36,7 +36,7 @@ func TestSidebarPlaylistCollapse(t *testing.T) {
 			if _, ok := tt.Find(tc.other); !ok {
 				t.Error("collapsing one section hid the other section's rows")
 			}
-			if a.route != before || len(a.pl.Queue()) != 2 || len(a.mine) != 3 || len(a.saved) != 1 {
+			if a.route != before || len(a.queued()) != 2 || len(a.mine) != 3 || len(a.saved) != 1 {
 				t.Error("collapsing the section changed the page, queue or playlists")
 			}
 

@@ -48,7 +48,7 @@ func TestEpisodeComments(t *testing.T) {
 	defer func() { threadComments = netease.ThreadComments }()
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.pl.Cue([]netease.Track{{ID: 13, Name: "第一期", ProgramID: 3, PodcastID: 5, Duration: 600000}})
+	a.cue([]netease.Track{{ID: 13, Name: "第一期", ProgramID: 3, PodcastID: 5, Duration: 600000}})
 	a.pl.SetLyrics(nil)
 	a.nowPlaying = true
 	tt := ui.NewTester(a.view, 1200, 800)

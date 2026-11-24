@@ -14,6 +14,10 @@ func newTestApp() *app {
 	}
 	a.art = newArtCache(func(func()) {})
 	a.pl = player.New(func(func()) {})
+	a.pl.Source = a.source
 	a.pl.SetVolume(0.5)
 	return a
 }
+
+// cue makes tracks the player's queue, in order, with the first current.
+func (a *app) cue(tracks []netease.Track) { a.pl.Cue(netease.ToTracks(tracks)) }

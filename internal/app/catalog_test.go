@@ -322,9 +322,9 @@ func TestPlayEpisode(t *testing.T) {
 	if err := tt.Click("第一期"); err != nil {
 		t.Fatal(err)
 	}
-	cur := a.pl.Current()
-	if cur == nil || cur.ID != 13 || cur.ProgramID != 3 || cur.PodcastID != 5 || len(a.pl.Queue()) != 2 {
-		t.Fatalf("playing %+v of %d", cur, len(a.pl.Queue()))
+	cur := a.current()
+	if cur == nil || cur.ID != 13 || cur.ProgramID != 3 || cur.PodcastID != 5 || len(a.queued()) != 2 {
+		t.Fatalf("playing %+v of %d", cur, len(a.queued()))
 	}
 	a.pl.SetLyrics(nil)
 	tt.Advance(time.Second)
@@ -409,7 +409,7 @@ func TestPodcastCard(t *testing.T) {
 	tt.Frame()
 	tt.ClickAt(x, y)
 	tt.Frame()
-	if cur := a.pl.Current(); cur == nil || cur.ProgramID != 40 || a.route.page != pagePodcasts {
+	if cur := a.current(); cur == nil || cur.ProgramID != 40 || a.route.page != pagePodcasts {
 		t.Fatalf("playing %+v on %+v", cur, a.route)
 	}
 	tt.ClickAt(r.X+r.W/2, r.Y+r.W/2)
@@ -461,8 +461,8 @@ func TestAlbumLinkInRow(t *testing.T) {
 	}
 	tt.ClickAt(r.X+8, r.Y+r.H/2)
 	tt.Frame()
-	if a.route != (route{page: pageAlbum, id: 8}) || a.pl.Current() != nil {
-		t.Fatalf("opened %+v, playing %+v", a.route, a.pl.Current())
+	if a.route != (route{page: pageAlbum, id: 8}) || a.current() != nil {
+		t.Fatalf("opened %+v, playing %+v", a.route, a.current())
 	}
 }
 

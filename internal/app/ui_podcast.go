@@ -108,7 +108,7 @@ func (a *app) playProgram(d *podcastData, i int) {
 		queue = append(queue, d.programs[j].Track(d.podcast))
 	}
 	if len(queue) > 0 {
-		a.pl.PlayQueue(queue, at)
+		a.playQueue(queue, at)
 	}
 }
 
@@ -187,7 +187,7 @@ func (a *app) podcastPage(c *ui.Context) {
 		return
 	}
 	pod := d.podcast
-	cur := a.pl.Current()
+	cur := a.current()
 	a.scrollPage(c, func() {
 		ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 8, 0).Children(func() {
 			ui.Box(c).Size(212, 212).Radius(14).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {

@@ -90,7 +90,7 @@ func (a *app) shortcuts(c *ui.Context) {
 	if a.nowPlaying {
 		c.OnShortcut(0, ui.KeyEscape, func() { a.nowPlaying = false })
 		// ⌘ and a number choose Now Playing's tab of that place.
-		if a.pl.Current() != nil {
+		if a.current() != nil {
 			for i, t := range a.npTabs() {
 				c.OnShortcut(ui.Cmd, ui.Key1+ui.Key(i), func() { a.choosePane(t.pane) })
 			}
@@ -195,7 +195,7 @@ func (a *app) sidebar(c *ui.Context) {
 		})
 
 		// What plays, as a card at the foot of the sidebar, over who listens.
-		if tr := a.pl.Current(); tr != nil {
+		if tr := a.current(); tr != nil {
 			a.sidebarNowPlaying(c, tr)
 		}
 		a.accountRow(c)
@@ -443,7 +443,7 @@ func dailyRenewed(loaded, now time.Time) bool {
 func (a *app) loadPlaylist(id int64, thenPlay bool) {
 	if pl := a.playlists[id]; pl != nil {
 		if thenPlay {
-			a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
+			a.playQueue(pl.Tracks, firstPlayable(pl.Tracks))
 		}
 		return
 	}
@@ -462,7 +462,7 @@ func (a *app) loadPlaylist(id int64, thenPlay bool) {
 			}
 			a.playlists[id] = pl
 			if thenPlay {
-				a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
+				a.playQueue(pl.Tracks, firstPlayable(pl.Tracks))
 			}
 		})
 	}()

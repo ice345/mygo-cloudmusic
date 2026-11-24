@@ -67,7 +67,7 @@ func (a *app) setMenu() {
 			mygo.Separator(),
 			{Label: "正在播放", Accelerator: "CmdOrCtrl+L", Click: run(func() {
 				a.showMain()
-				a.nowPlaying = !a.nowPlaying && a.pl.Current() != nil
+				a.nowPlaying = !a.nowPlaying && a.current() != nil
 			})},
 		}},
 		{Label: "窗口", Submenu: []*mygo.MenuItem{

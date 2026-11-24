@@ -86,7 +86,7 @@ func captionsTestApp(t *testing.T, installed bool) *app {
 	modelInstalled = func(string) bool { return installed }
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.pl.Cue([]netease.Track{{ID: 7, Name: "510 泰国侨批沉浮录", ProgramID: 42, Duration: 600000, Description: "下南洋"}})
+	a.cue([]netease.Track{{ID: 7, Name: "510 泰国侨批沉浮录", ProgramID: 42, Duration: 600000, Description: "下南洋"}})
 	a.nowPlaying = true
 	return a
 }

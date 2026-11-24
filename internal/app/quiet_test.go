@@ -22,7 +22,7 @@ func quietApp(pos time.Duration) (*app, netease.Track, []lyrics.Line) {
 		{At: 20 * time.Second, End: 25 * time.Second, Text: "故事的小黄花"},
 		{At: 25 * time.Second, End: 30 * time.Second, Text: "从出生那年就飘着"},
 	}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	a.pl.SetLyrics(lines)
 	a.pl.Hold(pos)
 	hot := []netease.Comment{

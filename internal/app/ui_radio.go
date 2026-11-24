@@ -68,7 +68,7 @@ func (a *app) radioFeed(name string) func(got func([]netease.Track)) {
 			fetch = func() ([]netease.Track, error) { return netease.PersonalFM(mode) }
 		case name == heartRadio:
 			// More like the last song queued, from the song it began with.
-			q, pid := a.pl.Queue(), a.likedPlaylist()
+			q, pid := a.queued(), a.likedPlaylist()
 			if len(q) == 0 || pid == 0 {
 				got(nil)
 				return
@@ -115,7 +115,7 @@ func (a *app) playFM() {
 			a.toast = "私人 FM 暂时无法播放，请稍后再试"
 			return
 		}
-		a.pl.PlayRadio(name, tracks, feed)
+		a.playRadio(name, tracks, feed)
 	})
 }
 
@@ -135,7 +135,7 @@ func (a *app) exitRadio() {
 
 // trashFM skips the song playing on the FM, which plays it no more.
 func (a *app) trashFM() {
-	tr := a.pl.Current()
+	tr := a.current()
 	if tr == nil {
 		return
 	}
@@ -163,7 +163,7 @@ func (a *app) startHeartMode() {
 	}
 	var seed *netease.Track
 	fromPlaying := false
-	if cur := a.pl.Current(); cur != nil && a.liked[cur.ID] {
+	if cur := a.current(); cur != nil && a.liked[cur.ID] {
 		s := *cur
 		seed, fromPlaying = &s, true
 	}
@@ -195,11 +195,11 @@ func (a *app) startHeartMode() {
 				return
 			}
 			more = playable(more)
-			if fromPlaying && a.pl.Current() != nil && a.pl.Current().ID == seed.ID {
-				a.pl.RadioFrom(heartRadio, more, a.radioFeed(heartRadio))
+			if fromPlaying && a.current() != nil && a.current().ID == seed.ID {
+				a.radioFrom(heartRadio, more, a.radioFeed(heartRadio))
 				return
 			}
-			a.pl.PlayRadio(heartRadio, append([]netease.Track{*seed}, more...), a.radioFeed(heartRadio))
+			a.playRadio(heartRadio, append([]netease.Track{*seed}, more...), a.radioFeed(heartRadio))
 		})
 	}()
 }
@@ -247,7 +247,7 @@ func (a *app) fmCard(c *ui.Context) {
 	onFM := strings.HasPrefix(pl.Radio(), "fm:")
 	var tr *netease.Track
 	if onFM {
-		tr = pl.Current()
+		tr = a.current()
 	}
 	var art *artwork
 	if tr != nil {
@@ -337,7 +337,7 @@ func (a *app) fmCovers(c *ui.Context, tr *netease.Track) {
 		var next *netease.Track
 		if tr != nil {
 			if order, at := a.pl.PlayOrder(); at >= 0 && at+1 < len(order) {
-				next = &a.pl.Queue()[order[at+1]]
+				next = a.fromMusic(a.pl.Queue()[order[at+1]])
 			}
 		}
 		if next != nil {

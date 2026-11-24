@@ -215,7 +215,7 @@ func (a *app) deleteModel() {
 func (a *app) syncCaptions() {
 	cs := &a.captions
 	var program int64
-	if tr := a.pl.Current(); tr != nil {
+	if tr := a.current(); tr != nil {
 		program = tr.ProgramID
 	}
 	if program != cs.program {

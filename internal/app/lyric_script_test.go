@@ -22,7 +22,7 @@ func TestLyricScript(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
 	tr := netease.Track{ID: 1, Name: "風", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	// Two lines carry kana, so the song is Japanese and the reading is 罗马音.
 	a.pl.SetLyrics(lyrics.Build(lyrics.Source{
 		LRC:         "[00:10.00]風が吹く\n[00:15.00]また\n[00:20.00]I love you\n[00:30.00]รักนะ",
@@ -79,7 +79,7 @@ func TestLyricRowsKeepTheLitLine(t *testing.T) {
 		trans += stamp + "译" + text + "\n"
 	}
 	tr := netease.Track{ID: 1, Name: "歌", Artists: []netease.Artist{{Name: "人"}}, Duration: 180000}
-	a.pl.Cue([]netease.Track{tr})
+	a.cue([]netease.Track{tr})
 	a.pl.SetLyrics(lyrics.Build(lyrics.Source{LRC: lrc, Translation: trans}))
 	a.pl.Hold(80 * time.Second) // the 8th line, 「第8句」
 	a.nowPlaying, a.npPane = true, paneLyrics
@@ -122,7 +122,7 @@ func TestLyricListFrames(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
 	a.settings.LyricRoman = true
-	a.pl.Cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
+	a.cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
 	a.pl.SetLyrics(lyrics.Build(lyrics.Source{
 		LRC:         "[00:10.00]真っ直ぐな骨の角まで\n[00:16.00]風が吹く\n[00:22.00]遠くで息をする",
 		Translation: "[00:10.00]直到骨头的棱角\n[00:16.00]风在吹\n[00:22.00]远处有人呼吸",

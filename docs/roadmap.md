@@ -71,7 +71,7 @@ Sources of music as plugins, from [the plugins page](https://mygo-music.egoist.d
 |---|---|
 | 1.1 MyGo v0.10.0 (from a v0.7 snapshot) | done 2026-11-24: builds, `go test ./internal/...` passes, the window draws as before, and the notch making way for Atoll and taking the notch back when it quits was checked by hand on it |
 | 1.2 `internal/music`: types, `Source`, errors, readings, `ErrRefused`, `Unsupported` | done 2026-11-24, ported from upstream; nothing uses it yet |
-| 1.3 The views on `music.Track`, a slice at a time: player, lists and search, library pages, account and likes and comments, podcasts and stations, NetEase's extras | open |
+| 1.3 The views on `music.Track`, a slice at a time: player, lists and search, library pages, account and likes and comments, podcasts and stations, NetEase's extras | on `feat/plugins`. **Player done** 2026-11-24: queue, stream, lyrics, cover, cache and session on `music`, through `netease.Source`; the views read it through `app/bridge.go`; old sessions restore; a real song loaded and played through it signed in. Next: lists and search |
 | 2 The plugin host (`internal/plugin`, moejs), source settings | open |
 | 3 Install from GitHub, zip, folder or `mygo-music://` link; updates; a plugins list | open |
 | 4 README, release notes | open |

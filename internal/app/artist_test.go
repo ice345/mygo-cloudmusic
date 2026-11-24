@@ -18,7 +18,7 @@ func TestArtistNameOpensTheirPage(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
 	duet := netease.Track{ID: 1, Name: "广寒宫", Artists: []netease.Artist{{ID: 11, Name: "甲"}, {ID: 12, Name: "乙"}}, Duration: 200000}
-	a.pl.Cue([]netease.Track{duet})
+	a.cue([]netease.Track{duet})
 	a.pl.SetLyrics(nil)
 	a.artists[12] = &artistData{profile: &netease.ArtistProfile{
 		Artist: netease.Artist{ID: 12, Name: "乙"},
@@ -48,7 +48,7 @@ func TestArtistNameOpensTheirPage(t *testing.T) {
 	if a.route != (route{page: pageArtist, id: 13}) {
 		t.Fatalf("a row's artist opened %+v", a.route)
 	}
-	if cur := a.pl.Current(); cur == nil || cur.ID != duet.ID {
+	if cur := a.current(); cur == nil || cur.ID != duet.ID {
 		t.Errorf("a click on a row's artist played %+v", cur)
 	}
 
@@ -96,8 +96,8 @@ func TestArtistSongsByLatest(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if cur := a.pl.Current(); cur == nil || cur.ID != 2 || len(a.pl.Queue()) != 2 {
-		t.Fatalf("playing %+v of %d", cur, len(a.pl.Queue()))
+	if cur := a.current(); cur == nil || cur.ID != 2 || len(a.queued()) != 2 {
+		t.Fatalf("playing %+v of %d", cur, len(a.queued()))
 	}
 
 	// Back and forth, the songs loaded stay.

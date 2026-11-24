@@ -347,7 +347,7 @@ func (a *app) transport(c *ui.Context, color, dim, on ui.Color, size float32) {
 func (a *app) playerBar(c *ui.Context) {
 	p := a.pal
 	pl := a.pl
-	tr := pl.Current()
+	tr := a.current()
 	a.tickTimes(c)
 	if a.picked.id != 0 && (tr == nil || tr.ID != a.picked.id || pl.Playing()) {
 		// Played, or gone: it says what it is again.

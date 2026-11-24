@@ -24,7 +24,7 @@ func TestNotchGreetsOnce(t *testing.T) {
 	a.settings = defaultSettings()
 	n := &notch{a: a, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
 	a.notch = n
-	a.pl.Cue([]netease.Track{{ID: 7, Name: "宝船", Duration: 200000}})
+	a.cue([]netease.Track{{ID: 7, Name: "宝船", Duration: 200000}})
 	a.syncWindows()
 	if n.hello {
 		t.Fatal("greeted before the song played")
@@ -50,7 +50,7 @@ func TestNotchGreetsOnce(t *testing.T) {
 
 	// Turned off again, it does not greet the next song.
 	a.settings.Notch = false
-	a.pl.Cue([]netease.Track{{ID: 8, Name: "下一首", Duration: 200000}})
+	a.cue([]netease.Track{{ID: 8, Name: "下一首", Duration: 200000}})
 	a.pl.Attach(out)
 	a.syncWindows()
 	if n.hello {
@@ -67,7 +67,7 @@ func TestNotchGreetingKeptUnderPointer(t *testing.T) {
 	a.settings = defaultSettings()
 	n := &notch{a: a, real: true, w0: 185, h0: 32, winW: notchOpenW + 60, winH: 240}
 	a.notch = n
-	a.pl.Cue([]netease.Track{{ID: 7, Name: "宝船", Duration: 200000}})
+	a.cue([]netease.Track{{ID: 7, Name: "宝船", Duration: 200000}})
 	n.greet()
 	if !n.hello {
 		t.Fatal("did not greet")
@@ -106,7 +106,7 @@ func TestNotchMakesWay(t *testing.T) {
 	defer func(f func() mygo.Point) { cursorPoint = f }(cursorPoint)
 	notchNeighbor = func() string { return "Atoll" }
 
-	a.pl.Cue([]netease.Track{{ID: 7, Name: "宝船", Duration: 200000}})
+	a.cue([]netease.Track{{ID: 7, Name: "宝船", Duration: 200000}})
 	a.syncWindows()
 	out := audio.NewPlayer(&silence{})
 	out.SetVolume(0)
@@ -149,7 +149,7 @@ func TestNotchLyricsPassThePointer(t *testing.T) {
 	a.settings.NotchLyrics = 1
 	n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
 	a.notch = n
-	a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 60000}})
+	a.cue([]netease.Track{{ID: 7, Name: "风", Duration: 60000}})
 	a.pl.SetLyrics(lyrics.Build(lyrics.Source{LRC: "[00:00.00]风在吹\n[00:10.00]下一句"}))
 	a.pl.Hold(time.Second)
 	defer func(f func() mygo.Point) { cursorPoint = f }(cursorPoint)
@@ -200,7 +200,7 @@ func TestNotchCardKeepsThePointer(t *testing.T) {
 	a.settings.NotchLyrics = 2
 	n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
 	a.notch = n
-	a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 60000}})
+	a.cue([]netease.Track{{ID: 7, Name: "风", Duration: 60000}})
 	a.pl.SetLyrics(lyrics.Build(lyrics.Source{LRC: "[00:00.00]风在吹\n[00:10.00]下一句"}))
 	a.pl.Hold(time.Second)
 	defer func(f func() mygo.Point) { cursorPoint = f }(cursorPoint)
@@ -280,7 +280,7 @@ func TestNotchLyricStripFrames(t *testing.T) {
 		a.settings.LyricRoman = true
 		n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
 		a.notch = n
-		a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 30000}})
+		a.cue([]netease.Track{{ID: 7, Name: "风", Duration: 30000}})
 		a.pl.SetLyrics(lines)
 		a.pl.Hold(5500 * time.Millisecond)
 		save(fmt.Sprintf("notch-lyrics-%d", rows), n)
@@ -291,7 +291,7 @@ func TestNotchLyricStripFrames(t *testing.T) {
 	a.settings.NotchLyrics = 1
 	n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
 	a.notch = n
-	a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 30000}})
+	a.cue([]netease.Track{{ID: 7, Name: "风", Duration: 30000}})
 	a.pl.SetLyrics(lines)
 	a.pl.Hold(9 * time.Second)
 	save("notch-lyrics-break", n)
@@ -311,7 +311,7 @@ func TestNotchLyricStripFrames(t *testing.T) {
 		at := time.Duration(i) * time.Second
 		words = append(words, lyrics.Word{Text: w, Start: at, End: at + 900*time.Millisecond})
 	}
-	a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 30000}})
+	a.cue([]netease.Track{{ID: 7, Name: "风", Duration: 30000}})
 	a.pl.SetLyrics([]lyrics.Line{{At: 0, End: 8 * time.Second, Text: "風が長い廊下を渡って夜の向こうまで続いていく", Lang: "ja",
 		Reading: "kaze ga nagai rouka o watatte yoru no mukou made tsuzuite iku", Translation: "风穿过长长的走廊，一直走到夜的那一边", Words: words}})
 	a.pl.Hold(5500 * time.Millisecond)
@@ -334,7 +334,7 @@ func TestFirstUseFrames(t *testing.T) {
 	a.settings = defaultSettings()
 	n := &notch{a: a, real: true, w0: 185, h0: 32, winW: notchOpenW + 60, winH: 240}
 	a.notch = n
-	a.pl.Cue([]netease.Track{{ID: 7, Name: "NAINAINAI", Artists: []netease.Artist{{Name: "ATARASHII GAKKO!"}}, Duration: 193877}})
+	a.cue([]netease.Track{{ID: 7, Name: "NAINAINAI", Artists: []netease.Artist{{Name: "ATARASHII GAKKO!"}}, Duration: 193877}})
 	main := ui.NewTester(a.view, 1200, 800) // for the app's colors
 	main.Frame()
 	tt := ui.NewTester(n.view, int(n.winW), int(n.winH))
@@ -370,7 +370,7 @@ func TestNotchStripComesAndGoesOnTime(t *testing.T) {
 		a.settings.NotchLyrics = 1
 		n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
 		a.notch = n
-		a.pl.Cue([]netease.Track{{ID: 7, Name: "风", Duration: 60000}})
+		a.cue([]netease.Track{{ID: 7, Name: "风", Duration: 60000}})
 		a.pl.SetLyrics([]lyrics.Line{{
 			At: 10 * time.Second, End: 16 * time.Second, Text: "风在吹",
 			Words: []lyrics.Word{{Text: "风在吹", Start: 10 * time.Second, End: 13 * time.Second}},
@@ -405,7 +405,7 @@ func TestNotchKeepsTheTranslation(t *testing.T) {
 		a.settings.LyricRoman, a.settings.LyricTranslation = true, true
 		n := &notch{a: a, real: true, w0: 200, h0: 32, winW: notchOpenW + 60, winH: 240}
 		a.notch = n
-		a.pl.Cue([]netease.Track{{ID: 7, Name: "歌", Duration: 30000}})
+		a.cue([]netease.Track{{ID: 7, Name: "歌", Duration: 30000}})
 		a.pl.SetLyrics([]lyrics.Line{
 			{At: 0, End: 3 * time.Second, Text: "前の"},
 			{At: 4 * time.Second, End: 8 * time.Second, Text: "風が吹く", Lang: "ja", Reading: "kaze ga fuku", Translation: "风在吹"},

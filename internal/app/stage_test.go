@@ -70,7 +70,7 @@ func TestStageWordsStayWhenTheCaptionChanges(t *testing.T) {
 		a.settings.LyricRoman = true
 		a.settings.StageStyle = style
 		tr := netease.Track{ID: 3, Name: "風", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}
-		a.pl.Cue([]netease.Track{tr})
+		a.cue([]netease.Track{tr})
 		a.pl.SetLyrics(lyrics.Build(lyrics.Source{
 			LRC:         "[00:10.00]風が廊下を渡る\n[00:18.00]遠くで息をする",
 			Translation: "[00:10.00]风穿过走廊\n[00:18.00]远处有人呼吸",
@@ -186,7 +186,7 @@ func TestBirdFrames(t *testing.T) {
 			a.art.art[url] = art
 			a.art.art[url+"#backdrop"] = art
 		}
-		a.pl.Cue([]netease.Track{tr})
+		a.cue([]netease.Track{tr})
 		a.pl.SetLyrics(lines)
 		a.pl.Hold(pos)
 		a.nowPlaying, a.npPane = true, paneStage
@@ -251,7 +251,7 @@ func TestStageCaptionFrames(t *testing.T) {
 		a.settings.LyricRoman = true
 		a.settings.StageStyle = s.id
 		tr := netease.Track{ID: 3, Name: "風", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}
-		a.pl.Cue([]netease.Track{tr})
+		a.cue([]netease.Track{tr})
 		a.pl.SetLyrics(lyrics.Build(lyrics.Source{
 			LRC:         "[00:10.00]風が廊下を渡る\n[00:18.00]遠くで息をする",
 			Translation: "[00:10.00]风穿过长长的走廊，带着夜里的声音，一直走到听不见的地方\n[00:18.00]远处有人呼吸",
@@ -356,7 +356,7 @@ func TestLineBeforeStaysGoneAfterABreak(t *testing.T) {
 			a := newTestApp()
 			a.settings = defaultSettings()
 			a.settings.StageStyle = style
-			a.pl.Cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
+			a.cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
 			a.pl.SetLyrics(lines)
 			a.nowPlaying, a.npPane = true, paneStage
 			// Just as the next line comes in: in 青鸟 as it starts to form.
@@ -397,7 +397,7 @@ func TestStageLinesAtOneTime(t *testing.T) {
 		a := newTestApp()
 		a.settings = defaultSettings()
 		a.settings.StageStyle = style
-		a.pl.Cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
+		a.cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
 		a.pl.SetLyrics(lines)
 		a.nowPlaying, a.npPane = true, paneStage
 		// The first still fading as the second comes in, in the styles
@@ -456,7 +456,7 @@ func TestBirdAnswersFromTheRight(t *testing.T) {
 		a := newTestApp()
 		a.settings = defaultSettings()
 		a.settings.StageStyle = "aobird"
-		a.pl.Cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
+		a.cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
 		a.pl.SetLyrics([]lyrics.Line{{At: 10 * time.Second, End: 18 * time.Second, Text: c.text, Lang: "ja", Translation: c.translation,
 			Words: []lyrics.Word{{Text: c.text, Start: 10 * time.Second, End: 16 * time.Second}}}})
 		a.nowPlaying, a.npPane = true, paneStage
@@ -495,7 +495,7 @@ func TestFootTranslationStaysWhenTheReadingChanges(t *testing.T) {
 		a.settings = defaultSettings()
 		a.settings.StageStyle = s.id
 		a.settings.LyricTranslation = true
-		a.pl.Cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
+		a.cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
 		a.pl.SetLyrics(lyrics.Build(lyrics.Source{
 			LRC:         "[00:10.00]風が廊下を渡る\n[00:18.00]遠くで息をする",
 			Translation: "[00:10.00]风穿过走廊\n[00:18.00]远处有人呼吸",
@@ -581,7 +581,7 @@ func TestChorusTranslationInUnison(t *testing.T) {
 	a.settings = defaultSettings()
 	a.settings.StageStyle = "chorus"
 	a.settings.LyricTranslation = true
-	a.pl.Cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
+	a.cue([]netease.Track{{ID: 3, Name: "歌", Artists: []netease.Artist{{Name: "誰"}}, Duration: 60000}})
 	a.pl.SetLyrics([]lyrics.Line{{At: 10 * time.Second, End: 18 * time.Second, Text: "風が廊下を渡る", Lang: "ja", Translation: "风穿过走廊",
 		Words: []lyrics.Word{{Text: "風が廊下を渡る", Start: 10 * time.Second, End: 16 * time.Second}}}})
 	a.nowPlaying, a.npPane = true, paneStage
@@ -635,7 +635,7 @@ func TestChorusFrames(t *testing.T) {
 		a.settings.LyricRoman, a.settings.LyricTranslation = true, true
 		url := netease.Sized(tr.Album.PicURL, 600)
 		a.art.art[url], a.art.art[url+"#backdrop"] = art, art
-		a.pl.Cue([]netease.Track{tr})
+		a.cue([]netease.Track{tr})
 		a.pl.SetLyrics(lines)
 		a.pl.Hold(11300 * time.Millisecond)
 		a.nowPlaying, a.npPane = true, paneStage

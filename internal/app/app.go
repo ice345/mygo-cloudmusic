@@ -152,6 +152,10 @@ type app struct {
 	restored     bool   // playback picked up where it was left
 	savedSession string // the session as last kept
 	sessionDue   bool   // a save of the session is due
+
+	// neteaseTracks holds the NetEase track of each the player has, as the
+	// views that have not moved over ask for them (bridge.go).
+	neteaseTracks map[trackKey]*netease.Track
 }
 
 // post runs fn on the main thread and redraws both windows. Without a
@@ -222,6 +226,7 @@ func Run() error {
 		// made, and the view asks the player what plays.
 		a.art = newArtCache(a.post)
 		a.pl = player.New(a.post)
+		a.pl.Source = a.source
 		a.pl.Quality = func() string { return a.settings.Quality }
 		a.pl.Normalize = func() bool { return a.settings.Normalize }
 		a.pl.Cache = newSongCache(a.settings.CacheMB)

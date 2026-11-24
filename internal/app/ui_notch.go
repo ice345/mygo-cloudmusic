@@ -252,7 +252,7 @@ func (n *notch) keep() {
 
 // target returns the size the shape goes to.
 func (n *notch) target() (w, h float32) {
-	tr := n.a.pl.Current()
+	tr := n.a.current()
 	s := n.a.settings
 	switch {
 	case n.neighbor != "":
@@ -299,7 +299,7 @@ func (n *notch) strip() float32 {
 		return 0
 	}
 	lines, _ := n.a.pl.Lyrics()
-	if n.a.pl.Current() == nil || len(lines) == 0 {
+	if n.a.current() == nil || len(lines) == 0 {
 		return 0
 	}
 	pos := n.a.pl.Position()
@@ -456,8 +456,7 @@ func shape(cx, w, h, flare, foot float32) *ui.Path {
 
 func (n *notch) view(c *ui.Context) {
 	a := n.a
-	pl := a.pl
-	tr := pl.Current()
+	tr := a.current()
 	c.Root().Background(ui.Transparent)
 
 	tw, th := n.target()
@@ -864,7 +863,7 @@ func (n *notch) stripFrames(c *ui.Context, lines []lyrics.Line, cur int, pos tim
 func (a *app) syncWindows() {
 	pl := a.pl
 	var id int64
-	if tr := pl.Current(); tr != nil {
+	if tr := a.current(); tr != nil {
 		id = tr.ID
 	}
 	sig := playerSig{id, pl.Playing(), pl.Loading(), pl.Shuffle(), pl.Repeat(), a.volume, a.nowPlaying, pl.Err()}

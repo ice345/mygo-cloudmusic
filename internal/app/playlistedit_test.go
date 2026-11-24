@@ -72,7 +72,7 @@ func TestRemoveSongFromPlaylist(t *testing.T) {
 
 	a := editTestApp()
 	// Playing the id: the queue keeps the song.
-	a.pl.Cue(a.playlists[10].Tracks)
+	a.cue(a.playlists[10].Tracks)
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if err := tt.RightClick("宝船"); err != nil {
@@ -88,7 +88,7 @@ func TestRemoveSongFromPlaylist(t *testing.T) {
 	if _, ok := tt.Find("宝船"); ok {
 		t.Error("the song's row is still listed")
 	}
-	if q := a.pl.Queue(); len(q) != 2 || q[1].ID != 2 {
+	if q := a.queued(); len(q) != 2 || q[1].ID != 2 {
 		t.Errorf("removing the song changed the queue playing: %v", q)
 	}
 }
