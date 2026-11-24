@@ -525,3 +525,22 @@ func TestSourceAccountLive(t *testing.T) {
 		t.Fatalf("playlists: %d, first %+v, %v", len(lists), lists[0], err)
 	}
 }
+
+// The source lists a song's comments, hot ones first on the first page, and an
+// episode's too, and says how many there are. No sign-in needed.
+func TestSourceCommentsLive(t *testing.T) {
+	if os.Getenv("LIVE") == "" {
+		t.Skip()
+	}
+	page, err := Source{}.Comments("1859245776", 0)
+	if err != nil || len(page.Comments) == 0 || page.Total == 0 || len(page.Hot) == 0 {
+		t.Fatalf("song: %+v, %v", page, err)
+	}
+	if cm := page.Hot[0]; cm.ID == "" || cm.Author == "" || cm.Text == "" || cm.Time == 0 {
+		t.Errorf("hot comment %+v", cm)
+	}
+	more, err := Source{}.Comments("1859245776", len(page.Comments))
+	if err != nil || len(more.Hot) != 0 || len(more.Comments) == 0 {
+		t.Errorf("second page: %d hot, %d latest, %v", len(more.Hot), len(more.Comments), err)
+	}
+}

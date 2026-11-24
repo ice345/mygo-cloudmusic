@@ -249,10 +249,23 @@ type Comment struct {
 	Time      int64  `json:"time,omitempty"` // milliseconds since 1970
 	Likes     int    `json:"likes,omitempty"`
 	Liked     bool   `json:"liked,omitempty"`
+	// Location is where it was written from, if the source says. (Added here.)
+	Location string `json:"location,omitempty"`
+	// Reply is the comment this one answers, if it does. (Added here.)
+	Reply *Reply `json:"reply,omitempty"`
+}
+
+// Reply is the comment another answers: who wrote it, and what. (Added here.)
+type Reply struct {
+	Author string `json:"author"`
+	Text   string `json:"text"`
 }
 
 // CommentPage is a page of a track's comments.
 type CommentPage struct {
+	// Hot are the comments most liked, on the first page only, apart from
+	// Comments. (Added here.)
+	Hot      []Comment `json:"hot,omitempty"`
 	Comments []Comment `json:"comments,omitempty"`
 	Total    int       `json:"total,omitempty"` // of all pages, if the source knows
 	More     bool      `json:"more,omitempty"`
