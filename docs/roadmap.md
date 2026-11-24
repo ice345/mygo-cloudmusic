@@ -23,12 +23,12 @@ Priorities: **P0** blocks a release. **P1** wrong in normal use. **P2** worth do
 
 | Check | Where | State |
 |---|---|---|
-| The notch on a Mac with a notch: card, greeting, lyrics under the notch (with 0.1.28's rows and window), intro and outro, Atoll making way, an external display | [`notch.md`](notch.md#on-a-mac-before-a-release), steps 1-6 | done 2026-11-24 for 1, 2, 4 (outro), 5 and 3's rows with a translation; two bugs fixed (Atoll's quit and launch); Left: a reading under the notch, a click through the lyrics, a long intro, 6 (skipped) |
+| The notch on a Mac with a notch: card, greeting, lyrics under the notch (with 0.1.28's rows and window), intro and outro, Atoll making way, an external display | [`notch.md`](notch.md#on-a-mac-before-a-release), steps 1-6 | done 2026-11-24 for 1, 2, 4 (outro), 5 and 3's rows with a translation; two bugs fixed (Atoll's quit and launch); making way for Atoll and taking the notch back after it quits checked again by hand on MyGo v0.10.0. Left: a reading under the notch, a click through the lyrics, a long intro, 6 (skipped) |
 | Podcast captions on a Mac: the model and libraries download, and an episode is transcribed | [`lyrics.md`](lyrics.md#podcast-captions) | Apple silicon, 2026-11-24: libraries and model download, load and transcribe a minute in 24 s (`TestTranscribe`, English speech; its punctuation check wants Chinese); `TestNativesLive` passes. Not yet: the settings button, Intel, and the app's own 字幕 tab |
 | 0.1.27's macOS build opens, after the quarantine step its notes give | the release page | pending |
 | The `NM_FRAMES` frames looked at on macOS, with its fonts: 青鸟 in Hiragino Mincho, AppleMyungjo and Songti, and the line breaks there | [`stage.md`](stage.md#looking-at-it) | pending |
 | `TestLyricTextsLive` signed in, for the one lyrics request (`7c8f425`) | `internal/netease/live_test.go` | pending: needs a signed-in session |
-| A song that isn't cached plays, signed in: the eapi's User-Agent now matches its headers, and `SongURL` asks again after a -460, then the web's endpoint | `eapi.go`, `netease.go` | done in code 2026-11-24, **pending a signed-in listener**: signed out, only the old shape (iPhone User-Agent, Windows headers) came back -460, on every song and try; the dev build here has no NetEase session to play one |
+| A song that isn't cached plays, signed in: the eapi's User-Agent now matches its headers, and `SongURL` asks again after a -460, then the web's endpoint | `eapi.go`, `netease.go` | done 2026-11-24, `3fff848`; **pending a signed-in listener**: signed out, only the old shape (iPhone User-Agent, Windows headers) came back -460, on every song and try; the dev build here has no NetEase session to play one |
 
 ## 3. Lyrics, for 0.1.28
 
@@ -42,10 +42,10 @@ Priorities: **P0** blocks a release. **P1** wrong in normal use. **P2** worth do
 | `Lang` on the line's own text in 歌词, not on its row | P2 | `ui_nowplaying.go`, `timedLines` | done, `5bd50ea` |
 | A lyrics request that fails says so, with 重试, and is tried again once | P2 | `player.go`, `loadLyrics`; `lyricsFailedNote` | done, `bce8059` |
 | 青鸟's translation arrives after its line, and answers from the right | P1 | `ui_stage_bird.go`, `birdCaptions` | done, `aee62b8` |
-| `settings.json` written to a temporary file and renamed | P2 | `settings.go`, `save` | done |
-| A cover that failed on the network is asked for again after a while | P2 | `artwork.go`, `get`: after a minute | done |
-| Downloads stop when their track does, and give up when stalled | P2 | `player.go`, `stop`; `stream.go` | stalls give up after 30 s: done. Closing at `stop` left: `out.Close` may already close the stream; unverified |
-| The notch's levels at 30 frames a second | P2 | `ui_notch.go`, `ui_pages.go`, `barFrame` | done |
+| `settings.json` written to a temporary file and renamed | P2 | `settings.go`, `save` | done, `7033602` |
+| A cover that failed on the network is asked for again after a while | P2 | `artwork.go`, `get`: after a minute | done, `7033602` |
+| Downloads stop when their track does, and give up when stalled | P2 | `player.go`, `stop`; `stream.go` | stalls give up after 30 s: done, `7033602`. Closing at `stop` left: `out.Close` may already close the stream; unverified |
+| The notch's levels at 30 frames a second | P2 | `ui_notch.go`, `ui_pages.go`, `barFrame` | done, `7033602` |
 
 ## 4. Typography and 青鸟, for 0.1.28
 
@@ -63,11 +63,24 @@ Priorities: **P0** blocks a release. **P1** wrong in normal use. **P2** worth do
 
 Done (`ui_stage_chorus.go`, `backdrop_backlit.go`): a sibling of 青鸟 on the shared stage, from what the makers said rather than from impressions, and nothing from the works themselves (the review's §5). High contrast, a backlight behind the line with lights out of focus, a rack focus as each line comes in, one brass gold on the word sung on word-timed lines, the translation in unison on the line's axis; hot comments stay. Its frames were looked at on six real covers on Linux ([`stage.md`](stage.md#和鸣)); they are on the Mac checklist (§2) with the other styles'. The release notes must not name the works.
 
-## 6. Later
+## 6. Plugins
+
+Sources of music as plugins, from [the plugins page](https://mygo-music.egoist.dev/plugins), with NetEase built in as the first source. The plan, what is ported from `egoist/mygo-music` and the decisions are in [`plugins.md`](plugins.md). Not for 0.1.28.
+
+| Stage | State |
+|---|---|
+| 1.1 MyGo v0.10.0 (from a v0.7 snapshot) | done 2026-11-24: builds, `go test ./internal/...` passes, the window draws as before, and the notch making way for Atoll and taking the notch back when it quits was checked by hand on it |
+| 1.2 `internal/music`: types, `Source`, errors, readings, `ErrRefused`, `Unsupported` | done 2026-11-24, ported from upstream; nothing uses it yet |
+| 1.3 The views on `music.Track`, a slice at a time: player, lists and search, library pages, account and likes and comments, podcasts and stations, NetEase's extras | open |
+| 2 The plugin host (`internal/plugin`, moejs), source settings | open |
+| 3 Install from GitHub, zip, folder or `mygo-music://` link; updates; a plugins list | open |
+| 4 README, release notes | open |
+
+## 7. Later
 
 - **Structure.** Split the notch's state into an explicit mode; give `app` a constructor that tests share; one `lyrics.Source(texts)` conversion; caption sizes in one place.
 - **Tests.** Seams read before goroutines start, so `-race` passes; the player's network behind seams, so the unit run makes no requests; frame tests that need NetEase behind `LIVE`; the wall tests shorter. One `internal/app` run of about a dozen failed on Linux on 2026-11-17, its output not kept: likely a late goroutine from a test seam. Keep the output the next time it happens.
-- **Dependencies.** Upgrade MyGo to a tagged release (v0.9.x), with `go tool mygo migrate-ui`. The README asks for Go 1.27.3.
+- **Dependencies.** MyGo is v0.10.0, a tagged release (2026-11-24; `go tool mygo migrate-ui` had nothing to change). The README asks for Go 1.27.3.
 - **Platforms.** Decide whether Windows and Linux get a compact lyrics surface, or say the notch is macOS only. The notch picks the display with a notch (`safeAreaInsets`), not `screens[0]`.
 - **Accessibility.** A real disabled state for the notch-lyrics control; Reduce Motion in the foot band.
 - **The website.** Point it at this repository, or remove it.

@@ -52,7 +52,7 @@ func (a *app) changed() {
 func (a *app) settingsView(c *ui.Context) {
 	t := *c.Theme()
 	p := paletteFor(&t)
-	t.Accent, t.AccentText = p.accent, p.onAccent
+	t.Accent, t.AccentText, t.InactiveAccent = p.accent, p.onAccent, p.accent
 	c.SetTheme(&t)
 	c.Root().Background(p.sidebar)
 	c.OnShortcut(ui.Cmd, ui.KeyW, func() { a.settingsWin.Close() })

@@ -47,7 +47,7 @@ Go 1.27.3 or later. The tests need no display and no sound device.
 
 ## CI
 
-`.github/workflows/test.yml` runs on every push and pull request, on Linux and macOS: `go vet`, `go tool mygo vet .`, `go test ./internal/... ./scripts/...`, and, on Linux, builds for Windows, Linux and macOS on amd64 and arm64. A release runs it first, and builds nothing if it fails. `-race` is not in it yet: test seams read inside goroutines race with the tests' restores (roadmap §6).
+`.github/workflows/test.yml` runs on every push and pull request, on Linux and macOS: `go vet`, `go tool mygo vet .`, `go test ./internal/... ./scripts/...`, and, on Linux, builds for Windows, Linux and macOS on amd64 and arm64. A release runs it first, and builds nothing if it fails. `-race` is not in it yet: test seams read inside goroutines race with the tests' restores (roadmap §7).
 
 ## Before merging
 

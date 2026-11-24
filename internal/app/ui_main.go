@@ -16,7 +16,9 @@ func (a *app) view(c *ui.Context) {
 	t := *c.Theme()
 	a.pal = paletteFor(&t)
 	p := a.pal
-	t.Accent, t.AccentText = p.accent, p.onAccent
+	// The accent stays when another app is in front, as it did before MyGo
+	// 0.8 grayed it: a player's window is mostly in the background.
+	t.Accent, t.AccentText, t.InactiveAccent = p.accent, p.onAccent, p.accent
 	t.Selection = p.accent.Alpha(0.3)
 	c.SetTheme(&t)
 
