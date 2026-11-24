@@ -147,3 +147,68 @@ func TestAlbumPageOfAnotherSource(t *testing.T) {
 		t.Errorf("the artist's link opened %+v", a.route)
 	}
 }
+
+// artistSource is a source that serves artists by ID, fails the others as being
+// offline does, and follows artists as a test says.
+type artistSource struct {
+	music.Unsupported
+	id      string
+	artists map[string]*music.ArtistPage
+	follow  func(id string, on bool) error
+	asked   []string
+}
+
+func (s *artistSource) Info() music.Info { return music.Info{ID: s.id, Name: "歌手音源"} }
+func (s *artistSource) Can(what string) bool {
+	return what == "artist" || (what == "followArtist" && s.follow != nil)
+}
+func (s *artistSource) Artist(id string) (*music.ArtistPage, error) {
+	s.asked = append(s.asked, id)
+	if page := s.artists[id]; page != nil {
+		return page, nil
+	}
+	return nil, errors.New("offline")
+}
+func (s *artistSource) FollowArtist(id string, on bool) error { return s.follow(id, on) }
+
+// An artist of a source other than NetEase's loads through that source: their
+// page lists their most popular songs and, as that source gave them, their
+// albums, with no tabs of NetEase's own (newest songs, events), and the songs
+// play through their own source.
+func TestArtistPageOfAnotherSource(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	landed := make(chan func(), 2)
+	a.onPost = func(fn func()) { landed <- fn }
+	src := &artistSource{id: "plug", artists: map[string]*music.ArtistPage{"ar1": {
+		Artist: music.Artist{ID: "ar1", Name: "别处的歌手", Description: "简介"},
+		Tracks: []music.Track{{ID: "t1", Source: "plug", Name: "热门歌", Duration: 60000}},
+		Albums: []music.Album{{ID: "al1", Source: "plug", Name: "他们的专辑"}},
+	}}}
+	a.sources["plug"] = src
+
+	a.open(route{page: pageArtist, source: "plug", id: "ar1"})
+	wait(t, landed, "the artist")()
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if len(src.asked) != 1 || src.asked[0] != "ar1" {
+		t.Fatalf("asked %v", src.asked)
+	}
+	for _, text := range []string{"别处的歌手", "热门歌", "专辑"} {
+		if _, ok := tt.Find(text); !ok {
+			t.Errorf("%q is not shown", text)
+		}
+	}
+	for _, text := range []string{"最新", "动态"} {
+		if _, ok := tt.Find(text); ok {
+			t.Errorf("a tab of NetEase's own, %q, shows", text)
+		}
+	}
+	if err := tt.Click("专辑"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("他们的专辑"); !ok {
+		t.Error("their albums are not shown on the 专辑 tab")
+	}
+}

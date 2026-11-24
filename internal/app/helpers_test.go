@@ -11,7 +11,7 @@ import (
 func newTestApp() *app {
 	a := &app{
 		playlists: map[pageKey]*music.Playlist{}, loadingPl: map[pageKey]bool{}, plErr: map[pageKey]string{},
-		artists: map[int64]*artistData{}, albums: map[pageKey]*albumData{}, users: map[int64]*userData{},
+		artists: map[pageKey]*artistData{}, albums: map[pageKey]*albumData{}, users: map[int64]*userData{},
 		podcasts: map[int64]*podcastData{}, podcastTab: &podcastTab{}, searches: map[route]*searchData{},
 		lyricAt: -1, queueAt: -1,
 		sources: map[string]music.Source{netease.SourceID: netease.Source{}},
@@ -101,4 +101,9 @@ func edits(t *testing.T, a *app) *editSource {
 // loadedAlbum is a NetEase album as the album page holds it once loaded.
 func loadedAlbum(al netease.AlbumProfile) *music.AlbumPage {
 	return &music.AlbumPage{Album: netease.ToAlbum(al), Tracks: netease.ToTracks(al.Songs)}
+}
+
+// loadedArtist is a NetEase artist as the artist page holds it once loaded.
+func loadedArtist(ar netease.ArtistProfile) *artistData {
+	return &artistData{page: &music.ArtistPage{Artist: netease.ToArtist(ar), Tracks: netease.ToTracks(ar.Songs)}, rec: ar}
 }

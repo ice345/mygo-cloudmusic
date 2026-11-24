@@ -82,7 +82,7 @@ type app struct {
 	playlists  map[pageKey]*music.Playlist
 	loadingPl  map[pageKey]bool
 	plErr      map[pageKey]string
-	artists    map[int64]*artistData
+	artists    map[pageKey]*artistData
 	artistTab  int // what an artist's page lists: artistHot, artistLatest, artistAlbums or artistEvents
 	albums     map[pageKey]*albumData
 	users      map[int64]*userData
@@ -219,7 +219,7 @@ func Run() error {
 		playlists:  map[pageKey]*music.Playlist{},
 		loadingPl:  map[pageKey]bool{},
 		plErr:      map[pageKey]string{},
-		artists:    map[int64]*artistData{},
+		artists:    map[pageKey]*artistData{},
 		albums:     map[pageKey]*albumData{},
 		users:      map[int64]*userData{},
 		podcasts:   map[int64]*podcastData{},

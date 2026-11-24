@@ -128,7 +128,7 @@ func (a *app) load(r route) {
 	case pageSearch:
 		a.loadSearch(r, false)
 	case pageArtist:
-		a.loadArtist(r.number())
+		a.loadArtist(r.key())
 	case pageAlbum:
 		a.loadAlbum(r.key())
 	case pageUser:
@@ -352,7 +352,7 @@ func (a *app) content(c *ui.Context) {
 	a.underTop, a.underBottom = false, false
 	// Only NetEase's pages open so far: another source's says so.
 	switch a.route.page {
-	case pageArtist, pageUser, pagePodcast:
+	case pageUser, pagePodcast:
 		if a.route.number() == 0 {
 			a.centered(c, "暂不支持打开这个来源的页面", nil)
 			return

@@ -258,8 +258,8 @@ func TestArtistAlbumsAndEvents(t *testing.T) {
 	a := newTestApp()
 	a.sources[netease.SourceID] = &albumSource{id: netease.SourceID}
 	a.settings = defaultSettings()
-	d := &artistData{profile: &netease.ArtistProfile{Artist: netease.Artist{ID: 12, Name: "乙"}, AccountID: 99}}
-	a.artists[12] = d
+	d := loadedArtist(netease.ArtistProfile{Artist: netease.Artist{ID: 12, Name: "乙"}, AccountID: 99})
+	a.artists[nkey(12)] = d
 	a.open(nroute(pageArtist, 12))
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -299,12 +299,11 @@ func TestArtistAlbumsAndEvents(t *testing.T) {
 // waits for the first.
 func TestFollowArtist(t *testing.T) {
 	asked := make(chan bool, 4)
-	followArtist = func(id int64, follow bool) error { asked <- follow; return nil }
-	defer func() { followArtist = netease.FollowArtist }()
 	a := newTestApp()
+	a.sources[netease.SourceID] = &artistSource{id: netease.SourceID, follow: func(id string, follow bool) error { asked <- follow; return nil }}
 	a.settings = defaultSettings()
 	a.profile = &netease.Profile{UserID: 1}
-	a.artists[12] = &artistData{profile: &netease.ArtistProfile{Artist: netease.Artist{ID: 12, Name: "乙"}}}
+	a.artists[nkey(12)] = loadedArtist(netease.ArtistProfile{Artist: netease.Artist{ID: 12, Name: "乙"}})
 	a.open(nroute(pageArtist, 12))
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -312,11 +311,11 @@ func TestFollowArtist(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !a.artists[12].profile.Followed || !wait(t, asked, "the follow") {
+	if !a.artists[nkey(12)].page.Artist.Following || !wait(t, asked, "the follow") {
 		t.Fatal("not followed")
 	}
 	tt.Click("已关注")
-	if len(asked) > 0 || !a.artists[12].profile.Followed {
+	if len(asked) > 0 || !a.artists[nkey(12)].page.Artist.Following {
 		t.Error("unfollowed before the follow landed")
 	}
 }
@@ -466,7 +465,7 @@ func TestAlbumLinkInRow(t *testing.T) {
 	a.sources[netease.SourceID] = &albumSource{id: netease.SourceID}
 	a.settings = defaultSettings()
 	song := netease.Track{ID: 2, Name: "起风了", Artists: []netease.Artist{{ID: 13, Name: "丙"}}, Album: netease.Album{ID: 8, Name: "迷跡波"}, Duration: 200000}
-	a.artists[13] = &artistData{profile: &netease.ArtistProfile{Artist: netease.Artist{ID: 13, Name: "丙"}, Songs: []netease.Track{song}}}
+	a.artists[nkey(13)] = loadedArtist(netease.ArtistProfile{Artist: netease.Artist{ID: 13, Name: "丙"}, Songs: []netease.Track{song}})
 	a.open(nroute(pageArtist, 13))
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -498,15 +497,14 @@ func catalogApp() *app {
 	for i, name := range []string{"迷跡波", "跡暖空", "壱雫空", "音一会", "迷星叫", "焚音打"} {
 		albums = append(albums, netease.AlbumProfile{Album: netease.Album{ID: int64(20 + i), Name: name}, Artists: []netease.Artist{band}, PublishTime: day})
 	}
-	a.artists[7] = &artistData{
-		profile: &netease.ArtistProfile{Artist: band, Alias: []string{"マイゴ"}, MusicSize: 38, AlbumSize: 9, BriefDesc: "迷いながらでも、前へ。", AccountID: 70, Songs: songs},
-		albums:  albums, albumsPage: paged{loaded: true},
-		events: []netease.Event{
-			{ID: 1, Time: day, User: netease.User{Nickname: "MyGO!!!!!"}, Content: netease.EventContent{Msg: "新专辑《迷跡波》上线了！", Album: &albums[0]}},
-			{ID: 2, Time: day - 86400000, User: netease.User{Nickname: "MyGO!!!!!"}, Content: netease.EventContent{Msg: "谢谢大家来看演出", Forwarded: "听歌的人：现场太好了"}},
-		},
-		eventsPage: paged{loaded: true},
+	artist := loadedArtist(netease.ArtistProfile{Artist: band, Alias: []string{"マイゴ"}, MusicSize: 38, AlbumSize: 9, BriefDesc: "迷いながらでも、前へ。", AccountID: 70, Songs: songs})
+	artist.albums, artist.albumsPage = albums, paged{loaded: true}
+	artist.events = []netease.Event{
+		{ID: 1, Time: day, User: netease.User{Nickname: "MyGO!!!!!"}, Content: netease.EventContent{Msg: "新专辑《迷跡波》上线了！", Album: &albums[0]}},
+		{ID: 2, Time: day - 86400000, User: netease.User{Nickname: "MyGO!!!!!"}, Content: netease.EventContent{Msg: "谢谢大家来看演出", Forwarded: "听歌的人：现场太好了"}},
 	}
+	artist.eventsPage = paged{loaded: true}
+	a.artists[nkey(7)] = artist
 	a.albums[nkey(8)] = &albumData{page: loadedAlbum(netease.AlbumProfile{Album: al, Artists: []netease.Artist{band}, PublishTime: day, Description: "MyGO!!!!! 的第一张专辑。", Songs: songs})}
 	user := netease.User{UserID: 9, Nickname: "听歌的人", Signature: "在音乐里，寻找同路的人。", Follows: 12, Followeds: 24}
 	a.users[9] = &userData{user: &user, playlists: []netease.Playlist{{ID: 30, Name: "通勤路上", TrackCount: 40}, {ID: 31, Name: "睡前", TrackCount: 12}}}
@@ -525,7 +523,7 @@ func catalogApp() *app {
 	subbed := *pod
 	subbed.LastProgram = programs[0].Name
 	a.podcastTab = &podcastTab{subs: []netease.Podcast{subbed}, picks: hot[:3], hot: hot, hotPage: paged{loaded: true}}
-	artists := []netease.ArtistProfile{*a.artists[7].profile, {Artist: netease.Artist{ID: 10, Name: "Ave Mujica"}}}
+	artists := []netease.ArtistProfile{a.artists[nkey(7)].rec, {Artist: netease.Artist{ID: 10, Name: "Ave Mujica"}}}
 	for kind, d := range map[music.SearchKind]*searchData{
 		music.SearchTracks:  {res: music.SearchResult{Tracks: netease.ToTracks(songs)}, total: 38},
 		music.SearchArtists: {res: music.SearchResult{Artists: netease.ToArtists(artists)}, total: 2},
