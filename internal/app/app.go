@@ -111,7 +111,7 @@ type app struct {
 	lyricScroll ui.ScrollState
 	lyricGlide  lyricGlide
 	lyricAt     int
-	lyricTrack  int64
+	lyricTrack  trackKey
 	// lyricRows are the rows last laid out under the lines. When they
 	// change, lyricPin is where the line sung sat, and lyricReaim counts
 	// the frames waited until the new layout can be told from that.
@@ -162,10 +162,6 @@ type app struct {
 
 	// sources are the sources of music there are, by ID.
 	sources map[string]music.Source
-
-	// neteaseTracks holds the NetEase track of each the player has, as the
-	// views that have not moved over ask for them (bridge.go).
-	neteaseTracks map[trackKey]*netease.Track
 }
 
 // post runs fn on the main thread and redraws both windows. Without a

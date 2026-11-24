@@ -7,14 +7,14 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/lyrics"
-	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/speech"
 )
 
 // captionsPane shows the episode playing's captions as lyrics show, in
 // Now Playing: written down on the device as it plays. Without the model,
 // it offers to download it.
-func (a *app) captionsPane(c *ui.Context, tr *netease.Track, h float32) {
+func (a *app) captionsPane(c *ui.Context, tr *music.Track, h float32) {
 	pl := a.pl
 	cs := &a.captions
 	if !a.modelReady() {
@@ -32,13 +32,13 @@ func (a *app) captionsPane(c *ui.Context, tr *netease.Track, h float32) {
 	// Until the player says the episode changed, what the app has is the
 	// last one's: none of it shows.
 	var lines []lyrics.Line
-	if cs.program == tr.ProgramID {
+	if cs.program == captionKey(tr) {
 		lines = cs.lines
 	}
 	pos := pl.Position()
 	if len(lines) == 0 {
 		switch {
-		case cs.program != tr.ProgramID:
+		case cs.program != captionKey(tr):
 			a.captionsNote(c, "正在识别…", "", nil)
 		case cs.failed == cs.program:
 			a.captionsNote(c, "字幕生成失败", "", nil)
@@ -60,8 +60,8 @@ func (a *app) captionsPane(c *ui.Context, tr *netease.Track, h float32) {
 			c.After(lines[i+1].At - pos + 20*time.Millisecond)
 		}
 	}
-	if a.lyricTrack != tr.ID {
-		a.lyricTrack, a.lyricAt = tr.ID, -2
+	if key := keyOf(tr); a.lyricTrack != key {
+		a.lyricTrack, a.lyricAt = key, -2
 		a.lyricScroll, a.lyricGlide = ui.ScrollState{}, lyricGlide{}
 	}
 	lag := a.lyricGlide.step(c, &a.lyricScroll)

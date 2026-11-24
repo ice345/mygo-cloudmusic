@@ -6,13 +6,15 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/egoist/mygo"
 
 	"netease-music-mygo/internal/lyrics"
+	"netease-music-mygo/internal/music"
+	"netease-music-mygo/internal/netease"
 	"netease-music-mygo/internal/speech"
 )
 
@@ -53,11 +55,11 @@ const captionLead = 30 * time.Second
 type captionState struct {
 	model modelState
 
-	program int64       // the episode the transcript is of, 0 for none
+	program string      // the episode the transcript is of, by captionKey, "" for none
 	tr      *transcript // nil while it loads
 	lines   []lyrics.Line
 	work    *captionWork  // the transcription running, or nil
-	failed  int64         // the episode the transcription failed for
+	failed  string        // the episode the transcription failed for
 	saved   time.Duration // how far the transcript on disk is written down
 }
 
@@ -84,7 +86,7 @@ type span [2]time.Duration
 // captionWork is a transcription running from from up to until, 0 for the
 // episode's end, written down as far as at.
 type captionWork struct {
-	program     int64
+	program     string
 	from, until time.Duration
 	at          time.Duration
 	cancel      context.CancelFunc
@@ -99,12 +101,32 @@ func modelDir() (string, error) {
 	return filepath.Join(dir, "models"), nil
 }
 
-func transcriptPath(program int64) (string, error) {
+func transcriptPath(program string) (string, error) {
 	dir, err := mygo.App.Path(mygo.PathCache)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "transcripts", strconv.FormatInt(program, 10)+".json"), nil
+	return filepath.Join(dir, "transcripts", program+".json"), nil
+}
+
+// captionKey names an episode for its transcript: a NetEase one by its
+// program's number, as it always was, another source's by its own ID, made fit
+// for a file name. A track that is no episode has none.
+func captionKey(tr *music.Track) string {
+	if !isEpisode(tr) {
+		return ""
+	}
+	if tr.Source == netease.SourceID {
+		if _, program, ok := strings.Cut(tr.ID, "@"); ok {
+			return program
+		}
+	}
+	return strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '.' {
+			return r
+		}
+		return '_'
+	}, tr.Source+"-"+tr.ID)
 }
 
 // captionsShown reports whether the app can make captions on this
@@ -214,19 +236,19 @@ func (a *app) deleteModel() {
 // running gets there soon. It runs whenever the player changes.
 func (a *app) syncCaptions() {
 	cs := &a.captions
-	var program int64
+	var program string
 	if tr := a.current(); tr != nil {
-		program = tr.ProgramID
+		program = captionKey(tr)
 	}
 	if program != cs.program {
 		a.pauseCaptions()
 		a.saveTranscript()
 		cs.program, cs.tr, cs.lines = program, nil, nil
-		if program != 0 && a.captionsShown() {
+		if program != "" && a.captionsShown() {
 			a.loadTranscript(program)
 		}
 	}
-	if program == 0 || !a.captionsOn() || cs.failed == program {
+	if program == "" || !a.captionsOn() || cs.failed == program {
 		a.stopCaptions()
 		return
 	}
@@ -279,7 +301,7 @@ func releaseRecognizer() {
 
 // transcribe writes down the episode playing from from up to until, on a
 // goroutine.
-func (a *app) transcribe(program int64, from, until time.Duration) {
+func (a *app) transcribe(program string, from, until time.Duration) {
 	src, err := a.pl.OpenAudio()
 	if err != nil {
 		return
@@ -383,7 +405,7 @@ func (a *app) captionsWritten() bool {
 func (a *app) captionsWriting(pos time.Duration) bool {
 	cs := &a.captions
 	if cs.tr == nil {
-		return a.captionsOn() && cs.program != 0
+		return a.captionsOn() && cs.program != ""
 	}
 	if _, ok := covered(cs.tr.Spans, pos); ok {
 		return false
@@ -393,7 +415,7 @@ func (a *app) captionsWriting(pos time.Duration) bool {
 
 // loadTranscript reads the transcript of an episode on a goroutine, or
 // starts one with nothing in it.
-func (a *app) loadTranscript(program int64) {
+func (a *app) loadTranscript(program string) {
 	path, err := transcriptPath(program)
 	if err != nil {
 		a.captions.tr = &transcript{Model: speech.ModelName}
@@ -427,7 +449,7 @@ func (a *app) saveTranscript() {
 // it is now, or nil with nothing to write.
 func (a *app) transcriptWrite() func() {
 	cs := &a.captions
-	if cs.program == 0 || cs.tr == nil || len(cs.tr.Spans) == 0 {
+	if cs.program == "" || cs.tr == nil || len(cs.tr.Spans) == 0 {
 		return nil
 	}
 	path, err := transcriptPath(cs.program)

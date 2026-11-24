@@ -346,7 +346,7 @@ func TestFirstUseFrames(t *testing.T) {
 		save(fmt.Sprintf("notch-hello-%d", ms), tt)
 	}
 
-	a.picked = pickedUp{id: 7, heard: "3分钟前在手机上听过"}
+	a.picked = pickedUp{id: "7", heard: "3分钟前在手机上听过"}
 	main.Advance(time.Second)
 	main.Frame()
 	save("pickup-bar", main)

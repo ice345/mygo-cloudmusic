@@ -8,7 +8,6 @@ import (
 
 	"netease-music-mygo/internal/lyrics"
 	"netease-music-mygo/internal/music"
-	"netease-music-mygo/internal/netease"
 )
 
 // Through the quiet parts of a song, its intro, an interlude or its outro,
@@ -38,7 +37,7 @@ type quietState struct {
 
 // quietComment returns the hot comment to show at pos, nil for none, and
 // how long until that changes, 0 for never.
-func (a *app) quietComment(tr *netease.Track, lines []lyrics.Line, loaded bool, pos time.Duration) (*music.Comment, time.Duration) {
+func (a *app) quietComment(tr *music.Track, lines []lyrics.Line, loaded bool, pos time.Duration) (*music.Comment, time.Duration) {
 	if !a.settings.HotComments {
 		return nil, 0
 	}
@@ -92,7 +91,7 @@ func (a *app) quietComment(tr *netease.Track, lines []lyrics.Line, loaded bool, 
 // quietShown returns how far a hot comment has come in on el, the
 // lyrics, from 0 to 1, keeping it to show as it goes, and whether one
 // shows now.
-func (a *app) quietShown(c *ui.Context, el ui.Element, tr *netease.Track, lines []lyrics.Line, loaded bool) (float32, bool) {
+func (a *app) quietShown(c *ui.Context, el ui.Element, tr *music.Track, lines []lyrics.Line, loaded bool) (float32, bool) {
 	pl := a.pl
 	cm, next := a.quietComment(tr, lines, loaded, pl.Position())
 	if pl.Playing() && next > 0 {

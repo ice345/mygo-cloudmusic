@@ -138,7 +138,7 @@ func TestCaptionClickSeeks(t *testing.T) {
 		{Start: 12 * sec, End: 16 * sec, Text: "有些话题是绕不开的。"},
 		{Start: 17 * sec, End: 20 * sec, Text: "比如说，我的婚姻结束了。"},
 	}
-	a.captions.program = 42
+	a.captions.program = "42"
 	a.captions.tr = &transcript{Model: speech.ModelName, Segments: segs, Spans: []span{{0, 20 * sec}}}
 	a.captions.lines = speech.Lines(segs)
 	tt := ui.NewTester(a.view, 1200, 800)
@@ -168,8 +168,8 @@ func TestCaptionsOnTheirWay(t *testing.T) {
 		state captionState
 	}{
 		{"after a song", captionState{}},
-		{"after another episode", captionState{program: 41, tr: &transcript{Spans: []span{{0, 600 * sec}}}, lines: speech.Lines([]speech.Segment{{Start: 0, End: sec, Text: "上一期"}})}},
-		{"loaded, the audio not yet", captionState{program: 42, tr: &transcript{Model: speech.ModelName}}},
+		{"after another episode", captionState{program: "41", tr: &transcript{Spans: []span{{0, 600 * sec}}}, lines: speech.Lines([]speech.Segment{{Start: 0, End: sec, Text: "上一期"}})}},
+		{"loaded, the audio not yet", captionState{program: "42", tr: &transcript{Model: speech.ModelName}}},
 	} {
 		a.captions = c.state
 		a.captions.model = modelState{checked: true, installed: true}
@@ -180,7 +180,7 @@ func TestCaptionsOnTheirWay(t *testing.T) {
 		}
 	}
 	// Written down whole, with nothing said, there is no speech.
-	a.captions = captionState{program: 42, tr: &transcript{Spans: []span{{0, 600 * sec}}}, model: modelState{checked: true, installed: true}}
+	a.captions = captionState{program: "42", tr: &transcript{Spans: []span{{0, 600 * sec}}}, model: modelState{checked: true, installed: true}}
 	tt.Frame()
 	if !tt.HasText("这期节目没有识别到语音") {
 		t.Errorf("written down whole: %q", tt.Texts())

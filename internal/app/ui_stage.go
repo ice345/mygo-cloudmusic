@@ -9,7 +9,7 @@ import (
 
 	"netease-music-mygo/internal/linebreak"
 	"netease-music-mygo/internal/lyrics"
-	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/music"
 )
 
 // The stage shows lyrics as Folia's classic visualizer does: one line at a
@@ -93,7 +93,7 @@ func spaceWords(shapes []wordShape, widths []float32, gap float32) {
 }
 
 // stage shows the lyrics of tr on the whole stage.
-func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
+func (a *app) stage(c *ui.Context, tr *music.Track, accent ui.Color) {
 	pl := a.pl
 	lines, loaded := pl.Lyrics()
 	w, h := c.Size()

@@ -35,7 +35,7 @@ func quietApp(pos time.Duration) (*app, netease.Track, []lyrics.Line) {
 }
 
 func TestQuietComment(t *testing.T) {
-	a, tr, lines := quietApp(0)
+	a, _, lines := quietApp(0)
 	s := time.Second
 	// The intro, 1.2 s in to 1 s before the singing, shows two comments
 	// for 8.9 s each; the outro, three for 9.27 s, going on from them.
@@ -52,7 +52,7 @@ func TestQuietComment(t *testing.T) {
 		{45 * s, 2, 4733 * time.Millisecond},
 		{59500 * time.Millisecond, 0, 0},
 	} {
-		cm, next := a.quietComment(&tr, lines, true, c.pos)
+		cm, next := a.quietComment(a.current(), lines, true, c.pos)
 		var id int64
 		if cm != nil {
 			id = numericID(cm.ID)
@@ -63,13 +63,13 @@ func TestQuietComment(t *testing.T) {
 	}
 	// Turned off, nothing shows.
 	a.settings.HotComments = false
-	if cm, _ := a.quietComment(&tr, lines, true, 5*s); cm != nil {
+	if cm, _ := a.quietComment(a.current(), lines, true, 5*s); cm != nil {
 		t.Errorf("showed %q turned off", cm.Text)
 	}
 	a.settings.HotComments = true
 	// No hot comments, nothing shows.
 	a.comments.hot = nil
-	if cm, _ := a.quietComment(&tr, lines, true, 5*s); cm != nil {
+	if cm, _ := a.quietComment(a.current(), lines, true, 5*s); cm != nil {
 		t.Errorf("showed %q without hot comments", cm.Text)
 	}
 }
@@ -106,9 +106,9 @@ func TestLyricsFailedSaysSo(t *testing.T) {
 		pane  int
 		style string
 	}{{paneLyrics, ""}, {paneStage, ""}, {paneStage, "aobird"}} {
-		a, tr, _ := quietApp(10 * time.Second)
+		a, _, _ := quietApp(10 * time.Second)
 		a.pl.FailLyrics()
-		if cm, _ := a.quietComment(&tr, nil, true, 10*time.Second); cm != nil {
+		if cm, _ := a.quietComment(a.current(), nil, true, 10*time.Second); cm != nil {
 			t.Errorf("pane %v %q: a hot comment over lyrics that failed", c.pane, c.style)
 		}
 		a.settings.StageStyle = c.style
@@ -123,11 +123,11 @@ func TestLyricsFailedSaysSo(t *testing.T) {
 		}
 	}
 
-	a, tr, _ := quietApp(10 * time.Second)
+	a, _, _ := quietApp(10 * time.Second)
 	a.pl.FailLyrics()
-	a.quietComment(&tr, nil, true, 10*time.Second)
+	a.quietComment(a.current(), nil, true, 10*time.Second)
 	a.pl.SetLyrics(nil)
-	if cm, _ := a.quietComment(&tr, nil, true, 10*time.Second); cm == nil {
+	if cm, _ := a.quietComment(a.current(), nil, true, 10*time.Second); cm == nil {
 		t.Error("no hot comment for a song without lyrics, once they had failed")
 	}
 }

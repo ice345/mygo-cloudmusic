@@ -51,18 +51,18 @@ func drag(tt *ui.Tester, r ui.Rect, dx float32, hold time.Duration) {
 // right, for the one before, however far this one has played.
 func TestFlingCover(t *testing.T) {
 	a, tt, r := coverApp(t)
-	if a.current().ID != 2 {
-		t.Fatalf("playing %d", a.current().ID)
+	if numericID(a.current().ID) != 2 {
+		t.Fatalf("playing %s", a.current().ID)
 	}
 	drag(tt, r, -r.W*0.8, 0)
-	if id := a.current().ID; id != 3 {
+	if id := numericID(a.current().ID); id != 3 {
 		t.Fatalf("flung left: playing %d", id)
 	}
 	if r2, ok := tt.Find("专辑封面"); !ok || r2.X < r.X-2 || r2.X > r.X+2 {
 		t.Errorf("the next cover rests at %v, not %v", r2, r)
 	}
 	drag(tt, r, r.W*0.8, 0)
-	if id := a.current().ID; id != 2 {
+	if id := numericID(a.current().ID); id != 2 {
 		t.Errorf("flung right: playing %d", id)
 	}
 }
@@ -71,7 +71,7 @@ func TestFlingCover(t *testing.T) {
 func TestCoverSpringsBack(t *testing.T) {
 	a, tt, r := coverApp(t)
 	drag(tt, r, -r.W*0.3, 300*time.Millisecond)
-	if id := a.current().ID; id != 2 {
+	if id := numericID(a.current().ID); id != 2 {
 		t.Fatalf("a short drag changed the song to %d", id)
 	}
 	if r2, _ := tt.Find("专辑封面"); r2.X < r.X-2 || r2.X > r.X+2 {
@@ -89,7 +89,7 @@ func TestSwipeCover(t *testing.T) {
 	}
 	tt.Advance(time.Second)
 	tt.Frame()
-	if id := a.current().ID; id != 3 {
+	if id := numericID(a.current().ID); id != 3 {
 		t.Errorf("swiped left: playing %d", id)
 	}
 }
@@ -110,7 +110,7 @@ func TestCoverSlidesWithTheSong(t *testing.T) {
 		tt.Frame()
 		tt.Advance(60 * time.Millisecond)
 		tt.Frame()
-		if id := a.current().ID; id != step.id {
+		if id := numericID(a.current().ID); id != step.id {
 			t.Fatalf("%s: playing %d", step.name, id)
 		}
 		if r2, _ := tt.Find("专辑封面"); (r2.X-r.X)*step.dir < r.W*0.1 {

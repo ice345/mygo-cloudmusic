@@ -349,7 +349,7 @@ func (a *app) playerBar(c *ui.Context) {
 	pl := a.pl
 	tr := a.current()
 	a.tickTimes(c)
-	if a.picked.id != 0 && (tr == nil || tr.ID != a.picked.id || pl.Playing()) {
+	if a.picked.id != "" && (tr == nil || tr.ID != a.picked.id || pl.Playing()) {
 		// Played, or gone: it says what it is again.
 		a.picked = pickedUp{}
 	}
@@ -378,7 +378,7 @@ func (a *app) playerBar(c *ui.Context) {
 			hovered := info.Hovered()
 			info.Children(func() {
 				ui.Box(c).Size(48, 48).Shrink(0).Children(func() {
-					a.cover(c, tr.Album.PicURL, 120, 48, 8).Shadow(0, 2, 8, 0, p.cardShade)
+					a.cover(c, tr.Album.ImageURL, 120, 48, 8).Shadow(0, 2, 8, 0, p.cardShade)
 					if hovered {
 						ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(8).Center().
 							Background(ui.RGBA(0, 0, 0, 0.35)).TextColor(ui.RGB(255, 255, 255)).Children(func() {
@@ -400,7 +400,7 @@ func (a *app) playerBar(c *ui.Context) {
 						sub, color = pl.Err(), p.accent
 					}
 					if sub == "" {
-						a.artistLinks(c, musicOf(tr), p.muted, p.text).FontSize(12).SingleLine()
+						a.artistLinks(c, *tr, p.muted, p.text).FontSize(12).SingleLine()
 					} else {
 						ui.Text(c, sub).FontSize(12).TextColor(color).SingleLine()
 					}
@@ -409,7 +409,7 @@ func (a *app) playerBar(c *ui.Context) {
 			if info.Clicked() {
 				a.nowPlaying = true
 			}
-			a.likeButton(c.Key("like"), musicOf(tr), 16, p.muted).Margin(0, 0, 0, 4).Shrink(0)
+			a.likeButton(c.Key("like"), *tr, 16, p.muted).Margin(0, 0, 0, 4).Shrink(0)
 		})
 
 		// Controls over the progress.
@@ -429,7 +429,7 @@ func (a *app) playerBar(c *ui.Context) {
 				lyr = p.accent
 			}
 			label := "歌词"
-			if tr != nil && tr.ProgramID != 0 {
+			if tr != nil && isEpisode(tr) {
 				label = "节目简介"
 			}
 			if iconButton(c.Key("lyrics"), iconLyrics, 16, lyr, label).Clicked() && tr != nil {

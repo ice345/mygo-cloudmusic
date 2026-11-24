@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -339,7 +340,7 @@ func TestPlayEpisode(t *testing.T) {
 		t.Fatal(err)
 	}
 	cur := a.current()
-	if cur == nil || cur.ID != 13 || cur.ProgramID != 3 || cur.PodcastID != 5 || len(a.queued()) != 2 {
+	if cur == nil || cur.ID != "13@3" || cur.ShowID != "5" || len(a.queued()) != 2 {
 		t.Fatalf("playing %+v of %d", cur, len(a.queued()))
 	}
 	a.pl.SetLyrics(nil)
@@ -425,7 +426,7 @@ func TestPodcastCard(t *testing.T) {
 	tt.Frame()
 	tt.ClickAt(x, y)
 	tt.Frame()
-	if cur := a.current(); cur == nil || cur.ProgramID != 40 || a.route.page != pagePodcasts {
+	if cur := a.current(); cur == nil || !strings.HasSuffix(cur.ID, "@40") || a.route.page != pagePodcasts {
 		t.Fatalf("playing %+v on %+v", cur, a.route)
 	}
 	tt.ClickAt(r.X+r.W/2, r.Y+r.W/2)

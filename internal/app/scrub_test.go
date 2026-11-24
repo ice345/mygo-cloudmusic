@@ -44,7 +44,7 @@ func TestScrubSeeksOnRelease(t *testing.T) {
 	if pos := a.pl.Position(); pos > 10*time.Second {
 		t.Fatalf("seeked to %v while dragging", pos)
 	}
-	if a.current().ID != 7 {
+	if numericID(a.current().ID) != 7 {
 		t.Fatal("went to the next song while dragging")
 	}
 	tt.Move(at(0.6), y-40)

@@ -59,7 +59,7 @@ func (a *app) nowPlayingLayer(c *ui.Context, open, settled bool) {
 	if !open && settled || a.current() == nil {
 		// Closed: nothing to paint or click.
 		layer.Invisible()
-		a.queueAt, a.wallState.track = -1, 0
+		a.queueAt, a.wallState.track = -1, trackKey{}
 		return
 	}
 	if !open {
@@ -74,11 +74,11 @@ func (a *app) nowPlayingLayer(c *ui.Context, open, settled bool) {
 func (a *app) nowPlayingView(c *ui.Context) {
 	tr := a.current()
 	w, h := c.Size()
-	art := a.art.get(netease.Sized(tr.Album.PicURL, 600), true)
+	art := a.art.get(coverOf(tr, 600), true)
 	// The colors stay the last song's while its cover loads, rather than
 	// going gray between the two.
 	shown := art
-	if art == nil && tr.Album.PicURL != "" {
+	if art == nil && tr.Album.ImageURL != "" {
 		shown = a.npArt
 	}
 	a.npArt = shown
@@ -106,12 +106,12 @@ func (a *app) nowPlayingView(c *ui.Context) {
 	})
 }
 
-func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, accent ui.Color, w, h float32, pointerIn bool) {
+func (a *app) nowPlayingBody(c *ui.Context, tr *music.Track, art *artwork, accent ui.Color, w, h float32, pointerIn bool) {
 	pl := a.pl
 	a.commentsFor()
 	// An episode has what it is about and its captions in place of lyrics;
 	// a song, lyrics in place of those.
-	switch program := tr.ProgramID != 0; {
+	switch program := isEpisode(tr); {
 	case a.npPane == paneComments && !a.canComment():
 		// A source with no comments has no tab for them.
 		a.npPane = paneQueue
@@ -131,7 +131,7 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 		a.queueAt = -1
 	}
 	if a.npPane != paneWall {
-		a.wallState.track = 0
+		a.wallState.track = trackKey{}
 	}
 	{
 		// The top strip drags the window; the chevron closes the view,
@@ -188,10 +188,10 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 							a.radioChip(c, r)
 						}
 						ui.Text(c, tr.Name).FontSize(22).FontWeight(700).LetterSpacing(-0.3).SingleLine()
-						a.artistLinks(c, musicOf(tr), white.Alpha(0.6), white, true).FontSize(15).SingleLine()
+						a.artistLinks(c, *tr, white.Alpha(0.6), white, true).FontSize(15).SingleLine()
 					})
-					a.likeButton(c.Key("like"), musicOf(tr), 22, white.Alpha(0.7))
-					a.songMenu(c.Key("more"), musicOf(tr), 22, white.Alpha(0.7)).Margin(0, -8, 0, 0)
+					a.likeButton(c.Key("like"), *tr, 22, white.Alpha(0.7))
+					a.songMenu(c.Key("more"), *tr, 22, white.Alpha(0.7)).Margin(0, -8, 0, 0)
 				})
 				a.scrubber(c.Key("np-scrub"), &a.npScrub, white.Alpha(0.18), white.Alpha(0.9), 16, accent.Mix(white, 0.35))
 				// As tall with the quality's badge as without it: the badge goes
@@ -309,7 +309,7 @@ type npTab struct {
 // npTabs returns the tabs of Now Playing, in order, for what plays: ⌘1
 // chooses the first, ⌘2 the second, and on.
 func (a *app) npTabs() []npTab {
-	if tr := a.current(); tr != nil && tr.ProgramID != 0 {
+	if tr := a.current(); tr != nil && isEpisode(tr) {
 		tabs := []npTab{{paneProgram, "简介"}}
 		if a.captionsShown() {
 			tabs = append(tabs, npTab{paneCaptions, "字幕"})
@@ -447,7 +447,7 @@ func qualityBadge(c *ui.Context, st *music.Stream) {
 
 // stageBar is the slim bar along the foot of the stage: what plays, where
 // it is, and the controls.
-func (a *app) stageBar(c *ui.Context, tr *netease.Track, art *artwork, accent ui.Color) {
+func (a *app) stageBar(c *ui.Context, tr *music.Track, art *artwork, accent ui.Color) {
 	pl := a.pl
 	ui.Column(c).Padding(0, 48, 28, 48).Gap(10).Children(func() {
 		a.scrubber(c.Key("stage-scrub"), &a.npScrub, white.Alpha(0.18), white.Alpha(0.9), 14, accent.Mix(white, 0.35))
@@ -460,10 +460,10 @@ func (a *app) stageBar(c *ui.Context, tr *netease.Track, art *artwork, accent ui
 				}
 				ui.Column(c).Shrink(1).MinWidth(0).Gap(2).Children(func() {
 					ui.Text(c, tr.Name).FontSize(14).FontWeight(700).SingleLine()
-					a.artistLinks(c, musicOf(tr), white.Alpha(0.55), white).FontSize(12).SingleLine()
+					a.artistLinks(c, *tr, white.Alpha(0.55), white).FontSize(12).SingleLine()
 				})
-				a.likeButton(c.Key("like"), musicOf(tr), 17, white.Alpha(0.6))
-				a.songMenu(c.Key("more"), musicOf(tr), 17, white.Alpha(0.6)).Margin(0, 0, 0, -10)
+				a.likeButton(c.Key("like"), *tr, 17, white.Alpha(0.6))
+				a.songMenu(c.Key("more"), *tr, 17, white.Alpha(0.6)).Margin(0, 0, 0, -10)
 			})
 			a.transport(c, white, white.Alpha(0.45), white, 22)
 			ui.Row(c).Grow(1).Basis(0).MinWidth(0).Justify(ui.End).Children(func() {
@@ -500,7 +500,7 @@ func (a *app) paneTab(c *ui.Context, i int, label string) {
 	}
 }
 
-func (a *app) lyricsPane(c *ui.Context, tr *netease.Track, h float32) {
+func (a *app) lyricsPane(c *ui.Context, tr *music.Track, h float32) {
 	pl := a.pl
 	lines, loaded := pl.Lyrics()
 	if len(lines) == 0 {
@@ -530,8 +530,8 @@ func (a *app) lyricsPane(c *ui.Context, tr *netease.Track, h float32) {
 	if pl.Playing() && cur+1 < len(lines) {
 		c.After(lines[cur+1].At - pos + 20*time.Millisecond)
 	}
-	if a.lyricTrack != tr.ID {
-		a.lyricTrack, a.lyricAt = tr.ID, -2
+	if key := keyOf(tr); a.lyricTrack != key {
+		a.lyricTrack, a.lyricAt = key, -2
 		a.lyricScroll, a.lyricGlide = ui.ScrollState{}, lyricGlide{}
 	}
 	lag := a.lyricGlide.step(c, &a.lyricScroll)
@@ -789,28 +789,28 @@ func (a *app) queuePane(c *ui.Context) {
 	a.queueList.Key = func(row int) any { return order[row] }
 	ui.List(c.Key("queue"), &a.queueList, len(order), func(r int) {
 		i := order[r]
-		tr := a.fromMusic(a.pl.Queue()[i])
+		tr := &a.pl.Queue()[i]
 		playing := r == at
 		row := ui.ButtonBase(c.Key(i)).Height(58).PaddingX(10).Gap(14).Radius(12).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
-			ContextMenu(a.songItems(musicOf(tr), 0))
+			ContextMenu(a.songItems(*tr, 0))
 		switch {
 		case playing:
 			row.Background(white.Alpha(0.12))
 		case row.Hovered():
 			row.Background(white.Alpha(0.08))
 		}
-		if !tr.Playable() {
+		if tr.Unavailable {
 			row.Opacity(0.4)
 		}
 		row.Children(func() {
-			a.cover(c, tr.Album.PicURL, 96, 42, 7)
+			a.cover(c, tr.Album.ImageURL, 96, 42, 7)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
 				ui.Text(c, tr.Name).FontSize(14).FontWeight(600).SingleLine()
-				a.artistLinks(c, musicOf(tr), white.Alpha(0.55), white).FontSize(12.5).SingleLine()
+				a.artistLinks(c, *tr, white.Alpha(0.55), white).FontSize(12.5).SingleLine()
 			})
 			ui.Text(c, clock(tr.Length())).FontSize(12).FontFeatures("tnum").TextColor(white.Alpha(0.4))
 		})
-		if row.Clicked() && tr.Playable() && !playing {
+		if row.Clicked() && !tr.Unavailable && !playing {
 			pl.Jump(i)
 		}
 	}).Grow(1).Padding(8, 0, 40, 0).Gap(2)

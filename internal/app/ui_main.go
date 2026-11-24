@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -227,7 +228,7 @@ func (a *app) navItem(c *ui.Context, icon *ui.SVG, label string, r route) {
 	}
 }
 
-func (a *app) sidebarNowPlaying(c *ui.Context, tr *netease.Track) {
+func (a *app) sidebarNowPlaying(c *ui.Context, tr *music.Track) {
 	p := a.pal
 	card := ui.ButtonBase(c.Key("np-card")).Gap(10).Padding(8).Radius(12).AlignItems(ui.Center).FocusRing(false).Label("正在播放")
 	bg := p.hover
@@ -236,10 +237,10 @@ func (a *app) sidebarNowPlaying(c *ui.Context, tr *netease.Track) {
 	}
 	card.Background(card.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
 	card.Children(func() {
-		a.cover(c, tr.Album.PicURL, 96, 40, 6).Shadow(0, 2, 6, 0, p.cardShade)
+		a.cover(c, tr.Album.ImageURL, 96, 40, 6).Shadow(0, 2, 6, 0, p.cardShade)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(2).Children(func() {
 			ui.Text(c, tr.Name).FontSize(12.5).FontWeight(600).SingleLine()
-			a.artistLinks(c, musicOf(tr), p.muted, p.text).FontSize(11.5).SingleLine()
+			a.artistLinks(c, *tr, p.muted, p.text).FontSize(11.5).SingleLine()
 		})
 	})
 	if card.Clicked() {

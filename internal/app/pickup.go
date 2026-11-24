@@ -18,7 +18,7 @@ var recentPlays = netease.RecentPlays
 
 // pickedUp is the song a login picked up, while it waits to play.
 type pickedUp struct {
-	id    int64
+	id    string
 	heard string // where and when, as "12分钟前在手机上听过"
 }
 
@@ -40,7 +40,7 @@ func (a *app) pickUp(uid int64) {
 				order[i] = i
 			}
 			a.pl.Restore(player.Session{Queue: netease.ToTracks(songs), Order: order, At: len(songs) - 1})
-			a.picked = pickedUp{id: last.Track.ID, heard: heardAt(last, time.Now())}
+			a.picked = pickedUp{id: netease.TrackID(last.Track), heard: heardAt(last, time.Now())}
 			where := "上次"
 			if d := deviceName(last.Device); d != "" {
 				where = "在" + d + "上"

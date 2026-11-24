@@ -162,7 +162,7 @@ func recordOut(out float32) float32 { return 30 + 46*out }
 // they play now rather than paused.
 func (a *app) dailyPlaying() (ours, playing bool) {
 	q, cur := a.queued(), a.current()
-	if cur == nil || len(q) != len(a.daily) || len(q) == 0 || q[0].ID != a.daily[0].ID || q[len(q)-1].ID != a.daily[len(q)-1].ID {
+	if cur == nil || len(q) != len(a.daily) || len(q) == 0 || q[0].ID != netease.TrackID(a.daily[0]) || q[len(q)-1].ID != netease.TrackID(a.daily[len(q)-1]) {
 		return false, false
 	}
 	return true, a.pl.Playing()
@@ -359,7 +359,7 @@ func (a *app) dailyPicks(c *ui.Context, songs []netease.Track, ours bool) {
 				bg = white.Alpha(0.1)
 			}
 			row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
-			current := ours && cur != nil && cur.ID == tr.ID
+			current := ours && cur != nil && cur.ID == netease.TrackID(*tr)
 			row.Children(func() {
 				ui.Box(c).Width(18).Center().Children(func() {
 					if current {

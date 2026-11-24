@@ -8,7 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/lyrics"
-	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/music"
 )
 
 // The wall lays the queue out as a wall of its covers, under the song
@@ -34,8 +34,8 @@ type wallState struct {
 	off   ui.Point // where Draggable rests it
 	pan   ui.Point // where the trackpad moved it, besides
 	shown ui.Point // where Draggable showed it in the last frame
-	// The song the wall last brought into view, 0 until it shows.
-	track int64
+	// The song the wall last brought into view, none until it shows.
+	track trackKey
 }
 
 // wallLayout is how the wall lays out its covers in an area: as many
@@ -95,7 +95,7 @@ func (l wallLayout) shows(i int, off ui.Point, w, h, top, foot float32) bool {
 
 // wallPane fills Now Playing with the wall, the song playing over it and
 // the controls along its foot.
-func (a *app) wallPane(c *ui.Context, tr *netease.Track, art *artwork, accent ui.Color, w, h float32, pointerIn bool) {
+func (a *app) wallPane(c *ui.Context, tr *music.Track, art *artwork, accent ui.Color, w, h float32, pointerIn bool) {
 	// The song starts under the tabs, which are over its left.
 	top := topBar(c) + npTabsHeight
 	songH := min(max(h*0.36, 200), 320)
@@ -130,14 +130,14 @@ func (a *app) wallPane(c *ui.Context, tr *netease.Track, art *artwork, accent ui
 // wallSong is the song playing, over the wall: its cover, which breathes
 // as Now Playing's does, its name, and the line of its lyrics sung, with
 // the next.
-func (a *app) wallSong(c *ui.Context, tr *netease.Track, art *artwork, top, h float32) {
+func (a *app) wallSong(c *ui.Context, tr *music.Track, art *artwork, top, h float32) {
 	pl := a.pl
 	ui.Row(c.Key("wall-song")).Absolute().Top(top).Left(0).Right(0).Height(h).Padding(0, 72).Gap(36).
 		Justify(ui.Center).AlignItems(ui.Center).Children(func() {
 		// Not Now Playing's cover, which the pointer tilts and flings: here
 		// the wall is what the pointer moves.
 		size := h - 48
-		cov := ui.Box(c.Key(coverKey{tr.ID, 0})).Size(size, size).Radius(16).Shadow(0, 24, 50, -12, ui.RGBA(0, 0, 0, 0.55))
+		cov := ui.Box(c.Key(coverKey{keyOf(tr), 0})).Size(size, size).Radius(16).Shadow(0, 24, 50, -12, ui.RGBA(0, 0, 0, 0.55))
 		scale := float32(1)
 		if !pl.Playing() {
 			scale = 0.92
@@ -154,10 +154,10 @@ func (a *app) wallSong(c *ui.Context, tr *netease.Track, art *artwork, top, h fl
 			}
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, tr.Name).FontSize(26).FontWeight(800).LetterSpacing(-0.4).SingleLine().Shrink(1).MinWidth(0)
-				a.likeButton(c.Key("like"), musicOf(tr), 20, white.Alpha(0.7))
-				a.songMenu(c.Key("more"), musicOf(tr), 20, white.Alpha(0.7)).Margin(0, -8, 0, 0)
+				a.likeButton(c.Key("like"), *tr, 20, white.Alpha(0.7))
+				a.songMenu(c.Key("more"), *tr, 20, white.Alpha(0.7)).Margin(0, -8, 0, 0)
 			})
-			a.artistLinks(c, musicOf(tr), white.Alpha(0.6), white, true).FontSize(14).SingleLine()
+			a.artistLinks(c, *tr, white.Alpha(0.6), white, true).FontSize(14).SingleLine()
 			lines, _ := pl.Lyrics()
 			if len(lines) == 0 {
 				return
@@ -193,13 +193,13 @@ func (a *app) wall(c *ui.Context, y, w, h, top, foot, frost float32) {
 	}
 	// Shown, the wall brings the song playing to its middle; after, it
 	// glides to the next as little as shows it, unless held.
-	if tr := a.current(); tr != nil && tr.ID != ws.track && playing >= 0 {
-		if ws.track == 0 {
+	if tr := a.current(); tr != nil && keyOf(tr) != ws.track && playing >= 0 {
+		if ws.track == (trackKey{}) {
 			ws.pan, ws.off = ui.Point{}, l.centre(playing, w, h, top, foot)
 		} else if !l.shows(playing, addPoint(ws.shown, ws.pan), w, h, top, foot) {
 			ws.off = subPoint(l.centre(playing, w, h, top, foot), ws.pan)
 		}
-		ws.track = tr.ID
+		ws.track = keyOf(tr)
 	}
 
 	// Covers go only into the frost, never past it over the song: the area
@@ -297,7 +297,7 @@ func (a *app) wall(c *ui.Context, y, w, h, top, foot, frost float32) {
 				})
 			}
 		})
-		if plane.Clicked() && hover >= 0 && hover != playing && queue[hover].Playable() {
+		if plane.Clicked() && hover >= 0 && hover != playing && !queue[hover].Unavailable {
 			pl.Jump(hover)
 		}
 	})
@@ -328,18 +328,18 @@ func rowSwayTarget(r int, now time.Time) (float32, time.Duration) {
 // wallTile is the cover of the i-th song of the queue, tr, x along its
 // row, scaled to lift: the song playing stands out,
 // ringed, and the one under the pointer says what it is.
-func (a *app) wallTile(c *ui.Context, tr *netease.Track, i int, x float32, playing, hovered bool, lift float32) {
+func (a *app) wallTile(c *ui.Context, tr *music.Track, i int, x float32, playing, hovered bool, lift float32) {
 	tile := ui.Box(c.Key(i)).Absolute().Left(x).Top(0).Size(wallTile, wallTile).Radius(12).
-		Label(tr.Name).ContextMenu(a.songItems(musicOf(tr), 0))
+		Label(tr.Name).ContextMenu(a.songItems(*tr, 0))
 	tile.AnimatePose(ui.Pose{Scale: lift}, ui.Animation{Spring: ui.SpringOptions{Duration: 400 * time.Millisecond, Bounce: 0.2}})
-	if !tr.Playable() {
+	if tr.Unavailable {
 		tile.Opacity(0.4)
 	}
 	if playing {
 		tile.Shadow(0, 14, 30, -8, ui.RGBA(0, 0, 0, 0.6))
 	}
 	tile.Children(func() {
-		a.cover(c, tr.Album.PicURL, 240, wallTile, 12)
+		a.cover(c, tr.Album.ImageURL, 240, wallTile, 12)
 		if hovered {
 			// Its name and artists over a shade along its foot, on the
 			// cover, so that they move with it.

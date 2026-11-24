@@ -85,7 +85,7 @@ func TestRemoveSongFromPlaylist(t *testing.T) {
 	if _, ok := tt.Find("宝船"); ok {
 		t.Error("the song's row is still listed")
 	}
-	if q := a.queued(); len(q) != 2 || q[1].ID != 2 {
+	if q := a.queued(); len(q) != 2 || numericID(q[1].ID) != 2 {
 		t.Errorf("removing the song changed the queue playing: %v", q)
 	}
 }

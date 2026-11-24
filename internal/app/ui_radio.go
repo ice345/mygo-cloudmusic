@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -73,7 +74,7 @@ func (a *app) radioFeed(name string) func(got func([]netease.Track)) {
 				got(nil)
 				return
 			}
-			start, last := q[0].ID, q[len(q)-1].ID
+			start, last := numericID(q[0].ID), numericID(q[len(q)-1].ID)
 			fetch = func() ([]netease.Track, error) { return netease.HeartMode(last, start, pid) }
 		default:
 			got(nil)
@@ -139,7 +140,7 @@ func (a *app) trashFM() {
 	if tr == nil {
 		return
 	}
-	id := tr.ID
+	id := numericID(tr.ID)
 	a.pl.Next()
 	go netease.FMTrash(id)
 }
@@ -164,7 +165,7 @@ func (a *app) startHeartMode() {
 	var seed *netease.Track
 	fromPlaying := false
 	if cur := a.current(); cur != nil && a.isLiked(*a.pl.Current()) {
-		s := *cur
+		s := netease.FromTrack(*cur)
 		seed, fromPlaying = &s, true
 	}
 	// The liked songs, as NetEase's tracks, if their page has loaded.
@@ -199,7 +200,7 @@ func (a *app) startHeartMode() {
 				return
 			}
 			more = playable(more)
-			if fromPlaying && a.current() != nil && a.current().ID == seed.ID {
+			if fromPlaying && a.current() != nil && numericID(a.current().ID) == seed.ID {
 				a.radioFrom(heartRadio, more, a.radioFeed(heartRadio))
 				return
 			}
@@ -249,13 +250,13 @@ func (a *app) fmPage(c *ui.Context) {
 func (a *app) fmCard(c *ui.Context) {
 	pl := a.pl
 	onFM := strings.HasPrefix(pl.Radio(), "fm:")
-	var tr *netease.Track
+	var tr *music.Track
 	if onFM {
 		tr = a.current()
 	}
 	var art *artwork
 	if tr != nil {
-		art = a.art.get(netease.Sized(tr.Album.PicURL, 600), true)
+		art = a.art.get(coverOf(tr, 600), true)
 	}
 	card := ui.Box(c.Key("fm-card")).Height(320).Radius(24).Background(ui.Hex("#232328")).TextColor(white).
 		Shadow(0, 18, 44, -16, a.pal.cardShade)
@@ -303,7 +304,7 @@ func (a *app) fmCard(c *ui.Context) {
 				case pl.Err() != "":
 					ui.Text(c, pl.Err()).FontSize(14).TextColor(white).SingleLine()
 				default:
-					a.artistLinks(c, musicOf(tr), white.Alpha(0.7), white, true).FontSize(14).SingleLine()
+					a.artistLinks(c, *tr, white.Alpha(0.7), white, true).FontSize(14).SingleLine()
 				}
 				ui.Row(c).Gap(14).AlignItems(ui.Center).Margin(20, 0, 0, -8).Children(func() {
 					if a.account != nil {
@@ -311,7 +312,7 @@ func (a *app) fmCard(c *ui.Context) {
 							a.trashFM()
 						}
 					}
-					a.likeButton(c.Key("like"), musicOf(tr), 20, white.Alpha(0.8))
+					a.likeButton(c.Key("like"), *tr, 20, white.Alpha(0.8))
 					play := ui.ButtonBase(c.Key("play")).Size(56, 56).Center().Radius(999).Background(white).TextColor(ui.Hex("#1d1d1f")).Label("播放/暂停")
 					pose := ui.Pose{}
 					if play.Pressed() {
@@ -335,20 +336,20 @@ func (a *app) fmCard(c *ui.Context) {
 
 // fmCovers stacks the cover playing over the next one's, which peeks out
 // behind it, tilted, as the FM's own player shows them.
-func (a *app) fmCovers(c *ui.Context, tr *netease.Track) {
+func (a *app) fmCovers(c *ui.Context, tr *music.Track) {
 	const size = 232
 	ui.Box(c).Size(size+36, size).Shrink(0).Children(func() {
-		var next *netease.Track
+		var next *music.Track
 		if tr != nil {
 			if order, at := a.pl.PlayOrder(); at >= 0 && at+1 < len(order) {
-				next = a.fromMusic(a.pl.Queue()[order[at+1]])
+				next = &a.pl.Queue()[order[at+1]]
 			}
 		}
 		if next != nil {
-			back := ui.Box(c.Key(next.ID)).Absolute().Top(16).Left(36).Size(size-32, size-32).Radius(14).Opacity(0.55).Background(white.Alpha(0.12)).
+			back := ui.Box(c.Key(keyOf(next))).Absolute().Top(16).Left(36).Size(size-32, size-32).Radius(14).Opacity(0.55).Background(white.Alpha(0.12)).
 				Shadow(0, 10, 24, -8, ui.RGBA(0, 0, 0, 0.4))
 			back.AnimatePose(ui.Pose{Rotate: 6, X: 14}, ui.Animation{Spring: ui.SpringOptions{Duration: 500 * time.Millisecond, Bounce: 0.2}})
-			back.Children(func() { a.coverFill(c, next.Album.PicURL, 400, 14) })
+			back.Children(func() { a.coverFill(c, next.Album.ImageURL, 400, 14) })
 		}
 		front := ui.Box(c.Key("front")).Absolute().Top(0).Left(0).Size(size, size).Radius(16).
 			Background(white.Alpha(0.12)).Shadow(0, 20, 44, -10, ui.RGBA(0, 0, 0, 0.55))
@@ -364,8 +365,8 @@ func (a *app) fmCovers(c *ui.Context, tr *netease.Track) {
 		}
 		front.AnimatePose(ui.Pose{Scale: scale}, ui.Animation{Spring: ui.SpringOptions{Duration: 600 * time.Millisecond, Bounce: 0.25}})
 		front.Children(func() {
-			ui.Box(c.Key(tr.ID)).Fill().Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.92}}).
-				Children(func() { a.coverFill(c, tr.Album.PicURL, 600, 16) })
+			ui.Box(c.Key(keyOf(tr))).Fill().Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.92}}).
+				Children(func() { a.coverFill(c, tr.Album.ImageURL, 600, 16) })
 		})
 	})
 }

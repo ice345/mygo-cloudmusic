@@ -100,7 +100,7 @@ func TestPrevGoesBackASong(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if id := a.current().ID; id != 2 {
+	if id := numericID(a.current().ID); id != 2 {
 		t.Errorf("playing %d, want the one before, 2", id)
 	}
 }

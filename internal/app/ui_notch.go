@@ -8,7 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/lyrics"
-	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/player"
 )
 
@@ -509,11 +509,11 @@ func (n *notch) view(c *ui.Context) {
 }
 
 // compact shows the cover on the housing's left and the levels on its right.
-func (n *notch) compact(c *ui.Context, tr *netease.Track, shown float32) {
+func (n *notch) compact(c *ui.Context, tr *music.Track, shown float32) {
 	if shown < 0.02 {
 		return
 	}
-	art := n.a.art.get(netease.Sized(tr.Album.PicURL, 96), false)
+	art := n.a.art.get(coverOf(tr, 96), false)
 	s := n.h0 - 12
 	ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(n.h0).PaddingX(7).AlignItems(ui.Center).Opacity(shown).Children(func() {
 		cov := ui.Box(c).Size(s, s).Radius(s * 0.28)
@@ -528,10 +528,10 @@ func (n *notch) compact(c *ui.Context, tr *netease.Track, shown float32) {
 }
 
 // levels draws the music's levels in the cover's color.
-func (n *notch) levels(c *ui.Context, tr *netease.Track, w, h float32, count int) {
+func (n *notch) levels(c *ui.Context, tr *music.Track, w, h float32, count int) {
 	a := n.a
 	color := ui.RGB(255, 255, 255)
-	if art := a.art.get(netease.Sized(tr.Album.PicURL, 96), false); art != nil && !art.failed {
+	if art := a.art.get(coverOf(tr, 96), false); art != nil && !art.failed {
 		color = art.tint.Mix(white, 0.35)
 	}
 	ui.Box(c).Size(w, h).Draw(func(p *ui.Painter, r ui.Rect) {
@@ -544,10 +544,10 @@ func (n *notch) levels(c *ui.Context, tr *netease.Track, w, h float32, count int
 	})
 }
 
-func (n *notch) expanded(c *ui.Context, tr *netease.Track, open, left float32) {
+func (n *notch) expanded(c *ui.Context, tr *music.Track, open, left float32) {
 	a := n.a
 	pl := a.pl
-	art := a.art.get(netease.Sized(tr.Album.PicURL, 200), false)
+	art := a.art.get(coverOf(tr, 200), false)
 	a.tickTimes(c)
 	col := ui.Column(c).Absolute().Top(n.h0+6).Left(left).Width(notchOpenW).Padding(8, 22, 16, 22).Gap(12).Opacity(max(0, open*1.4-0.4))
 	col.Translate(0, (1-open)*-10)
@@ -574,10 +574,10 @@ func (n *notch) expanded(c *ui.Context, tr *netease.Track, open, left float32) {
 				if pl.Loading() {
 					ui.Text(c, "正在缓冲…").FontSize(12.5).TextColor(white.Alpha(0.55)).SingleLine()
 				} else {
-					a.artistLinks(c, musicOf(tr), white.Alpha(0.55), white).FontSize(12.5).SingleLine()
+					a.artistLinks(c, *tr, white.Alpha(0.55), white).FontSize(12.5).SingleLine()
 				}
 			})
-			a.likeButton(c.Key("like"), musicOf(tr), 17, white.Alpha(0.6))
+			a.likeButton(c.Key("like"), *tr, 17, white.Alpha(0.6))
 			n.levels(c, tr, 26, 22, 5)
 		})
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
@@ -862,9 +862,9 @@ func (n *notch) stripFrames(c *ui.Context, lines []lyrics.Line, cur int, pos tim
 // them, so the other shows it too.
 func (a *app) syncWindows() {
 	pl := a.pl
-	var id int64
+	var id trackKey
 	if tr := a.current(); tr != nil {
-		id = tr.ID
+		id = keyOf(tr)
 	}
 	sig := playerSig{id, pl.Playing(), pl.Loading(), pl.Shuffle(), pl.Repeat(), a.volume, a.nowPlaying, pl.Err()}
 	if sig != a.sig {
@@ -877,7 +877,7 @@ func (a *app) syncWindows() {
 }
 
 type playerSig struct {
-	track      int64
+	track      trackKey
 	playing    bool
 	loading    bool
 	shuffle    bool

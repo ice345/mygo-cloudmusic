@@ -164,10 +164,10 @@ func TestWallFrames(t *testing.T) {
 		tracks := a.queued()
 		for i := range tracks {
 			url := fmt.Sprintf("art%d", i)
-			tracks[i].Album.PicURL = url
-			a.art.art[netease.Sized(url, 240)] = &artwork{bmp: solidBitmap(colors[i%len(colors)]), tint: colors[i%len(colors)]}
+			tracks[i].Album.ImageURL = url
+			a.art.art[sizedImage(url, 240)] = &artwork{bmp: solidBitmap(colors[i%len(colors)]), tint: colors[i%len(colors)]}
 		}
-		a.cue(tracks)
+		a.pl.Cue(tracks)
 		a.pl.Jump(min(n-1, 40))
 		tt.Advance(time.Second)
 		tt.Frame()

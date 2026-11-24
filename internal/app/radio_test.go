@@ -44,7 +44,7 @@ func TestExitHeartMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.pl.Radio() != "" || a.current().ID != 1 || len(a.queued()) != 1 {
+	if a.pl.Radio() != "" || numericID(a.current().ID) != 1 || len(a.queued()) != 1 {
 		t.Fatalf("radio %q, current %v, queue %d", a.pl.Radio(), a.current(), len(a.queued()))
 	}
 	if !tt.HasText("开启心动模式") {
@@ -58,7 +58,7 @@ func TestExitHeartMode(t *testing.T) {
 	if err := tt.Click("退出心动模式"); err != nil {
 		t.Fatal(err)
 	}
-	if a.pl.Radio() != "" || a.current().ID != 1 {
+	if a.pl.Radio() != "" || numericID(a.current().ID) != 1 {
 		t.Fatalf("from Now Playing: radio %q, current %v", a.pl.Radio(), a.current())
 	}
 }

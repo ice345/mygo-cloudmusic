@@ -47,7 +47,7 @@ func TestArtistNameOpensTheirPage(t *testing.T) {
 	if a.route != (nroute(pageArtist, 13)) {
 		t.Fatalf("a row's artist opened %+v", a.route)
 	}
-	if cur := a.current(); cur == nil || cur.ID != duet.ID {
+	if cur := a.current(); cur == nil || cur.ID != netease.TrackID(duet) {
 		t.Errorf("a click on a row's artist played %+v", cur)
 	}
 
@@ -95,7 +95,7 @@ func TestArtistSongsByLatest(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if cur := a.current(); cur == nil || cur.ID != 2 || len(a.queued()) != 2 {
+	if cur := a.current(); cur == nil || numericID(cur.ID) != 2 || len(a.queued()) != 2 {
 		t.Fatalf("playing %+v of %d", cur, len(a.queued()))
 	}
 

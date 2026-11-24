@@ -241,10 +241,10 @@ func (a *app) podcastPage(c *ui.Context) {
 }
 
 // programRow is an episode in its podcast's list, which a click plays.
-func (a *app) programRow(c *ui.Context, d *podcastData, i int, cur *netease.Track) {
+func (a *app) programRow(c *ui.Context, d *podcastData, i int, cur *music.Track) {
 	p := a.pal
 	pr := &d.programs[i]
-	playing := cur != nil && cur.ProgramID == pr.ID
+	playing := cur != nil && cur.ID == netease.TrackID(pr.Track(d.podcast))
 	row := ui.ButtonBase(c).Height(60).PaddingX(12).Gap(14).Radius(8).AlignItems(ui.Center).FocusRing(false).
 		Label(pr.Name).Disabled(pr.MainSong.ID == 0)
 	switch {
@@ -311,8 +311,8 @@ func (a *app) podcastRow(c *ui.Context, pod *music.Show) {
 
 // programPane is what the episode playing is about, in Now Playing, in
 // place of a song's lyrics.
-func (a *app) programPane(c *ui.Context, tr *netease.Track) {
-	ui.Scroll(c.Key(tr.ProgramID)).Grow(1).Padding(4, 12, 48, 0).Children(func() {
+func (a *app) programPane(c *ui.Context, tr *music.Track) {
+	ui.Scroll(c.Key(keyOf(tr))).Grow(1).Padding(4, 12, 48, 0).Children(func() {
 		desc := strings.TrimSpace(tr.Description)
 		if desc == "" {
 			desc = "这期节目没有简介"
