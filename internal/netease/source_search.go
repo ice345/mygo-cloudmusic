@@ -162,10 +162,23 @@ func FromPlaylist(mp music.Playlist) Playlist {
 
 // ToShow is a podcast as the app has it.
 func ToShow(p Podcast) music.Show {
-	return music.Show{
+	sh := music.Show{
 		ID: strconv.FormatInt(p.ID, 10), Source: SourceID, Name: p.Name, ImageURL: imageURL(p.PicURL),
 		Description: p.Description, Publisher: p.DJ.Nickname, EpisodeCount: p.ProgramCount, Subscribed: p.Subed,
+		Category: p.Category, Subscribers: int(p.SubCount), PlayCount: int64(p.PlayCount), Latest: p.LastProgram, Reason: p.RcmdText,
 	}
+	sh.Extra, _ = json.Marshal(p)
+	return sh
+}
+
+// PodcastRecord is the NetEase podcast a show was made of, as NetEase said it:
+// who hosts it, by the number of their page, which the show does not carry.
+func PodcastRecord(sh music.Show) Podcast {
+	var p Podcast
+	if len(sh.Extra) > 0 {
+		json.Unmarshal(sh.Extra, &p)
+	}
+	return p
 }
 
 // ToShows is ToShow of each.

@@ -223,6 +223,22 @@ type Show struct {
 	PublisherPage string `json:"publisherPage,omitempty"`
 	EpisodeCount  int    `json:"episodeCount,omitempty"`
 	Subscribed    bool   `json:"subscribed,omitempty"`
+	// Extra is the source's own record of it, as it keeps it: the app never
+	// reads it, and the source reads it back, for what its page has that no
+	// field has. (Added here.)
+	Extra json.RawMessage `json:"extra,omitempty"`
+	// Category is what kind of show it is, if the source says. (Added here.)
+	Category string `json:"category,omitempty"`
+	// Subscribers is how many subscribe to it, and PlayCount how many times
+	// it was played, if the source says. (Added here: NetEase's cards and
+	// page show them.)
+	Subscribers int   `json:"subscribers,omitempty"`
+	PlayCount   int64 `json:"playCount,omitempty"`
+	// Latest is the name of its newest episode, as the listener's
+	// subscriptions list it, and Reason says why to listen, as a source's
+	// picks do. (Added here.)
+	Latest string `json:"latest,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // ShowPage is a show and a page of its episodes.

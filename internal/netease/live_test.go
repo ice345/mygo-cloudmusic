@@ -544,3 +544,34 @@ func TestSourceCommentsLive(t *testing.T) {
 		t.Errorf("second page: %d hot, %d latest, %v", len(more.Hot), len(more.Comments), err)
 	}
 }
+
+// The source lists the most popular podcasts, and opens one with its episodes,
+// told by audio and program, the newest first; a second page goes on from the
+// first. No sign-in needed.
+func TestSourcePodcastsLive(t *testing.T) {
+	if os.Getenv("LIVE") == "" {
+		t.Skip()
+	}
+	src := Source{}
+	hot, more, err := src.HotPodcasts(0)
+	if err != nil || len(hot) == 0 || !more {
+		t.Fatalf("hot: %d, more %v, %v", len(hot), more, err)
+	}
+	page, err := src.Show(hot[0].ID, 0)
+	if err != nil || page.Show.Name == "" || len(page.Episodes) == 0 {
+		t.Fatalf("show: %+v, %v", page, err)
+	}
+	e := page.Episodes[0]
+	if !strings.Contains(e.ID, "@") || e.ShowID != hot[0].ID || e.Published == "" || e.Duration == 0 {
+		t.Errorf("episode %+v", e)
+	}
+	if page.More {
+		next, err := src.Show(hot[0].ID, len(page.Episodes))
+		if err != nil || len(next.Episodes) == 0 || next.Episodes[0].ID == e.ID {
+			t.Errorf("second page: %v, %v", next, err)
+		}
+	}
+	if picks, err := src.PodcastPicks(); err != nil || len(picks) == 0 {
+		t.Errorf("picks: %d, %v", len(picks), err)
+	}
+}
