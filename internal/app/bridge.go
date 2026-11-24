@@ -9,11 +9,13 @@ import (
 	"netease-music-mygo/internal/netease"
 )
 
-// The player speaks music.Track, whichever source a track is of; most views
-// still hold netease.Track, until each is moved over (docs/plugins.md, stage
-// 1.3). These carry one into the other at the player's edge, and shrink as
-// views move: a track's NetEase record travels whole in its Extra, so nothing
-// is lost either way.
+// The player, the lists and the pages speak music.Track and a source's IDs,
+// whichever source they are of. What is left of NetEase's types here is
+// NetEase's own: its home page, its users and their events, its suggestions
+// and its recent plays, which are pages and calls no other source has
+// (docs/plugins.md, stage 1.3). These carry a track of NetEase's into the
+// app's and back, at the edge of those pages: a track's NetEase record travels
+// whole in its Extra, so nothing is lost either way.
 
 // source finds a source by its ID, or nil.
 func (a *app) source(id string) music.Source { return a.sources[id] }
@@ -49,7 +51,7 @@ func numericID(id string) int64 {
 
 // sizedImage is the URL to fetch the picture at url with, to show it px
 // pixels across: one a source gives, which says where its size goes, or
-// NetEase's own, as the views that have not moved over hold them, which are
+// NetEase's own, as its own pages hold them, which are
 // sized by NetEase's rule; any other picture is fetched as it is.
 func sizedImage(url string, px int) string {
 	switch {
@@ -72,8 +74,8 @@ func neteaseImage(url string) bool {
 	return host == "126.net" || strings.HasSuffix(host, ".126.net")
 }
 
-// musicOf is a NetEase track as the app's, for the views that have not moved
-// over to call what has. It costs about two microseconds.
+// musicOf is a NetEase track as the app's, for NetEase's own pages to call what
+// the rest of the app does. It costs about two microseconds.
 func musicOf(tr *netease.Track) music.Track { return netease.ToTrack(*tr) }
 
 // trackList is the tracks a list shows: those a source gave, or those of a
