@@ -137,9 +137,10 @@ func ToPlaylist(pl Playlist) music.Playlist {
 	return out
 }
 
-// FromPlaylist is the NetEase playlist of one the app has: its own record,
-// with its tracks, or else what the app's says of it.
-func FromPlaylist(mp music.Playlist) Playlist {
+// PlaylistRecord is the NetEase playlist of one the app has, without its
+// tracks: its own record, or else what the app's says of it. It is what a
+// page asks for every frame, for what only NetEase says of a playlist.
+func PlaylistRecord(mp music.Playlist) Playlist {
 	var pl Playlist
 	if len(mp.Extra) == 0 || json.Unmarshal(mp.Extra, &pl) != nil {
 		pl = Playlist{Name: mp.Name, Description: mp.Description, TrackCount: mp.TrackCount, Subscribed: mp.Saved}
@@ -147,6 +148,12 @@ func FromPlaylist(mp music.Playlist) Playlist {
 		pl.Creator.Nickname = mp.Owner
 	}
 	pl.Tracks = nil
+	return pl
+}
+
+// FromPlaylist is the NetEase playlist of one the app has, with its tracks.
+func FromPlaylist(mp music.Playlist) Playlist {
+	pl := PlaylistRecord(mp)
 	for _, t := range mp.Tracks {
 		pl.Tracks = append(pl.Tracks, FromTrack(t))
 	}

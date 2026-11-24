@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -31,13 +32,11 @@ func nextSave(t *testing.T, calls chan saveCall) saveCall {
 // it first among the sidebar's saved playlists at once.
 func TestSavePlaylist(t *testing.T) {
 	calls := make(chan saveCall, 1)
-	savePlaylist = func(id int64, save bool) error { calls <- saveCall{id, save}; return nil }
-	defer func() { savePlaylist = netease.SubscribePlaylist }()
-
 	a := editTestApp()
-	pl := &netease.Playlist{ID: 30, Name: "华语经典", Tracks: a.playlists[10].Tracks}
+	edits(t, a).save = func(id string, save bool) error { calls <- saveCall{numericID(id), save}; return nil }
+	pl := netease.Playlist{ID: 30, Name: "华语经典", Tracks: netease.FromPlaylist(*a.playlists[nkey(10)]).Tracks}
 	pl.Creator.UserID = 2
-	a.playlists[30] = pl
+	a.playlists[nkey(30)] = loadedPlaylist(pl)
 	a.route = nroute(pagePlaylist, 30)
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -56,7 +55,10 @@ func TestSavePlaylist(t *testing.T) {
 // The listener's own playlist offers no saving.
 func TestOwnPlaylistNotSavable(t *testing.T) {
 	a := editTestApp()
-	a.playlists[10].Creator.UserID = a.profile.UserID
+	pl := a.playlists[nkey(10)]
+	rec := netease.PlaylistRecord(*pl)
+	rec.Creator.UserID = a.profile.UserID
+	pl.Extra, _ = json.Marshal(rec)
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if _, ok := tt.Find("收藏"); ok {
@@ -68,12 +70,10 @@ func TestOwnPlaylistNotSavable(t *testing.T) {
 // and its page, once loaded, no longer reads saved.
 func TestUnsavePlaylistFromSidebar(t *testing.T) {
 	calls := make(chan saveCall, 1)
-	savePlaylist = func(id int64, save bool) error { calls <- saveCall{id, save}; return nil }
-	defer func() { savePlaylist = netease.SubscribePlaylist }()
-
 	a := editTestApp()
+	edits(t, a).save = func(id string, save bool) error { calls <- saveCall{numericID(id), save}; return nil }
 	a.saved[0].Subscribed = true
-	a.playlists[20] = &netease.Playlist{ID: 20, Name: "飙升榜", Subscribed: true}
+	a.playlists[nkey(20)] = loadedPlaylist(netease.Playlist{ID: 20, Name: "飙升榜", Subscribed: true})
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if err := tt.RightClick("飙升榜"); err != nil {
@@ -86,7 +86,7 @@ func TestUnsavePlaylistFromSidebar(t *testing.T) {
 	if got := nextSave(t, calls); got != (saveCall{20, false}) {
 		t.Errorf("asked NetEase for %+v, want playlist 20 unsaved", got)
 	}
-	if len(a.saved) != 0 || a.isSaved(a.playlists[20]) {
+	if len(a.saved) != 0 || a.isSaved(a.playlists[nkey(20)]) {
 		t.Errorf("playlist 20 still reads saved: %+v", a.saved)
 	}
 }

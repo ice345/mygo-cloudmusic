@@ -9,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -24,10 +25,10 @@ func editTestApp() *app {
 		{ID: 11, Name: "睡前"},
 	}
 	a.saved = []netease.Playlist{{ID: 20, Name: "飙升榜"}}
-	a.playlists[10] = &netease.Playlist{ID: 10, Name: "通勤", Tracks: []netease.Track{
+	a.playlists[nkey(10)] = loadedPlaylist(netease.Playlist{ID: 10, Name: "通勤", Tracks: []netease.Track{
 		{ID: 1, Name: "一张相片", Artists: []netease.Artist{{Name: "林宥嘉"}}, Duration: 200000},
 		{ID: 2, Name: "宝船", Artists: []netease.Artist{{Name: "DOUDOU"}}, Duration: 200000},
-	}}
+	}})
 	a.route = nroute(pagePlaylist, 10)
 	return a
 }
@@ -38,10 +39,8 @@ func editTestApp() *app {
 func TestAddSongToPlaylist(t *testing.T) {
 	type add struct{ pid, song int64 }
 	calls := make(chan add, 1)
-	addToPlaylist = func(pid int64, songs ...int64) error { calls <- add{pid, songs[0]}; return nil }
-	defer func() { addToPlaylist = netease.AddToPlaylist }()
-
 	a := editTestApp()
+	edits(t, a).add = func(pid string, songs []string) error { calls <- add{numericID(pid), numericID(songs[0])}; return nil }
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if err := tt.RightClick("宝船"); err != nil {
@@ -67,12 +66,10 @@ func TestAddSongToPlaylist(t *testing.T) {
 func TestRemoveSongFromPlaylist(t *testing.T) {
 	type del struct{ pid, song int64 }
 	calls := make(chan del, 1)
-	removeFromPlaylist = func(pid int64, songs ...int64) error { calls <- del{pid, songs[0]}; return nil }
-	defer func() { removeFromPlaylist = netease.RemoveFromPlaylist }()
-
 	a := editTestApp()
+	edits(t, a).remove = func(pid string, songs []string) error { calls <- del{numericID(pid), numericID(songs[0])}; return nil }
 	// Playing the id: the queue keeps the song.
-	a.cue(a.playlists[10].Tracks)
+	a.cue(netease.FromPlaylist(*a.playlists[nkey(10)]).Tracks)
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if err := tt.RightClick("宝船"); err != nil {
@@ -96,7 +93,7 @@ func TestRemoveSongFromPlaylist(t *testing.T) {
 // A playlist the listener saved, not made, offers no removing.
 func TestNoRemovingFromSavedPlaylist(t *testing.T) {
 	a := editTestApp()
-	a.playlists[20] = &netease.Playlist{ID: 20, Name: "飙升榜", Tracks: a.playlists[10].Tracks}
+	a.playlists[nkey(20)] = loadedPlaylist(netease.Playlist{ID: 20, Name: "飙升榜", Tracks: netease.FromPlaylist(*a.playlists[nkey(10)]).Tracks})
 	a.route = nroute(pagePlaylist, 20)
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -112,13 +109,11 @@ func TestNoRemovingFromSavedPlaylist(t *testing.T) {
 // named.
 func TestCreatePlaylist(t *testing.T) {
 	names := make(chan string, 1)
-	createPlaylist = func(name string) (*netease.Playlist, error) {
-		names <- name
-		return &netease.Playlist{ID: 12, Name: name}, nil
-	}
-	defer func() { createPlaylist = netease.CreatePlaylist }()
-
 	a := editTestApp()
+	edits(t, a).create = func(name string) (*music.Playlist, error) {
+		names <- name
+		return &music.Playlist{ID: "12", Source: netease.SourceID, Name: name}, nil
+	}
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if err := tt.Click("新建歌单"); err != nil {
@@ -160,10 +155,8 @@ func TestRenamePlaylist(t *testing.T) {
 		name string
 	}
 	calls := make(chan rename, 1)
-	renamePlaylist = func(id int64, name string) error { calls <- rename{id, name}; return nil }
-	defer func() { renamePlaylist = netease.RenamePlaylist }()
-
 	a := editTestApp()
+	edits(t, a).rename = func(id, name string) error { calls <- rename{numericID(id), name}; return nil }
 	a.route = route{page: pageHome}
 	a.homeLoading = true
 	tt := ui.NewTester(a.view, 1200, 800)
@@ -210,10 +203,8 @@ func TestNoRenamingLikedSongs(t *testing.T) {
 // and goes back to the page before, with no way forward to it.
 func TestDeletePlaylist(t *testing.T) {
 	ids := make(chan int64, 1)
-	deletePlaylist = func(id int64) error { ids <- id; return nil }
-	defer func() { deletePlaylist = netease.DeletePlaylist }()
-
 	a := editTestApp()
+	edits(t, a).del = func(id string) error { ids <- numericID(id); return nil }
 	a.homeLoading = true
 	a.route = route{page: pageCharts}
 	a.open(nroute(pagePlaylist, 10))
@@ -249,9 +240,6 @@ func TestDeletePlaylist(t *testing.T) {
 
 // Cancelling the confirmation deletes nothing.
 func TestCancelDeletingPlaylist(t *testing.T) {
-	deletePlaylist = func(int64) error { t.Error("deleted the playlist"); return nil }
-	defer func() { deletePlaylist = netease.DeletePlaylist }()
-
 	a := editTestApp()
 	a.route = route{page: pageHome}
 	a.homeLoading = true

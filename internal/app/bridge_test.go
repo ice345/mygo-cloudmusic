@@ -89,11 +89,11 @@ func TestCardsOpenTheirOwnSourcesPage(t *testing.T) {
 func TestSongRowsShowReasonAndVIP(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.playlists[7] = &netease.Playlist{ID: 7, Name: "单", Tracks: []netease.Track{
+	a.playlists[nkey(7)] = loadedPlaylist(netease.Playlist{ID: 7, Name: "单", Tracks: []netease.Track{
 		{ID: 1, Name: "第一首", Duration: 60000},
 		{ID: 2, Name: "会员的歌", Fee: 1, Duration: 60000},
 		{ID: 3, Name: "推荐的歌", Reason: "每日推荐", Duration: 60000},
-	}}
+	}})
 	a.open(nroute(pagePlaylist, 7))
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()

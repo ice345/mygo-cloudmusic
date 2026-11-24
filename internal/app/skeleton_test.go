@@ -23,7 +23,7 @@ var skeletonScenes = []struct {
 	{"daily", func(a *app) { a.route = route{page: pageDaily} }},
 	{"playlist", func(a *app) {
 		a.route = nroute(pagePlaylist, 7)
-		a.loadingPl[7] = true
+		a.loadingPl[nkey(7)] = true
 	}},
 	{"search", func(a *app) {
 		a.route = route{page: pageSearch, query: "春日影", kind: music.SearchTracks}

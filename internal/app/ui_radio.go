@@ -167,17 +167,21 @@ func (a *app) startHeartMode() {
 		s := *cur
 		seed, fromPlaying = &s, true
 	}
-	liked := a.playlists[pid]
+	// The liked songs, as NetEase's tracks, if their page has loaded.
+	var likedSongs []netease.Track
+	if liked := a.playlists[nkey(pid)]; liked != nil {
+		likedSongs = netease.FromPlaylist(*liked).Tracks
+	}
 	a.radioStarting = heartRadio
 	go func() {
 		if seed == nil {
-			if liked == nil {
-				liked, _ = netease.PlaylistDetail(pid)
-			}
-			if liked != nil {
-				if ok := playable(liked.Tracks); len(ok) > 0 {
-					seed = &ok[rand.IntN(len(ok))]
+			if likedSongs == nil {
+				if liked, _ := netease.PlaylistDetail(pid); liked != nil {
+					likedSongs = liked.Tracks
 				}
+			}
+			if ok := playable(likedSongs); len(ok) > 0 {
+				seed = &ok[rand.IntN(len(ok))]
 			}
 		}
 		var more []netease.Track

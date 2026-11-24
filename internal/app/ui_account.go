@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"rsc.io/qr"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -54,8 +55,8 @@ func (a *app) signedIn(prof *netease.Profile) {
 	a.likeAsked = nil
 	// What the listener may play, and follows, changed: load the pages
 	// again.
-	a.playlists = map[int64]*netease.Playlist{}
-	a.plErr = map[int64]string{}
+	a.playlists = map[pageKey]*music.Playlist{}
+	a.plErr = map[pageKey]string{}
 	a.artists, a.albums, a.users, a.podcasts = map[int64]*artistData{}, map[int64]*albumData{}, map[int64]*userData{}, map[int64]*podcastData{}
 	a.podcastTab = &podcastTab{}
 	a.searches = map[route]*searchData{}

@@ -142,7 +142,7 @@ func TestSearchPlaylists(t *testing.T) {
 		total: 1,
 		page:  paged{loaded: true},
 	}
-	a.playlists[42] = &netease.Playlist{ID: 42, Name: "迷途人偶"} // so its page loads nothing
+	a.playlists[nkey(42)] = loadedPlaylist(netease.Playlist{ID: 42, Name: "迷途人偶"}) // so its page loads nothing
 	tt.Frame()
 	if err := tt.Click("迷途人偶"); err != nil {
 		t.Fatal(err)

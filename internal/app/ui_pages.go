@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 	"netease-music-mygo/internal/player"
 )
@@ -130,7 +131,7 @@ func (a *app) chartsPage(c *ui.Context) {
 // playlistCard is a square cover with the playlist's name below: it lifts
 // under the pointer, where a play button shows on it.
 func (a *app) playlistCard(c *ui.Context, pl *netease.Playlist) {
-	if a.coverCard(c, pl.Name, pl.Cover(), pl.PlayCount, pl.UpdateFreq, func() { a.loadPlaylist(pl.ID, true) }) {
+	if a.coverCard(c, pl.Name, pl.Cover(), pl.PlayCount, pl.UpdateFreq, func() { a.loadPlaylist(nkey(pl.ID), true) }) {
 		a.open(nroute(pagePlaylist, pl.ID))
 	}
 }
@@ -242,40 +243,42 @@ func (a *app) chartCard(c *ui.Context, pl *netease.Playlist) {
 }
 
 func (a *app) playlistPage(c *ui.Context) {
-	id := a.route.number()
-	pl := a.playlists[id]
+	k := a.route.key()
+	pl := a.playlists[k]
 	if pl == nil {
-		if !a.loadingPl[id] {
-			a.centered(c, a.plErr[id], func() { a.loadPlaylist(id, false) })
+		if !a.loadingPl[k] {
+			a.centered(c, a.plErr[k], func() { a.loadPlaylist(k, false) })
 			return
 		}
 		s := a.pageShimmer(c)
 		a.trackSkeleton(c, s, true, func(c *ui.Context) { a.playlistHeaderSkeleton(c, s) })
 		return
 	}
-	a.trackRows(c, neteaseList(pl.Tracks), true, func(c *ui.Context) { a.playlistHeader(c, pl) })
+	a.trackRows(c, listOf(pl.Tracks), true, func(c *ui.Context) { a.playlistHeader(c, pl) })
 }
 
-func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
+func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 	p := a.pal
+	// What only NetEase says of a playlist: a chart's update label, and who made it.
+	rec := playlistRecord(pl)
 	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
 		ui.Box(c).Size(212, 212).Radius(14).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
-			a.coverFill(c, pl.Cover(), 600, 14)
+			a.coverFill(c, pl.ImageURL, 600, 14)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 			kind := "歌单"
-			if pl.UpdateFreq != "" {
-				kind = "榜单 · " + pl.UpdateFreq
+			if rec.UpdateFreq != "" {
+				kind = "榜单 · " + rec.UpdateFreq
 			}
 			ui.Text(c, kind).FontSize(12).FontWeight(600).TextColor(p.accent)
 			ui.Text(c, pl.Name).FontSize(30).FontWeight(800).LetterSpacing(-0.6).MaxLines(2).LineHeight(1.2)
 			var meta []string
-			if pl.Creator.Nickname != "" {
-				meta = append(meta, pl.Creator.Nickname)
+			if pl.Owner != "" {
+				meta = append(meta, pl.Owner)
 			}
 			meta = append(meta, fmt.Sprintf("%d 首", len(pl.Tracks)))
 			if pl.PlayCount > 0 {
-				meta = append(meta, plays(pl.PlayCount)+" 次播放")
+				meta = append(meta, plays(float64(pl.PlayCount))+" 次播放")
 			}
 			ui.Text(c, strings.Join(meta, " · ")).FontSize(13).TextColor(p.muted)
 			if d := strings.TrimSpace(pl.Description); d != "" {
@@ -286,13 +289,13 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 					if a.pl.Shuffle() {
 						a.pl.ToggleShuffle()
 					}
-					a.playQueue(pl.Tracks, firstPlayable(pl.Tracks))
+					a.pl.PlayQueue(pl.Tracks, firstAvailable(pl.Tracks))
 				}
 				if pillButton(c.Key("shuffle"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).Clicked() {
 					if !a.pl.Shuffle() {
 						a.pl.ToggleShuffle()
 					}
-					a.playQueue(pl.Tracks, firstPlayable(pl.Tracks))
+					a.pl.PlayQueue(pl.Tracks, firstAvailable(pl.Tracks))
 				}
 				if a.savable(pl) {
 					icon, label := iconPlus, "收藏"
@@ -300,10 +303,10 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 						icon, label = iconCheck, "已收藏"
 					}
 					if pillButton(c.Key("save"), icon, label, p.hover.Over(p.bg), p.text).Clicked() {
-						a.toggleSaved(*pl)
+						a.toggleSaved(rec)
 					}
 				}
-				if mine := a.editable(pl.ID); mine != nil {
+				if mine := a.editable(numericID(pl.ID)); mine != nil {
 					more := iconButton(c.Key("more"), iconMore, 18, p.muted, "更多")
 					more.Menu(func(m *ui.Menu) {
 						if m.Item("重命名…").Chosen() {
@@ -316,7 +319,7 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 					})
 				}
 				switch {
-				case pl.SpecialType != 5:
+				case !pl.Fixed:
 				case a.pl.Radio() == heartRadio:
 					if pillButton(c.Key("heart"), iconX, "退出心动模式", p.hover.Over(p.bg), p.text).Clicked() {
 						a.exitRadio()

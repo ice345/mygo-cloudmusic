@@ -79,9 +79,9 @@ type app struct {
 	homeLoading bool
 	homeAt      time.Time // when what the home page shows was asked for
 
-	playlists  map[int64]*netease.Playlist
-	loadingPl  map[int64]bool
-	plErr      map[int64]string
+	playlists  map[pageKey]*music.Playlist
+	loadingPl  map[pageKey]bool
+	plErr      map[pageKey]string
 	artists    map[int64]*artistData
 	artistTab  int // what an artist's page lists: artistHot, artistLatest, artistAlbums or artistEvents
 	albums     map[int64]*albumData
@@ -216,9 +216,9 @@ func Run() error {
 		return nil
 	}
 	a := &app{
-		playlists:  map[int64]*netease.Playlist{},
-		loadingPl:  map[int64]bool{},
-		plErr:      map[int64]string{},
+		playlists:  map[pageKey]*music.Playlist{},
+		loadingPl:  map[pageKey]bool{},
+		plErr:      map[pageKey]string{},
 		artists:    map[int64]*artistData{},
 		albums:     map[int64]*albumData{},
 		users:      map[int64]*userData{},

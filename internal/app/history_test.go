@@ -12,7 +12,7 @@ import (
 func TestBackAndForward(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.playlists[42] = &netease.Playlist{ID: 42, Name: "飙升榜", Tracks: []netease.Track{{ID: 1, Name: "一张相片"}}}
+	a.playlists[nkey(42)] = loadedPlaylist(netease.Playlist{ID: 42, Name: "飙升榜", Tracks: []netease.Track{{ID: 1, Name: "一张相片"}}})
 	tt := ui.NewTester(a.view, 1200, 800)
 	charts, list := route{page: pageCharts}, nroute(pagePlaylist, 42)
 	a.open(charts)

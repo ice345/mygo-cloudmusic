@@ -20,8 +20,8 @@ func TestSidebarPlaylistCollapse(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a := editTestApp()
-			a.playlists[tc.playlist] = &netease.Playlist{ID: tc.playlist, Name: tc.row}
-			a.cue(a.playlists[10].Tracks)
+			a.playlists[nkey(tc.playlist)] = loadedPlaylist(netease.Playlist{ID: tc.playlist, Name: tc.row})
+			a.cue(netease.FromPlaylist(*a.playlists[nkey(10)]).Tracks)
 			before := a.route
 			tt := ui.NewTester(a.view, 1200, 800)
 			tt.Frame()

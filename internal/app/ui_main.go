@@ -124,7 +124,7 @@ func (a *app) load(r route) {
 	case pageHome:
 		a.freshenHome()
 	case pagePlaylist:
-		a.loadPlaylist(r.number(), false)
+		a.loadPlaylist(r.key(), false)
 	case pageSearch:
 		a.loadSearch(r, false)
 	case pageArtist:
@@ -352,7 +352,7 @@ func (a *app) content(c *ui.Context) {
 	a.underTop, a.underBottom = false, false
 	// Only NetEase's pages open so far: another source's says so.
 	switch a.route.page {
-	case pagePlaylist, pageArtist, pageAlbum, pageUser, pagePodcast:
+	case pageArtist, pageAlbum, pageUser, pagePodcast:
 		if a.route.number() == 0 {
 			a.centered(c, "暂不支持打开这个来源的页面", nil)
 			return
@@ -448,33 +448,37 @@ func dailyRenewed(loaded, now time.Time) bool {
 	return loaded.Before(six)
 }
 
-func (a *app) loadPlaylist(id int64, thenPlay bool) {
-	// Only NetEase's pages load so far: another source's has no number.
-	if id == 0 {
+func (a *app) loadPlaylist(k pageKey, thenPlay bool) {
+	src := a.source(k.source)
+	if k.id == "" || k.id == "0" {
 		return
 	}
-	if pl := a.playlists[id]; pl != nil {
+	if src == nil {
+		a.plErr[k] = "暂不支持打开这个来源的页面"
+		return
+	}
+	if pl := a.playlists[k]; pl != nil {
 		if thenPlay {
-			a.playQueue(pl.Tracks, firstPlayable(pl.Tracks))
+			a.pl.PlayQueue(pl.Tracks, firstAvailable(pl.Tracks))
 		}
 		return
 	}
-	if a.loadingPl[id] {
+	if a.loadingPl[k] {
 		return
 	}
-	a.loadingPl[id] = true
-	delete(a.plErr, id)
+	a.loadingPl[k] = true
+	delete(a.plErr, k)
 	go func() {
-		pl, err := netease.PlaylistDetail(id)
+		pl, err := src.Playlist(k.id)
 		a.post(func() {
-			delete(a.loadingPl, id)
+			delete(a.loadingPl, k)
 			if err != nil {
-				a.plErr[id] = "歌单加载失败"
+				a.plErr[k] = "歌单加载失败"
 				return
 			}
-			a.playlists[id] = pl
+			a.playlists[k] = pl
 			if thenPlay {
-				a.playQueue(pl.Tracks, firstPlayable(pl.Tracks))
+				a.pl.PlayQueue(pl.Tracks, firstAvailable(pl.Tracks))
 			}
 		})
 	}()

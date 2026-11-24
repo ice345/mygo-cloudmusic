@@ -52,10 +52,10 @@ func TestSongMenuOnRightClick(t *testing.T) {
 
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.playlists[42] = &netease.Playlist{ID: 42, Name: "飙升榜", Tracks: []netease.Track{
+	a.playlists[nkey(42)] = loadedPlaylist(netease.Playlist{ID: 42, Name: "飙升榜", Tracks: []netease.Track{
 		{ID: 1, Name: "一张相片", Artists: []netease.Artist{{Name: "林宥嘉"}}, Duration: 200000},
 		{ID: 2, Name: "宝船", Artists: []netease.Artist{{Name: "DOUDOU"}}, Duration: 200000},
-	}}
+	}})
 	a.route = nroute(pagePlaylist, 42)
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()

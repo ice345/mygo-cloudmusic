@@ -83,6 +83,31 @@ func neteaseList(tracks []netease.Track) trackList {
 	}
 }
 
+// pageKey names what a page shows among all sources': the playlist, album or
+// artist with the ID id at the source.
+type pageKey struct{ source, id string }
+
+// nkey is the key of the NetEase item numbered n.
+func nkey(n int64) pageKey { return pageKey{netease.SourceID, strconv.FormatInt(n, 10)} }
+
+// key is the key of what the page of r shows.
+func (r route) key() pageKey { return pageKey{r.source, r.id} }
+
+// playlistRecord is the NetEase record of a loaded playlist, for what only
+// NetEase says of one; decoded each time, which costs a few microseconds.
+func playlistRecord(pl *music.Playlist) netease.Playlist { return netease.PlaylistRecord(*pl) }
+
+// firstAvailable is where a list of tracks is first played from: its first
+// track the listener can play, or its first.
+func firstAvailable(tracks []music.Track) int {
+	for i := range tracks {
+		if !tracks[i].Unavailable {
+			return i
+		}
+	}
+	return 0
+}
+
 // trackKey names a track among all sources'.
 type trackKey struct{ source, id string }
 

@@ -228,10 +228,10 @@ func init() {
 			time.Sleep(4 * time.Second)
 			shot("3-playlist", a.win)
 			step(0, func() {
-				pl := a.playlists[a.charts[1].ID]
+				pl := a.playlists[nkey(a.charts[1].ID)]
 				a.volume = 0.15
 				a.pl.SetVolume(a.volume)
-				a.playQueue(pl.Tracks, firstPlayable(pl.Tracks))
+				a.pl.PlayQueue(pl.Tracks, firstAvailable(pl.Tracks))
 			})
 			time.Sleep(5 * time.Second)
 			shot("4-playing", a.win)

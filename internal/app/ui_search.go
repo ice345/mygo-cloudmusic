@@ -264,7 +264,7 @@ func (a *app) foundPlaylistCard(c *ui.Context, pl *music.Playlist) {
 		sub += " · " + pl.Owner
 	}
 	r := route{page: pagePlaylist, source: pl.Source, id: pl.ID}
-	if a.coverCard(c, pl.Name, pl.ImageURL, float64(pl.PlayCount), sub, func() { a.loadPlaylist(r.number(), true) }) {
+	if a.coverCard(c, pl.Name, pl.ImageURL, float64(pl.PlayCount), sub, func() { a.loadPlaylist(r.key(), true) }) {
 		a.open(r)
 	}
 }
