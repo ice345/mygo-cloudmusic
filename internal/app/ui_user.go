@@ -163,8 +163,9 @@ func (a *app) userPage(c *ui.Context) {
 				a.empty(c, "还没有订阅播客")
 			}
 			ui.Grid(c).Columns(a.columns(c, 340)).GapX(8).GapY(4).Margin(0, -12).Children(func() {
-				for i := range d.podcasts {
-					a.podcastRow(c.Key(d.podcasts[i].ID), &d.podcasts[i])
+				shows := netease.ToShows(d.podcasts)
+				for i := range shows {
+					a.podcastRow(c.Key(shows[i].ID), &shows[i])
 				}
 			})
 		}
@@ -174,8 +175,9 @@ func (a *app) userPage(c *ui.Context) {
 				a.empty(c, "还没有关注歌手")
 			}
 			ui.Grid(c).Columns(a.columns(c, 132)).GapX(20).GapY(28).Children(func() {
-				for i := range d.artists {
-					a.artistCard(c.Key(d.artists[i].ID), &d.artists[i])
+				artists := netease.ToArtists(d.artists)
+				for i := range artists {
+					a.artistCard(c.Key(artists[i].ID), &artists[i])
 				}
 			})
 		}

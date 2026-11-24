@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -96,7 +97,7 @@ func (a *app) albumHeader(c *ui.Context, al *netease.AlbumProfile) {
 }
 
 // albumGrid shows albums as cards, each opening its page.
-func (a *app) albumGrid(c *ui.Context, albums []netease.AlbumProfile) {
+func (a *app) albumGrid(c *ui.Context, albums []music.Album) {
 	ui.Grid(c).Columns(a.columns(c, 156)).GapX(20).GapY(28).Children(func() {
 		for i := range albums {
 			a.albumCard(c.Key(albums[i].ID), &albums[i])
@@ -106,7 +107,7 @@ func (a *app) albumGrid(c *ui.Context, albums []netease.AlbumProfile) {
 
 // albumCard is an album's cover, lifting under the pointer, over its name
 // and the year it came out.
-func (a *app) albumCard(c *ui.Context, al *netease.AlbumProfile) {
+func (a *app) albumCard(c *ui.Context, al *music.Album) {
 	p := a.pal
 	card := ui.ButtonBase(c).Column().Gap(10).AlignItems(ui.Stretch).FocusRing(false).Label(al.Name)
 	hovered := card.Hovered()
@@ -120,18 +121,20 @@ func (a *app) albumCard(c *ui.Context, al *netease.AlbumProfile) {
 			art.Shadow(0, 2, 8, -2, p.cardShade)
 		}
 		art.AnimatePose(lift, ui.Snappy)
-		art.Children(func() { a.coverFill(c, al.PicURL, 400, 10) })
+		art.Children(func() { a.coverFill(c, al.ImageURL, 400, 10) })
 		ui.Text(c, al.Name).FontSize(13).FontWeight(500).MaxLines(2).LineHeight(1.35)
 		var meta []string
 		if a.route.page != pageArtist {
 			meta = append(meta, al.ArtistNames())
 		}
-		if al.PublishTime > 0 {
-			meta = append(meta, time.UnixMilli(al.PublishTime).Format("2006"))
+		if len(al.Released) >= 4 {
+			meta = append(meta, al.Released[:4])
 		}
 		ui.Text(c, strings.Join(meta, " · ")).FontSize(12).TextColor(p.muted).SingleLine().Margin(-6, 0, 0, 0)
 	})
 	if card.Clicked() {
-		a.open(route{page: pageAlbum, id: al.ID})
+		if id := numericID(al.ID); id != 0 {
+			a.open(route{page: pageAlbum, id: id})
+		}
 	}
 }

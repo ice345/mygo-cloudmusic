@@ -1,6 +1,9 @@
 package app
 
 import (
+	"strconv"
+	"strings"
+
 	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
@@ -11,12 +14,32 @@ import (
 // views move: a track's NetEase record travels whole in its Extra, so nothing
 // is lost either way.
 
-// source finds a source by its ID: NetEase, so far.
-func (a *app) source(id string) music.Source {
-	if id == netease.SourceID {
-		return netease.Source{}
+// source finds a source by its ID, or nil.
+func (a *app) source(id string) music.Source { return a.sources[id] }
+
+// searchSource is the source the search field searches: NetEase, until the
+// listener can switch between sources.
+func (a *app) searchSource() music.Source { return a.source(netease.SourceID) }
+
+// numericID is the NetEase ID a source's ID of a page names, or 0: pages are
+// still opened by NetEase's numeric IDs, until the views that open them move
+// over (docs/plugins.md, stage 1.3).
+func numericID(id string) int64 {
+	n, err := strconv.ParseInt(id, 10, 64)
+	if err != nil || n <= 0 {
+		return 0
 	}
-	return nil
+	return n
+}
+
+// sizedImage is the URL to fetch the picture at url with, to show it px
+// pixels across: one a source gives, which says where its size goes, or
+// NetEase's, as the views that have not moved over hold them.
+func sizedImage(url string, px int) string {
+	if strings.Contains(url, "{size}") || strings.Contains(url, "%7Bsize%7D") {
+		return music.SizedImage(url, px)
+	}
+	return netease.Sized(url, px)
 }
 
 // trackKey names a track among all sources'.

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 	"netease-music-mygo/internal/player"
 )
@@ -11,6 +12,7 @@ func newTestApp() *app {
 		artists: map[int64]*artistData{}, albums: map[int64]*albumData{}, users: map[int64]*userData{},
 		podcasts: map[int64]*podcastData{}, podcastTab: &podcastTab{}, searches: map[route]*searchData{},
 		lyricAt: -1, queueAt: -1,
+		sources: map[string]music.Source{netease.SourceID: netease.Source{}},
 	}
 	a.art = newArtCache(func(func()) {})
 	a.pl = player.New(func(func()) {})

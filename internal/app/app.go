@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 	"netease-music-mygo/internal/player"
 )
@@ -33,7 +34,7 @@ type route struct {
 	id int64
 	// query and kind are what a search page searched for.
 	query string
-	kind  netease.SearchType
+	kind  music.SearchKind
 }
 
 // app is the state both windows show. Everything in it is read and changed
@@ -153,15 +154,24 @@ type app struct {
 	savedSession string // the session as last kept
 	sessionDue   bool   // a save of the session is due
 
+	// onPost, set by tests, hears what is posted where there is no window.
+	onPost func(func())
+
+	// sources are the sources of music there are, by ID.
+	sources map[string]music.Source
+
 	// neteaseTracks holds the NetEase track of each the player has, as the
 	// views that have not moved over ask for them (bridge.go).
 	neteaseTracks map[trackKey]*netease.Track
 }
 
 // post runs fn on the main thread and redraws both windows. Without a
-// window, as in tests, it drops fn.
+// window, as in tests, it drops fn, unless a test says where it goes.
 func (a *app) post(fn func()) {
 	if a.win == nil {
+		if a.onPost != nil {
+			a.onPost(fn)
+		}
 		return
 	}
 	a.win.Update(func() {
@@ -212,6 +222,7 @@ func Run() error {
 		podcasts:   map[int64]*podcastData{},
 		podcastTab: &podcastTab{},
 		searches:   map[route]*searchData{},
+		sources:    map[string]music.Source{netease.SourceID: netease.Source{}},
 		lyricAt:    -1,
 		queueAt:    -1,
 		cacheUsed:  -1,

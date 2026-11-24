@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -66,7 +67,7 @@ func suggestionList(res netease.Suggestions) []suggestion {
 	byKind := map[string][]suggestion{}
 	for _, t := range res.Songs {
 		byKind["songs"] = append(byKind["songs"], suggestion{fmt.Sprint("song:", t.ID), t.Name, t.ArtistNames(), "单曲",
-			route{page: pageSearch, query: t.Name, kind: netease.SearchSongs}})
+			route{page: pageSearch, query: t.Name, kind: music.SearchTracks}})
 	}
 	for _, ar := range res.Artists {
 		byKind["artists"] = append(byKind["artists"], suggestion{fmt.Sprint("artist:", ar.ID), ar.Name, "", "歌手",

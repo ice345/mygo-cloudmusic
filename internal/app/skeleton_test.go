@@ -9,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -25,11 +26,11 @@ var skeletonScenes = []struct {
 		a.loadingPl[7] = true
 	}},
 	{"search", func(a *app) {
-		a.route = route{page: pageSearch, query: "春日影", kind: netease.SearchSongs}
+		a.route = route{page: pageSearch, query: "春日影", kind: music.SearchTracks}
 		a.searches[a.route] = &searchData{page: paged{loading: true}}
 	}},
 	{"artists", func(a *app) {
-		a.route = route{page: pageSearch, query: "春日影", kind: netease.SearchArtists}
+		a.route = route{page: pageSearch, query: "春日影", kind: music.SearchArtists}
 		a.searches[a.route] = &searchData{page: paged{loading: true}}
 	}},
 	{"login", func(a *app) { a.login = loginState{open: true} }},

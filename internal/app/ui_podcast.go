@@ -8,6 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -279,19 +280,19 @@ func (a *app) programRow(c *ui.Context, d *podcastData, i int, cur *netease.Trac
 }
 
 // podcastRow is a podcast in a list, opening its page.
-func (a *app) podcastRow(c *ui.Context, pod *netease.Podcast) {
+func (a *app) podcastRow(c *ui.Context, pod *music.Show) {
 	p := a.pal
 	row := ui.ButtonBase(c).Padding(10, 12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(pod.Name)
 	if row.Hovered() {
 		row.Background(p.hover)
 	}
 	row.Children(func() {
-		a.cover(c, pod.PicURL, 160, 64, 8)
+		a.cover(c, pod.ImageURL, 160, 64, 8)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(4).Children(func() {
 			ui.Text(c, pod.Name).FontSize(14).FontWeight(600).SingleLine()
-			meta := []string{fmt.Sprintf("%d 期", pod.ProgramCount)}
-			if pod.DJ.Nickname != "" {
-				meta = append([]string{pod.DJ.Nickname}, meta...)
+			meta := []string{fmt.Sprintf("%d 期", pod.EpisodeCount)}
+			if pod.Publisher != "" {
+				meta = append([]string{pod.Publisher}, meta...)
 			}
 			ui.Text(c, strings.Join(meta, " · ")).FontSize(12.5).TextColor(p.muted).SingleLine()
 			if pod.Description != "" {
@@ -300,7 +301,9 @@ func (a *app) podcastRow(c *ui.Context, pod *netease.Podcast) {
 		})
 	})
 	if row.Clicked() {
-		a.open(route{page: pagePodcast, id: pod.ID})
+		if id := numericID(pod.ID); id != 0 {
+			a.open(route{page: pagePodcast, id: id})
+		}
 	}
 }
 

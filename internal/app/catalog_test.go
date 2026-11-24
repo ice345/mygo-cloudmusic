@@ -12,25 +12,42 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
-// searchRequest is a search asked of NetEase.
+// searchRequest is a search asked of a source.
 type searchRequest struct {
 	query  string
-	kind   netease.SearchType
+	kind   music.SearchKind
 	offset int
 }
 
-// fakeSearch replaces searching NetEase with one that reports what it was
-// asked, and finds nothing, which lands nowhere without a window.
-func fakeSearch(t *testing.T) chan searchRequest {
+// searchSource is a source that reports the searches it is asked, and finds
+// nothing, which lands nowhere without a window.
+type searchSource struct {
+	music.Unsupported
+	asked chan searchRequest
+}
+
+func (*searchSource) Info() music.Info       { return music.Info{ID: netease.SourceID, Name: "搜索音源"} }
+func (s *searchSource) Can(what string) bool { return what == "search" }
+func (s *searchSource) Search(q string, kind music.SearchKind, offset int) (*music.SearchResult, error) {
+	s.asked <- searchRequest{q, kind, offset}
+	return nil, errors.New("offline")
+}
+
+// fakeSearch makes a's searches ones that report what they were asked, those
+// for users, which no source does, among them.
+func fakeSearch(t *testing.T, a *app) chan searchRequest {
 	asked := make(chan searchRequest, 8)
-	searchResults = func(q string, kind netease.SearchType, _, offset int) (netease.SearchResult, error) {
-		asked <- searchRequest{q, kind, offset}
-		return netease.SearchResult{}, errors.New("offline")
+	a.sources[netease.SourceID] = &searchSource{asked: asked}
+	prev := searchUsers
+	searchUsers = func(q string, offset int) ([]netease.User, int, error) {
+		asked <- searchRequest{q, kindUsers, offset}
+		return nil, 0, errors.New("offline")
 	}
-	t.Cleanup(func() { searchResults = netease.SearchPage })
+	t.Cleanup(func() { searchUsers = prev })
 	return asked
 }
 
@@ -48,8 +65,8 @@ func wait[T any](t *testing.T, ch chan T, what string) T {
 // Enter searches songs for the query typed; a tab searches it for another
 // kind, which the next search keeps, and back leaves the search.
 func TestSearchKinds(t *testing.T) {
-	asked := fakeSearch(t)
 	a := newTestApp()
+	asked := fakeSearch(t, a)
 	a.settings = defaultSettings()
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -59,7 +76,7 @@ func TestSearchKinds(t *testing.T) {
 	tt.Type("春日影")
 	tt.Key(0, ui.KeyEnter)
 	tt.Frame()
-	if got := wait(t, asked, "the search"); got != (searchRequest{"春日影", netease.SearchSongs, 0}) {
+	if got := wait(t, asked, "the search"); got != (searchRequest{"春日影", music.SearchTracks, 0}) {
 		t.Fatalf("searched %+v", got)
 	}
 
@@ -67,12 +84,12 @@ func TestSearchKinds(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if got := wait(t, asked, "the artists"); got != (searchRequest{"春日影", netease.SearchArtists, 0}) {
+	if got := wait(t, asked, "the artists"); got != (searchRequest{"春日影", music.SearchArtists, 0}) {
 		t.Fatalf("searched %+v", got)
 	}
 	a.search("迷星叫")
-	if got := wait(t, asked, "the next search"); got.kind != netease.SearchArtists {
-		t.Errorf("the next search looked for kind %d", got.kind)
+	if got := wait(t, asked, "the next search"); got.kind != music.SearchArtists {
+		t.Errorf("the next search looked for kind %q", got.kind)
 	}
 	if !slices.Equal(a.settings.SearchHistory, []string{"迷星叫", "春日影"}) {
 		t.Errorf("history %q", a.settings.SearchHistory)
@@ -88,16 +105,16 @@ func TestSearchKinds(t *testing.T) {
 // The tabs over a search's songs switch it to another kind: it crashed,
 // the list's state reset as the list built the tabs in its header.
 func TestSearchKindFromSongs(t *testing.T) {
-	asked := fakeSearch(t)
 	a := catalogApp()
-	a.open(route{page: pageSearch, query: "MyGO", kind: netease.SearchSongs})
+	asked := fakeSearch(t, a)
+	a.open(route{page: pageSearch, query: "MyGO", kind: music.SearchTracks})
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if err := tt.Click("歌手"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.route.kind != netease.SearchArtists {
+	if a.route.kind != music.SearchArtists {
 		t.Fatalf("on %+v", a.route)
 	}
 	if len(asked) > 0 {
@@ -107,22 +124,23 @@ func TestSearchKindFromSongs(t *testing.T) {
 
 // The 歌单 tab searches playlists, and a playlist it found opens its page.
 func TestSearchPlaylists(t *testing.T) {
-	asked := fakeSearch(t)
 	a := catalogApp()
-	a.open(route{page: pageSearch, query: "MyGO", kind: netease.SearchSongs})
+	asked := fakeSearch(t, a)
+	a.open(route{page: pageSearch, query: "MyGO", kind: music.SearchTracks})
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if err := tt.Click("歌单"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if got := wait(t, asked, "the playlists"); got != (searchRequest{"MyGO", netease.SearchPlaylists, 0}) {
+	if got := wait(t, asked, "the playlists"); got != (searchRequest{"MyGO", music.SearchPlaylists, 0}) {
 		t.Fatalf("searched %+v", got)
 	}
 
 	a.searches[a.route] = &searchData{
-		res:  netease.SearchResult{Playlists: []netease.Playlist{{ID: 42, Name: "迷途人偶", TrackCount: 52}}, Total: 1},
-		page: paged{loaded: true},
+		res:   music.SearchResult{Playlists: []music.Playlist{{ID: "42", Name: "迷途人偶", TrackCount: 52}}},
+		total: 1,
+		page:  paged{loaded: true},
 	}
 	a.playlists[42] = &netease.Playlist{ID: 42, Name: "迷途人偶"} // so its page loads nothing
 	tt.Frame()
@@ -138,19 +156,20 @@ func TestSearchPlaylists(t *testing.T) {
 // A search's next page loads once its foot comes into view, from where the
 // last ended, and a search done again loads from its start.
 func TestSearchLoadsMore(t *testing.T) {
-	asked := fakeSearch(t)
 	a := newTestApp()
+	asked := fakeSearch(t, a)
 	a.settings = defaultSettings()
-	r := route{page: pageSearch, query: "春日影", kind: netease.SearchUsers}
+	r := route{page: pageSearch, query: "春日影", kind: kindUsers}
 	a.searches[r] = &searchData{
-		res:  netease.SearchResult{Users: []netease.User{{UserID: 1, Nickname: "甲"}, {UserID: 2, Nickname: "乙"}}, Total: 5},
-		page: paged{loaded: true, more: true},
+		users: []netease.User{{UserID: 1, Nickname: "甲"}, {UserID: 2, Nickname: "乙"}},
+		total: 5,
+		page:  paged{loaded: true, more: true},
 	}
 	a.open(r)
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	tt.Frame()
-	if got := wait(t, asked, "the next page"); got != (searchRequest{"春日影", netease.SearchUsers, 2}) {
+	if got := wait(t, asked, "the next page"); got != (searchRequest{"春日影", kindUsers, 2}) {
 		t.Fatalf("asked for %+v", got)
 	}
 
@@ -164,8 +183,8 @@ func TestSearchLoadsMore(t *testing.T) {
 // or chosen with the arrows; it was lost when its option was keyed anew.
 func TestSearchHistoryChoice(t *testing.T) {
 	for _, keys := range []bool{false, true} {
-		asked := fakeSearch(t)
 		a := newTestApp()
+		asked := fakeSearch(t, a)
 		a.settings = defaultSettings()
 		a.settings.SearchHistory = []string{"春日影", "迷星叫"}
 		tt := ui.NewTester(a.view, 1200, 800)
@@ -509,17 +528,16 @@ func catalogApp() *app {
 	subbed := *pod
 	subbed.LastProgram = programs[0].Name
 	a.podcastTab = &podcastTab{subs: []netease.Podcast{subbed}, picks: hot[:3], hot: hot, hotPage: paged{loaded: true}}
-	for _, res := range []struct {
-		kind netease.SearchType
-		res  netease.SearchResult
-	}{
-		{netease.SearchSongs, netease.SearchResult{Songs: songs, Total: 38}},
-		{netease.SearchArtists, netease.SearchResult{Artists: []netease.ArtistProfile{*a.artists[7].profile, {Artist: netease.Artist{ID: 10, Name: "Ave Mujica"}}}, Total: 2}},
-		{netease.SearchAlbums, netease.SearchResult{Albums: albums, Total: 6}},
-		{netease.SearchUsers, netease.SearchResult{Users: []netease.User{user, {UserID: 10, Nickname: "夏日来信"}}, Total: 2}},
-		{netease.SearchPodcasts, netease.SearchResult{Podcasts: []netease.Podcast{*pod}, Total: 1}},
+	artists := []netease.ArtistProfile{*a.artists[7].profile, {Artist: netease.Artist{ID: 10, Name: "Ave Mujica"}}}
+	for kind, d := range map[music.SearchKind]*searchData{
+		music.SearchTracks:  {res: music.SearchResult{Tracks: netease.ToTracks(songs)}, songs: songs, total: 38},
+		music.SearchArtists: {res: music.SearchResult{Artists: netease.ToArtists(artists)}, total: 2},
+		music.SearchAlbums:  {res: music.SearchResult{Albums: netease.ToAlbums(albums)}, total: 6},
+		kindUsers:           {users: []netease.User{user, {UserID: 10, Nickname: "夏日来信"}}, total: 2},
+		music.SearchShows:   {res: music.SearchResult{Shows: netease.ToShows([]netease.Podcast{*pod})}, total: 1},
 	} {
-		a.searches[route{page: pageSearch, query: "MyGO", kind: res.kind}] = &searchData{res: res.res, page: paged{loaded: true}}
+		d.page = paged{loaded: true}
+		a.searches[route{page: pageSearch, query: "MyGO", kind: kind}] = d
 	}
 	return a
 }
@@ -530,11 +548,11 @@ var catalogScenes = []struct {
 	r    route
 	tab  int
 }{
-	{"search-songs", route{page: pageSearch, query: "MyGO", kind: netease.SearchSongs}, 0},
-	{"search-artists", route{page: pageSearch, query: "MyGO", kind: netease.SearchArtists}, 0},
-	{"search-albums", route{page: pageSearch, query: "MyGO", kind: netease.SearchAlbums}, 0},
-	{"search-users", route{page: pageSearch, query: "MyGO", kind: netease.SearchUsers}, 0},
-	{"search-podcasts", route{page: pageSearch, query: "MyGO", kind: netease.SearchPodcasts}, 0},
+	{"search-songs", route{page: pageSearch, query: "MyGO", kind: music.SearchTracks}, 0},
+	{"search-artists", route{page: pageSearch, query: "MyGO", kind: music.SearchArtists}, 0},
+	{"search-albums", route{page: pageSearch, query: "MyGO", kind: music.SearchAlbums}, 0},
+	{"search-users", route{page: pageSearch, query: "MyGO", kind: kindUsers}, 0},
+	{"search-podcasts", route{page: pageSearch, query: "MyGO", kind: music.SearchShows}, 0},
 	{"artist", route{page: pageArtist, id: 7}, artistHot},
 	{"artist-albums", route{page: pageArtist, id: 7}, artistAlbums},
 	{"artist-events", route{page: pageArtist, id: 7}, artistEvents},
@@ -585,5 +603,50 @@ func TestCatalogFrameBudget(t *testing.T) {
 		if tt.FramePending() {
 			t.Errorf("%s asks for frames while idle", s.name)
 		}
+	}
+}
+
+// pagedSource is a source whose searches come in pages: of the songs it was
+// given, two at a time, from the offset asked, saying whether more follow.
+type pagedSource struct {
+	music.Unsupported
+	songs   []netease.Track
+	offsets []int
+}
+
+func (*pagedSource) Info() music.Info     { return music.Info{ID: netease.SourceID, Name: "分页音源"} }
+func (*pagedSource) Can(what string) bool { return what == "search" }
+func (s *pagedSource) Search(_ string, _ music.SearchKind, offset int) (*music.SearchResult, error) {
+	s.offsets = append(s.offsets, offset)
+	end := min(offset+2, len(s.songs))
+	return &music.SearchResult{Tracks: netease.ToTracks(s.songs[offset:end]), More: end < len(s.songs), Total: len(s.songs)}, nil
+}
+
+// A search's pages come from its source one after another, each asked for
+// from where the last ended, and add to what is shown: the songs reach the
+// list as NetEase's own, whole, with the fee that marks one for VIPs, and the
+// last page says there is no next.
+func TestSearchPagesComeFromTheSource(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	landed := make(chan func(), 4)
+	a.onPost = func(fn func()) { landed <- fn }
+	src := &pagedSource{songs: []netease.Track{{ID: 1, Name: "一", Fee: 1}, {ID: 2, Name: "二"}, {ID: 3, Name: "三", ProgramID: 9}}}
+	a.sources[netease.SourceID] = src
+	r := route{page: pageSearch, query: "q", kind: music.SearchTracks}
+
+	a.loadSearch(r, true)
+	d := a.searches[r]
+	wait(t, landed, "the first page")()
+	if len(d.songs) != 2 || d.songs[0].Fee != 1 || !d.page.more || d.total != 3 || !d.page.loaded {
+		t.Fatalf("first page: %d songs, fee %d, more %v, total %d", len(d.songs), d.songs[0].Fee, d.page.more, d.total)
+	}
+	a.moreResults(r, d)
+	wait(t, landed, "the second page")()
+	if len(d.songs) != 3 || d.songs[2].ProgramID != 9 || d.page.more || d.len() != 3 {
+		t.Fatalf("second page: %d songs, more %v", len(d.songs), d.page.more)
+	}
+	if !slices.Equal(src.offsets, []int{0, 2}) {
+		t.Errorf("asked from %v, want 0 then 2", src.offsets)
 	}
 }

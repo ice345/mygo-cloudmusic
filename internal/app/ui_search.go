@@ -6,36 +6,55 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
-// searchResults and searchSuggest search NetEase; tests replace them.
+// searchSuggest asks NetEase what a search may be after, and searchUsers for
+// the users it finds, which no other source has; tests replace them.
 var (
-	searchResults = netease.SearchPage
 	searchSuggest = netease.SearchSuggest
+	searchUsers   = func(query string, offset int) ([]netease.User, int, error) {
+		res, err := netease.SearchPage(query, netease.SearchUsers, searchLimit, offset)
+		return res.Users, res.Total, err
+	}
 )
 
-// searchLimit is how many results load at a time.
+// searchLimit is how many users load at a time; the source decides how many
+// of the rest.
 const searchLimit = 60
+
+// kindUsers is the search for users, which only NetEase has: a kind of its
+// own, beside those of music.SearchKind.
+const kindUsers music.SearchKind = "users"
 
 // searchKinds are the kinds of search, as their tabs show them.
 var searchKinds = []struct {
-	kind        netease.SearchType
+	kind        music.SearchKind
 	label, unit string
 }{
-	{netease.SearchSongs, "单曲", "首单曲"},
-	{netease.SearchArtists, "歌手", "位歌手"},
-	{netease.SearchAlbums, "专辑", "张专辑"},
-	{netease.SearchPlaylists, "歌单", "个歌单"},
-	{netease.SearchUsers, "用户", "位用户"},
-	{netease.SearchPodcasts, "播客", "个播客"},
+	{music.SearchTracks, "单曲", "首单曲"},
+	{music.SearchArtists, "歌手", "位歌手"},
+	{music.SearchAlbums, "专辑", "张专辑"},
+	{music.SearchPlaylists, "歌单", "个歌单"},
+	{kindUsers, "用户", "位用户"},
+	{music.SearchShows, "播客", "个播客"},
 }
 
 // searchData is what a search found, as far as its pages have loaded.
 type searchData struct {
-	res  netease.SearchResult
-	page paged
+	res music.SearchResult
+	// songs are the tracks of res as the views that have not moved over hold
+	// them, made once as each page comes in; users are of the one kind a
+	// source cannot search for.
+	songs []netease.Track
+	users []netease.User
+	total int
+	page  paged
 }
+
+// len is how many a search has found so far.
+func (d *searchData) len() int { return d.res.Len() + len(d.users) }
 
 // search searches for q, of the kind last searched for.
 func (a *app) search(q string) {
@@ -44,8 +63,8 @@ func (a *app) search(q string) {
 		return
 	}
 	kind := a.searched.kind
-	if kind == 0 {
-		kind = netease.SearchSongs
+	if kind == "" {
+		kind = music.SearchTracks
 	}
 	a.searchFor(route{page: pageSearch, query: q, kind: kind})
 }
@@ -80,18 +99,39 @@ func (a *app) moreResults(r route, d *searchData) {
 		return
 	}
 	d.page.loading, d.page.err = true, ""
-	offset := d.res.Len()
+	offset := d.len()
+	src := a.searchSource()
 	go func() {
-		res, err := searchResults(r.query, r.kind, searchLimit, offset)
+		var res *music.SearchResult
+		var users []netease.User
+		var total int
+		var err error
+		switch {
+		case r.kind == kindUsers:
+			users, total, err = searchUsers(r.query, offset)
+		case src == nil:
+			err = music.ErrUnsupported
+		default:
+			res, err = src.Search(r.query, r.kind, offset)
+		}
 		a.post(func() {
 			d.page.loading = false
 			if err != nil {
 				d.page.err = "搜索失败，请稍后再试"
 				return
 			}
-			d.res.Append(res)
+			if res != nil {
+				d.res.Append(*res)
+				for _, t := range res.Tracks {
+					d.songs = append(d.songs, *a.fromMusic(t))
+				}
+				d.total, d.page.loaded, d.page.more = res.Total, true, res.More
+				return
+			}
+			d.users = append(d.users, users...)
+			d.total = total
 			// A server can claim more while sending none.
-			d.page.loaded, d.page.more = true, res.Len() > 0 && d.res.Len() < d.res.Total
+			d.page.loaded, d.page.more = true, len(users) > 0 && len(d.users) < total
 		})
 	}()
 }
@@ -121,12 +161,12 @@ func (a *app) searchPage(c *ui.Context) {
 	d := a.searches[r]
 	header := func(c *ui.Context) { a.searchHeader(c, d) }
 	more := func() { a.moreResults(r, d) }
-	if r.kind == netease.SearchSongs {
+	if r.kind == music.SearchTracks {
 		if !d.page.loaded && d.page.loading {
 			a.trackSkeleton(c, a.pageShimmer(c), true, header)
 			return
 		}
-		a.trackRows(c, d.res.Songs, true, header, func(c *ui.Context) {
+		a.trackRows(c, d.songs, true, header, func(c *ui.Context) {
 			a.pageFoot(c, &d.page, more)
 			a.searchEmpty(c, d)
 		})
@@ -136,27 +176,27 @@ func (a *app) searchPage(c *ui.Context) {
 		header(c)
 		res := &d.res
 		switch r.kind {
-		case netease.SearchArtists:
+		case music.SearchArtists:
 			ui.Grid(c).Columns(a.columns(c, 132)).GapX(20).GapY(28).Children(func() {
 				for i := range res.Artists {
 					a.artistCard(c.Key(res.Artists[i].ID), &res.Artists[i])
 				}
 			})
-		case netease.SearchAlbums:
+		case music.SearchAlbums:
 			a.albumGrid(c, res.Albums)
-		case netease.SearchPlaylists:
+		case music.SearchPlaylists:
 			ui.Grid(c).Columns(a.columns(c, 156)).GapX(20).GapY(28).Children(func() {
 				for i := range res.Playlists {
 					a.foundPlaylistCard(c.Key(res.Playlists[i].ID), &res.Playlists[i])
 				}
 			})
-		case netease.SearchUsers:
-			for i := range res.Users {
-				a.userRow(c.Key(res.Users[i].UserID), &res.Users[i])
+		case kindUsers:
+			for i := range d.users {
+				a.userRow(c.Key(d.users[i].UserID), &d.users[i])
 			}
-		case netease.SearchPodcasts:
-			for i := range res.Podcasts {
-				a.podcastRow(c.Key(res.Podcasts[i].ID), &res.Podcasts[i])
+		case music.SearchShows:
+			for i := range res.Shows {
+				a.podcastRow(c.Key(res.Shows[i].ID), &res.Shows[i])
 			}
 		}
 		if !d.page.loaded && d.page.loading {
@@ -169,7 +209,7 @@ func (a *app) searchPage(c *ui.Context) {
 }
 
 func (a *app) searchEmpty(c *ui.Context, d *searchData) {
-	if d.page.loaded && d.res.Len() == 0 {
+	if d.page.loaded && d.len() == 0 {
 		a.empty(c, "没有找到相关结果")
 	}
 }
@@ -184,7 +224,7 @@ func (a *app) searchHeader(c *ui.Context, d *searchData) {
 		if k.kind == r.kind {
 			at = i
 			if d.page.loaded {
-				sub = fmt.Sprintf("搜索 · 找到 %d %s", d.res.Total, k.unit)
+				sub = fmt.Sprintf("搜索 · 找到 %d %s", d.total, k.unit)
 			}
 		}
 	}
@@ -202,38 +242,37 @@ func (a *app) searchHeader(c *ui.Context, d *searchData) {
 }
 
 // artistCard is an artist's round photo over their name, opening their page.
-func (a *app) artistCard(c *ui.Context, ar *netease.ArtistProfile) {
+func (a *app) artistCard(c *ui.Context, ar *music.Artist) {
 	p := a.pal
 	card := ui.ButtonBase(c).Column().Gap(10).AlignItems(ui.Stretch).FocusRing(false).Label(ar.Name)
 	hovered := card.Hovered()
 	card.Children(func() {
-		photo := ar.Avatar
-		if photo == "" {
-			photo = ar.PicURL
-		}
 		art := ui.Box(c).AspectRatio(1).Radius(999)
 		if hovered {
 			art.Shadow(0, 12, 28, -6, p.cardShade)
 		} else {
 			art.Shadow(0, 2, 8, -2, p.cardShade)
 		}
-		art.Children(func() { a.coverFill(c, photo, 400, 999) })
+		art.Children(func() { a.coverFill(c, ar.ImageURL, 400, 999) })
 		ui.Text(c, ar.Name).FontSize(13).FontWeight(500).SingleLine().AlignSelf(ui.Center)
 	})
 	if card.Clicked() {
-		a.open(route{page: pageArtist, id: ar.ID})
+		if id := numericID(ar.ID); id != 0 {
+			a.open(route{page: pageArtist, id: id})
+		}
 	}
 }
 
 // foundPlaylistCard is a playlist a search found: its card, with how many
 // songs it has and who made it under its name, as strangers' playlists
 // are told apart by their makers.
-func (a *app) foundPlaylistCard(c *ui.Context, pl *netease.Playlist) {
+func (a *app) foundPlaylistCard(c *ui.Context, pl *music.Playlist) {
 	sub := fmt.Sprintf("%d 首", pl.TrackCount)
-	if pl.Creator.Nickname != "" {
-		sub += " · " + pl.Creator.Nickname
+	if pl.Owner != "" {
+		sub += " · " + pl.Owner
 	}
-	if a.coverCard(c, pl.Name, pl.Cover(), pl.PlayCount, sub, func() { a.loadPlaylist(pl.ID, true) }) {
-		a.open(route{page: pagePlaylist, id: pl.ID})
+	id := numericID(pl.ID)
+	if a.coverCard(c, pl.Name, pl.ImageURL, float64(pl.PlayCount), sub, func() { a.loadPlaylist(id, true) }) && id != 0 {
+		a.open(route{page: pagePlaylist, id: id})
 	}
 }

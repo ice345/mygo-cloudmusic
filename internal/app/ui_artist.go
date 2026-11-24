@@ -275,7 +275,7 @@ func (a *app) artistPage(c *ui.Context) {
 	case artistAlbums:
 		a.scrollPage(c, func() {
 			header(c)
-			a.albumGrid(c, d.albums)
+			a.albumGrid(c, netease.ToAlbums(d.albums))
 			a.pageFoot(c, &d.albumsPage, func() { a.loadAlbums(id) })
 			if d.albumsPage.loaded && len(d.albums) == 0 {
 				a.empty(c, "暂无专辑")
