@@ -110,3 +110,71 @@ func TestSourceLyricsAreBuiltFromNetEasesTexts(t *testing.T) {
 		t.Fatalf("lyrics %+v, %v", l, err)
 	}
 }
+
+// A search comes back in the app's shapes, of the one kind asked for: a song
+// with its record, an artist's square photo, an album's release date, a
+// playlist's plays and maker, a podcast as a show; its page says whether
+// there is another, and a server that claims more while sending none has no
+// next page.
+func TestSourceSearchFindsEachKind(t *testing.T) {
+	// One answer for each search, in the order they are made, as NetEase
+	// answers: with the kind searched for alone.
+	answers := []string{
+		`{"code":200,"result":{"songs":[{"id":5,"name":"歌","ar":[{"id":1,"name":"手"}],"al":{"id":2,"name":"专","picUrl":"http://p/c.jpg"},"dt":1000,"fee":0}],"songCount":130}}`,
+		`{"code":200,"result":{"artists":[{"id":7,"name":"某人","img1v1Url":"http://p/sq.jpg","picUrl":"http://p/wide.jpg"},{"id":8,"name":"无方图","picUrl":"http://p/wide2.jpg"}],"artistCount":2}}`,
+		`{"code":200,"result":{"albums":[{"id":9,"name":"专辑","picUrl":"http://p/a.jpg","artists":[{"id":1,"name":"手"}],"publishTime":1700000000000}],"albumCount":1}}`,
+		`{"code":200,"result":{"playlists":[{"id":11,"name":"单","coverImgUrl":"http://p/pl.jpg","trackCount":52,"playCount":12345,"creator":{"userId":3,"nickname":"他"}}],"playlistCount":1}}`,
+		`{"code":200,"result":{"djRadios":[{"id":13,"name":"电台","picUrl":"http://p/r.jpg","desc":"说","programCount":40,"dj":{"userId":4,"nickname":"主播"}}],"djRadiosCount":1}}`,
+	}
+	_, done := serveNetEase(t, func(int) string { return `{"code":200,"data":[]}` }, func(call int) string { return answers[call-1] })
+	defer done()
+	src := Source{}
+
+	res, err := src.Search("q", music.SearchTracks, 60)
+	if err != nil || len(res.Tracks) != 1 || res.Tracks[0].ID != "5" || res.Tracks[0].Name != "歌" || res.Total != 130 || !res.More {
+		t.Fatalf("tracks %+v, %v", res, err)
+	}
+	if FromTrack(res.Tracks[0]).Artists[0].Name != "手" {
+		t.Error("the song's record was lost")
+	}
+	res, _ = src.Search("q", music.SearchArtists, 0)
+	if len(res.Artists) != 2 || res.Artists[0].ImageURL != "https://p/sq.jpg?param={size}y{size}" || res.Artists[1].ImageURL != "https://p/wide2.jpg?param={size}y{size}" {
+		t.Errorf("artists %+v", res.Artists)
+	}
+	res, _ = src.Search("q", music.SearchAlbums, 0)
+	if a := res.Albums[0]; a.ID != "9" || a.Artists[0].Name != "手" || len(a.Released) != 10 || a.Released[:4] != "2023" {
+		t.Errorf("album %+v", a)
+	}
+	res, _ = src.Search("q", music.SearchPlaylists, 0)
+	if p := res.Playlists[0]; p.ID != "11" || p.Owner != "他" || p.TrackCount != 52 || p.PlayCount != 12345 || p.ImageURL != "https://p/pl.jpg?param={size}y{size}" {
+		t.Errorf("playlist %+v", p)
+	}
+	res, _ = src.Search("q", music.SearchShows, 0)
+	if s := res.Shows[0]; s.ID != "13" || s.Publisher != "主播" || s.EpisodeCount != 40 || s.Description != "说" {
+		t.Errorf("show %+v", s)
+	}
+	if _, err := src.Search("q", "users", 0); !errors.Is(err, music.ErrUnsupported) {
+		t.Errorf("a kind NetEase's source does not search: %v", err)
+	}
+}
+
+// A page of a search that comes back empty ends it, whatever total the server
+// claims, and the last page that fills the total has no next.
+func TestSourceSearchEndsWhereItsPagesDo(t *testing.T) {
+	_, done := serveNetEase(t, func(int) string { return `{"code":200,"data":[]}` }, func(int) string {
+		return `{"code":200,"result":{"albums":[],"albumCount":500}}`
+	})
+	res, err := Source{}.Search("q", music.SearchAlbums, 120)
+	done()
+	if err != nil || res.More || res.Total != 500 {
+		t.Errorf("empty page of a claimed 500: %+v, %v", res, err)
+	}
+	_, done = serveNetEase(t, func(int) string { return `{"code":200,"data":[]}` }, func(int) string {
+		return `{"code":200,"result":{"albums":[{"id":1,"name":"a"},{"id":2,"name":"b"}],"albumCount":62}}`
+	})
+	res, _ = Source{}.Search("q", music.SearchAlbums, 60)
+	done()
+	if res.More {
+		t.Error("a next page after the last")
+	}
+}

@@ -36,6 +36,15 @@ type Album struct {
 	Saved bool `json:"saved,omitempty"`
 }
 
+// ArtistNames joins the album's artists as the credits read. (Added here.)
+func (al *Album) ArtistNames() string {
+	names := make([]string, len(al.Artists))
+	for i, a := range al.Artists {
+		names[i] = a.Name
+	}
+	return strings.Join(names, ", ")
+}
+
 type Track struct {
 	ID string `json:"id"`
 	// Source is the ID of the source the track came from, which it plays
@@ -75,16 +84,19 @@ func (t *Track) ArtistNames() string {
 func (t *Track) Length() time.Duration { return time.Duration(t.Duration) * time.Millisecond }
 
 type Playlist struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	ImageURL    string  `json:"imageUrl,omitempty"`
-	Description string  `json:"description,omitempty"`
-	Owner       string  `json:"owner,omitempty"`
-	TrackCount  int     `json:"trackCount,omitempty"`
-	Mine        bool    `json:"mine,omitempty"`  // the listener's own
-	Saved       bool    `json:"saved,omitempty"` // saved from someone else
-	Fixed       bool    `json:"fixed,omitempty"` // the listener's, but kept by the source: liked songs, say
-	Tracks      []Track `json:"tracks,omitempty"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	ImageURL    string `json:"imageUrl,omitempty"`
+	Description string `json:"description,omitempty"`
+	Owner       string `json:"owner,omitempty"`
+	TrackCount  int    `json:"trackCount,omitempty"`
+	// PlayCount is how many times it was played, if the source says. (Added
+	// here: NetEase's cards show it.)
+	PlayCount int64   `json:"playCount,omitempty"`
+	Mine      bool    `json:"mine,omitempty"`  // the listener's own
+	Saved     bool    `json:"saved,omitempty"` // saved from someone else
+	Fixed     bool    `json:"fixed,omitempty"` // the listener's, but kept by the source: liked songs, say
+	Tracks    []Track `json:"tracks,omitempty"`
 }
 
 // ArtistPage is what an artist's page shows.
@@ -130,6 +142,19 @@ type SearchResult struct {
 	Playlists []Playlist `json:"playlists,omitempty"`
 	Shows     []Show     `json:"shows,omitempty"`
 	More      bool       `json:"more,omitempty"` // there is a next page
+	// Total is how many the search found in all, if the source says. (Added
+	// here: NetEase's headings count them.)
+	Total int `json:"total,omitempty"`
+}
+
+// Append adds the next page of a search to r. (Added here.)
+func (r *SearchResult) Append(next SearchResult) {
+	r.Tracks = append(r.Tracks, next.Tracks...)
+	r.Albums = append(r.Albums, next.Albums...)
+	r.Artists = append(r.Artists, next.Artists...)
+	r.Playlists = append(r.Playlists, next.Playlists...)
+	r.Shows = append(r.Shows, next.Shows...)
+	r.More, r.Total = next.More, next.Total
 }
 
 // Len is how many things the page holds.

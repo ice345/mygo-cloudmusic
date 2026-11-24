@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"netease-music-mygo/internal/music"
 )
 
 func TestQRLoginLive(t *testing.T) {
@@ -440,5 +442,35 @@ func TestSongURLSignedInLive(t *testing.T) {
 	}
 	if ct := res.Header.Get("Content-Type"); !strings.Contains(ct, "audio") && !strings.Contains(ct, "octet-stream") {
 		t.Errorf("the audio's type is %q", ct)
+	}
+}
+
+// The source searches every kind it does, and a second page continues from
+// the first: what came as the app's own shapes has what the views draw.
+func TestSourceSearchLive(t *testing.T) {
+	if os.Getenv("LIVE") == "" {
+		t.Skip()
+	}
+	deviceOnce.Do(func() { deviceID = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123" })
+	src := Source{}
+	for _, kind := range []music.SearchKind{music.SearchTracks, music.SearchArtists, music.SearchAlbums, music.SearchPlaylists, music.SearchShows} {
+		res, err := src.Search("音乐", kind, 0)
+		if err != nil || res.Len() == 0 || res.Total < res.Len() {
+			t.Fatalf("%s: %d of %d, %v", kind, res.Len(), res.Total, err)
+		}
+		first := res.Tracks
+		if kind != music.SearchTracks {
+			continue
+		}
+		if first[0].ID == "" || first[0].Name == "" || len(first[0].Artists) == 0 || first[0].Album.ImageURL == "" {
+			t.Errorf("a song with nothing to show: %+v", first[0])
+		}
+		next, err := src.Search("音乐", kind, res.Len())
+		if err != nil || len(next.Tracks) == 0 || next.Tracks[0].ID == first[0].ID {
+			t.Errorf("the next page: %d songs, %v", len(next.Tracks), err)
+		}
+	}
+	if res, err := src.Search("音乐", music.SearchArtists, 0); err == nil && (res.Artists[0].Name == "" || res.Artists[0].ImageURL == "") {
+		t.Errorf("an artist with nothing to show: %+v", res.Artists[0])
 	}
 }

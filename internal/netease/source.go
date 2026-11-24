@@ -33,7 +33,7 @@ func (Source) Info() music.Info {
 
 func (Source) Can(what string) bool {
 	switch what {
-	case "stream", "lyrics":
+	case "stream", "lyrics", "search":
 		return true
 	}
 	return false
@@ -70,6 +70,15 @@ func parseTrackID(id string) (audio, program int64, err error) {
 // sizeTemplate is where a picture of the image CDN says its size goes.
 const sizeTemplate = "?param={size}y{size}"
 
+// imageURL is a picture of the image CDN as the app is given it: asking for
+// the size it shows it at, by {size}.
+func imageURL(pic string) string {
+	if pic == "" {
+		return ""
+	}
+	return strings.Replace(pic, "http://", "https://", 1) + sizeTemplate
+}
+
 // ToTrack makes the app's track of one of NetEase's, which it keeps whole in
 // Extra for FromTrack, so that nothing of it is lost on its way through the
 // queue and the session.
@@ -87,9 +96,7 @@ func ToTrack(t Track) music.Track {
 	if t.Album.ID != 0 {
 		mt.Album.ID = strconv.FormatInt(t.Album.ID, 10)
 	}
-	if t.Album.PicURL != "" {
-		mt.Album.ImageURL = strings.Replace(t.Album.PicURL, "http://", "https://", 1) + sizeTemplate
-	}
+	mt.Album.ImageURL = imageURL(t.Album.PicURL)
 	if t.PodcastID != 0 {
 		mt.ShowID = strconv.FormatInt(t.PodcastID, 10)
 	}
