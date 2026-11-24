@@ -21,6 +21,20 @@ func (a *app) source(id string) music.Source { return a.sources[id] }
 // listener can switch between sources.
 func (a *app) searchSource() music.Source { return a.source(netease.SourceID) }
 
+// nroute is the page of kind of the NetEase item numbered id.
+func nroute(page pageKind, id int64) route {
+	return route{page: page, source: netease.SourceID, id: strconv.FormatInt(id, 10)}
+}
+
+// number is the NetEase number of the item the page shows, or 0: the pages
+// load their data by it, as only NetEase's can be loaded so far.
+func (r route) number() int64 {
+	if r.source != netease.SourceID {
+		return 0
+	}
+	return numericID(r.id)
+}
+
 // numericID is the NetEase ID a source's ID of a page names, or 0: pages are
 // still opened by NetEase's numeric IDs, until the views that open them move
 // over (docs/plugins.md, stage 1.3).

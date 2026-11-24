@@ -124,17 +124,17 @@ func (a *app) load(r route) {
 	case pageHome:
 		a.freshenHome()
 	case pagePlaylist:
-		a.loadPlaylist(r.id, false)
+		a.loadPlaylist(r.number(), false)
 	case pageSearch:
 		a.loadSearch(r, false)
 	case pageArtist:
-		a.loadArtist(r.id)
+		a.loadArtist(r.number())
 	case pageAlbum:
-		a.loadAlbum(r.id)
+		a.loadAlbum(r.number())
 	case pageUser:
-		a.loadUser(r.id)
+		a.loadUser(r.number())
 	case pagePodcast:
-		a.loadPodcast(r.id)
+		a.loadPodcast(r.number())
 	case pagePodcasts:
 		a.loadPodcastTab()
 	}
@@ -350,6 +350,14 @@ func (a *app) content(c *ui.Context) {
 	}
 	// Pages mark where their content is, as they scroll.
 	a.underTop, a.underBottom = false, false
+	// Only NetEase's pages open so far: another source's says so.
+	switch a.route.page {
+	case pagePlaylist, pageArtist, pageAlbum, pageUser, pagePodcast:
+		if a.route.number() == 0 {
+			a.centered(c, "暂不支持打开这个来源的页面", nil)
+			return
+		}
+	}
 	switch a.route.page {
 	case pageHome:
 		a.homePage(c)
@@ -441,6 +449,10 @@ func dailyRenewed(loaded, now time.Time) bool {
 }
 
 func (a *app) loadPlaylist(id int64, thenPlay bool) {
+	// Only NetEase's pages load so far: another source's has no number.
+	if id == 0 {
+		return
+	}
 	if pl := a.playlists[id]; pl != nil {
 		if thenPlay {
 			a.playQueue(pl.Tracks, firstPlayable(pl.Tracks))

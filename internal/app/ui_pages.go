@@ -131,7 +131,7 @@ func (a *app) chartsPage(c *ui.Context) {
 // under the pointer, where a play button shows on it.
 func (a *app) playlistCard(c *ui.Context, pl *netease.Playlist) {
 	if a.coverCard(c, pl.Name, pl.Cover(), pl.PlayCount, pl.UpdateFreq, func() { a.loadPlaylist(pl.ID, true) }) {
-		a.open(route{page: pagePlaylist, id: pl.ID})
+		a.open(nroute(pagePlaylist, pl.ID))
 	}
 }
 
@@ -237,12 +237,12 @@ func (a *app) chartCard(c *ui.Context, pl *netease.Playlist) {
 		})
 	})
 	if card.Clicked() {
-		a.open(route{page: pagePlaylist, id: pl.ID})
+		a.open(nroute(pagePlaylist, pl.ID))
 	}
 }
 
 func (a *app) playlistPage(c *ui.Context) {
-	id := a.route.id
+	id := a.route.number()
 	pl := a.playlists[id]
 	if pl == nil {
 		if !a.loadingPl[id] {
@@ -343,7 +343,7 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 	// A song's menu can take it out of the playlist it is listed in.
 	var pid int64
 	if a.route.page == pagePlaylist {
-		pid = a.route.id
+		pid = a.route.number()
 	}
 	w, _ := c.Size()
 	// An album's page has no column of the album its songs are on.
@@ -425,7 +425,7 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 					if tr.Album.ID == 0 {
 						ui.Text(c, tr.Album.Name)
 					} else {
-						a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, id: tr.Album.ID})
+						a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, nroute(pageAlbum, tr.Album.ID))
 					}
 				})
 			}

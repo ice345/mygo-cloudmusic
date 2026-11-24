@@ -55,7 +55,7 @@ func ToArtist(a ArtistProfile) music.Artist {
 	if pic == "" {
 		pic = a.PicURL
 	}
-	return music.Artist{ID: strconv.FormatInt(a.ID, 10), Name: a.Name, ImageURL: imageURL(pic), Following: a.Followed}
+	return music.Artist{ID: strconv.FormatInt(a.ID, 10), Source: SourceID, Name: a.Name, ImageURL: imageURL(pic), Following: a.Followed}
 }
 
 // ToArtists is ToArtist of each.
@@ -69,7 +69,7 @@ func ToArtists(as []ArtistProfile) []music.Artist {
 
 // ToAlbum is an album as the app has it, released as the date NetEase gives.
 func ToAlbum(al AlbumProfile) music.Album {
-	out := music.Album{ID: strconv.FormatInt(al.ID, 10), Name: al.Name, ImageURL: imageURL(al.PicURL)}
+	out := music.Album{ID: strconv.FormatInt(al.ID, 10), Source: SourceID, Name: al.Name, ImageURL: imageURL(al.PicURL)}
 	for _, a := range al.Artists {
 		out.Artists = append(out.Artists, music.Artist{ID: strconv.FormatInt(a.ID, 10), Name: a.Name})
 	}
@@ -91,7 +91,7 @@ func ToAlbums(als []AlbumProfile) []music.Album {
 // ToPlaylist is a playlist as the app has it, without its tracks.
 func ToPlaylist(pl Playlist) music.Playlist {
 	return music.Playlist{
-		ID: strconv.FormatInt(pl.ID, 10), Name: pl.Name, ImageURL: imageURL(pl.Cover()),
+		ID: strconv.FormatInt(pl.ID, 10), Source: SourceID, Name: pl.Name, ImageURL: imageURL(pl.Cover()),
 		Description: pl.Description, Owner: pl.Creator.Nickname,
 		TrackCount: pl.TrackCount, PlayCount: int64(pl.PlayCount),
 	}
@@ -100,7 +100,7 @@ func ToPlaylist(pl Playlist) music.Playlist {
 // ToShow is a podcast as the app has it.
 func ToShow(p Podcast) music.Show {
 	return music.Show{
-		ID: strconv.FormatInt(p.ID, 10), Name: p.Name, ImageURL: imageURL(p.PicURL),
+		ID: strconv.FormatInt(p.ID, 10), Source: SourceID, Name: p.Name, ImageURL: imageURL(p.PicURL),
 		Description: p.Description, Publisher: p.DJ.Nickname, EpisodeCount: p.ProgramCount, Subscribed: p.Subed,
 	}
 }

@@ -19,7 +19,11 @@ import (
 // IDs are the source's own and mean nothing outside it.
 
 type Artist struct {
-	ID       string `json:"id"`
+	ID string `json:"id"`
+	// Source is the ID of the source it came from, which its page is opened
+	// through. A source's own answers leave it out, as a track's do; a source
+	// built in fills it in. (Added here.)
+	Source   string `json:"source,omitempty"`
 	Name     string `json:"name"`
 	ImageURL string `json:"imageUrl,omitempty"`
 	// Following says the listener follows them, for a source with followArtist.
@@ -27,7 +31,11 @@ type Artist struct {
 }
 
 type Album struct {
-	ID       string   `json:"id"`
+	ID string `json:"id"`
+	// Source is the ID of the source it came from, which its page is opened
+	// through. A source's own answers leave it out, as a track's do; a source
+	// built in fills it in. (Added here.)
+	Source   string   `json:"source,omitempty"`
 	Name     string   `json:"name"`
 	ImageURL string   `json:"imageUrl,omitempty"`
 	Artists  []Artist `json:"artists,omitempty"`
@@ -84,7 +92,11 @@ func (t *Track) ArtistNames() string {
 func (t *Track) Length() time.Duration { return time.Duration(t.Duration) * time.Millisecond }
 
 type Playlist struct {
-	ID          string `json:"id"`
+	ID string `json:"id"`
+	// Source is the ID of the source it came from, which its page is opened
+	// through. A source's own answers leave it out, as a track's do; a source
+	// built in fills it in. (Added here.)
+	Source      string `json:"source,omitempty"`
 	Name        string `json:"name"`
 	ImageURL    string `json:"imageUrl,omitempty"`
 	Description string `json:"description,omitempty"`
@@ -176,7 +188,11 @@ type AlbumList struct {
 
 // Show is a podcast. Its episodes are tracks.
 type Show struct {
-	ID          string `json:"id"`
+	ID string `json:"id"`
+	// Source is the ID of the source it came from, which its page is opened
+	// through. A source's own answers leave it out, as a track's do; a source
+	// built in fills it in. (Added here.)
+	Source      string `json:"source,omitempty"`
 	Name        string `json:"name"`
 	ImageURL    string `json:"imageUrl,omitempty"`
 	Description string `json:"description,omitempty"`

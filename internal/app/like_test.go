@@ -134,7 +134,7 @@ func TestLikeEpisodeRow(t *testing.T) {
 	a := catalogApp()
 	a.profile = &netease.Profile{UserID: 1}
 	a.setProgramLiked(40, true)
-	a.open(route{page: pagePodcast, id: 5})
+	a.open(nroute(pagePodcast, 5))
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if _, ok := tt.Find("取消喜欢"); !ok {

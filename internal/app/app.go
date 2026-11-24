@@ -30,8 +30,10 @@ const (
 
 type route struct {
 	page pageKind
-	// id is the playlist, artist, album, user or podcast the page shows.
-	id int64
+	// source and id are the source, and the ID at it, of the playlist,
+	// artist, album, user or podcast the page shows: IDs mean something only
+	// at their own source.
+	source, id string
 	// query and kind are what a search page searched for.
 	query string
 	kind  music.SearchKind

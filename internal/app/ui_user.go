@@ -36,6 +36,10 @@ type userData struct {
 }
 
 func (a *app) loadUser(id int64) {
+	// Only NetEase's pages load so far: another source's has no number.
+	if id == 0 {
+		return
+	}
 	d := a.users[id]
 	if d == nil {
 		d = &userData{}
@@ -114,7 +118,7 @@ func publicPlaylists(lists []netease.Playlist, uid int64) []netease.Playlist {
 
 func (a *app) userPage(c *ui.Context) {
 	p := a.pal
-	id := a.route.id
+	id := a.route.number()
 	d := a.users[id]
 	if d.user == nil {
 		if d.loading == 0 {
@@ -201,6 +205,6 @@ func (a *app) userRow(c *ui.Context, u *netease.User) {
 		})
 	})
 	if row.Clicked() {
-		a.open(route{page: pageUser, id: u.UserID})
+		a.open(nroute(pageUser, u.UserID))
 	}
 }

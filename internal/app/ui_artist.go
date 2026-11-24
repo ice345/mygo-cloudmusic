@@ -16,7 +16,7 @@ import (
 // credited by name alone, is plain text. An episode's host and podcast,
 // in its artists' and album's place, link to the podcast's page.
 func (a *app) artistLinks(c *ui.Context, tr *netease.Track, color, hover ui.Color, album ...bool) ui.Element {
-	podcast := route{page: pagePodcast, id: tr.PodcastID}
+	podcast := nroute(pagePodcast, tr.PodcastID)
 	return ui.RichText(c).TextColor(color).Children(func() {
 		for i, ar := range tr.Artists {
 			if i > 0 {
@@ -26,7 +26,7 @@ func (a *app) artistLinks(c *ui.Context, tr *netease.Track, color, hover ui.Colo
 			case tr.PodcastID != 0:
 				a.link(c.Key(i), ar.Name, color, hover, podcast)
 			case ar.ID != 0:
-				a.link(c.Key(i), ar.Name, color, hover, route{page: pageArtist, id: ar.ID})
+				a.link(c.Key(i), ar.Name, color, hover, nroute(pageArtist, ar.ID))
 			default:
 				ui.Text(c, ar.Name)
 			}
@@ -37,7 +37,7 @@ func (a *app) artistLinks(c *ui.Context, tr *netease.Track, color, hover ui.Colo
 			case tr.PodcastID != 0:
 				a.link(c.Key("album"), tr.Album.Name, color, hover, podcast)
 			case tr.Album.ID != 0:
-				a.link(c.Key("album"), tr.Album.Name, color, hover, route{page: pageAlbum, id: tr.Album.ID})
+				a.link(c.Key("album"), tr.Album.Name, color, hover, nroute(pageAlbum, tr.Album.ID))
 			default:
 				ui.Text(c, tr.Album.Name)
 			}
@@ -64,7 +64,7 @@ func (a *app) openPage(r route) {
 }
 
 // openArtist opens an artist's page in the main window.
-func (a *app) openArtist(id int64) { a.openPage(route{page: pageArtist, id: id}) }
+func (a *app) openArtist(id int64) { a.openPage(nroute(pageArtist, id)) }
 
 // These load an artist, their songs, albums and events from NetEase, and
 // follow them; tests replace them.
@@ -122,6 +122,10 @@ func (a *app) artist(id int64) *artistData {
 
 // loadArtist loads an artist's page, and what it lists.
 func (a *app) loadArtist(id int64) {
+	// Only NetEase's pages load so far: another source's has no number.
+	if id == 0 {
+		return
+	}
 	d := a.artist(id)
 	switch a.artistTab {
 	case artistLatest:
@@ -148,7 +152,7 @@ func (a *app) loadArtist(id int64) {
 			}
 			d.profile = ar
 			// Their events are their account's, which their profile names.
-			if a.artistTab == artistEvents && a.route == (route{page: pageArtist, id: id}) {
+			if a.artistTab == artistEvents && a.route == (nroute(pageArtist, id)) {
 				a.loadEvents(id)
 			}
 		})
@@ -176,6 +180,10 @@ func (a *app) loadLatest(id int64) {
 
 // loadAlbums loads the next page of an artist's albums.
 func (a *app) loadAlbums(id int64) {
+	// Only NetEase's pages load so far: another source's has no number.
+	if id == 0 {
+		return
+	}
 	d := a.artist(id)
 	if d.albumsPage.loading {
 		return
@@ -259,7 +267,7 @@ func (a *app) toggleFollow(id int64) {
 // artistPage shows who an artist is over their songs, the most popular or
 // the newest, their albums or their events.
 func (a *app) artistPage(c *ui.Context) {
-	id := a.route.id
+	id := a.route.number()
 	d := a.artist(id)
 	if d.profile == nil {
 		if !d.loading {

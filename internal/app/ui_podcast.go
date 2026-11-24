@@ -39,6 +39,10 @@ type podcastData struct {
 }
 
 func (a *app) loadPodcast(id int64) {
+	// Only NetEase's pages load so far: another source's has no number.
+	if id == 0 {
+		return
+	}
 	d := a.podcasts[id]
 	if d == nil {
 		d = &podcastData{}
@@ -176,7 +180,7 @@ func (a *app) toggleSubscribe(d *podcastData) {
 
 func (a *app) podcastPage(c *ui.Context) {
 	p := a.pal
-	id := a.route.id
+	id := a.route.number()
 	d := a.podcasts[id]
 	if d.podcast == nil {
 		if !d.loading {
@@ -203,7 +207,7 @@ func (a *app) podcastPage(c *ui.Context) {
 				ui.Text(c, pod.Name).FontSize(30).FontWeight(800).LetterSpacing(-0.6).MaxLines(2).LineHeight(1.2)
 				ui.RichText(c).FontSize(13).TextColor(p.muted).Children(func() {
 					if pod.DJ.UserID != 0 {
-						a.link(c.Key("dj"), pod.DJ.Nickname, p.muted, p.text, route{page: pageUser, id: pod.DJ.UserID})
+						a.link(c.Key("dj"), pod.DJ.Nickname, p.muted, p.text, nroute(pageUser, pod.DJ.UserID))
 						ui.Text(c, " · ")
 					}
 					ui.Text(c, fmt.Sprintf("%d 期 · %s 人订阅", pod.ProgramCount, count(int(pod.SubCount))))
@@ -301,9 +305,7 @@ func (a *app) podcastRow(c *ui.Context, pod *music.Show) {
 		})
 	})
 	if row.Clicked() {
-		if id := numericID(pod.ID); id != 0 {
-			a.open(route{page: pagePodcast, id: id})
-		}
+		a.open(route{page: pagePodcast, source: pod.Source, id: pod.ID})
 	}
 }
 
@@ -467,6 +469,6 @@ func (a *app) podcastCard(c *ui.Context, pod *netease.Podcast) {
 	}
 	id := pod.ID
 	if a.coverCard(c, pod.Name, pod.PicURL, pod.PlayCount, sub, func() { a.playPodcast(id) }) {
-		a.open(route{page: pagePodcast, id: id})
+		a.open(nroute(pagePodcast, id))
 	}
 }

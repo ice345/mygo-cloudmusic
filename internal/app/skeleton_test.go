@@ -22,7 +22,7 @@ var skeletonScenes = []struct {
 	{"charts", func(a *app) { a.route = route{page: pageCharts} }},
 	{"daily", func(a *app) { a.route = route{page: pageDaily} }},
 	{"playlist", func(a *app) {
-		a.route = route{page: pagePlaylist, id: 7}
+		a.route = nroute(pagePlaylist, 7)
 		a.loadingPl[7] = true
 	}},
 	{"search", func(a *app) {

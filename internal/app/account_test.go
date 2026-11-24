@@ -73,7 +73,7 @@ func TestAccountMenuOpensOwnPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.route.page != pageUser || a.route.id != 42 {
+	if a.route.page != pageUser || a.route.number() != 42 {
 		t.Fatalf("route = %+v, want the page of user 42", a.route)
 	}
 	if a.accountOpen {
@@ -117,14 +117,14 @@ func ownPageApp() *app {
 func TestOwnPageFollows(t *testing.T) {
 	asked := fakeSubscriptions(t)
 	a := ownPageApp()
-	a.open(route{page: pageUser, id: 9})
+	a.open(nroute(pageUser, 9))
 	wait(t, asked, "the artists followed")
 	tt := ui.NewTester(a.view, 1200, 1200)
 	tt.Frame()
 	if err := tt.Click("Ave Mujica"); err != nil {
 		t.Fatal(err)
 	}
-	if a.route.page != pageArtist || a.route.id != 10 {
+	if a.route.page != pageArtist || a.route.number() != 10 {
 		t.Fatalf("route = %+v, want the page of artist 10", a.route)
 	}
 	a.users[9].subsLoading = 0 // what was asked for has landed
@@ -138,7 +138,7 @@ func TestOthersPageHidesFollows(t *testing.T) {
 	asked := fakeSubscriptions(t)
 	a := ownPageApp()
 	a.profile = &netease.Profile{UserID: 1}
-	a.open(route{page: pageUser, id: 9})
+	a.open(nroute(pageUser, 9))
 	tt := ui.NewTester(a.view, 1200, 1200)
 	tt.Frame()
 	if len(asked) > 0 {
@@ -153,7 +153,7 @@ func TestOthersPageHidesFollows(t *testing.T) {
 func TestOwnPageFrameBudget(t *testing.T) {
 	fakeSubscriptions(t)
 	a := ownPageApp()
-	a.open(route{page: pageUser, id: 9})
+	a.open(nroute(pageUser, 9))
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Advance(time.Second)
 	tt.Frame()
@@ -173,7 +173,7 @@ func TestOwnPageFrames(t *testing.T) {
 	fakeSubscriptions(t)
 	for _, dark := range []bool{false, true} {
 		a := ownPageApp()
-		a.open(route{page: pageUser, id: 9})
+		a.open(nroute(pageUser, 9))
 		tt := ui.NewTester(a.view, 1200, 1200)
 		tt.SetDark(dark)
 		tt.Advance(time.Second)

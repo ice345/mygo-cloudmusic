@@ -138,7 +138,7 @@ func TestSearchPlaylists(t *testing.T) {
 	}
 
 	a.searches[a.route] = &searchData{
-		res:   music.SearchResult{Playlists: []music.Playlist{{ID: "42", Name: "迷途人偶", TrackCount: 52}}},
+		res:   music.SearchResult{Playlists: []music.Playlist{{ID: "42", Source: netease.SourceID, Name: "迷途人偶", TrackCount: 52}}},
 		total: 1,
 		page:  paged{loaded: true},
 	}
@@ -148,7 +148,7 @@ func TestSearchPlaylists(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.route != (route{page: pagePlaylist, id: 42}) {
+	if a.route != (nroute(pagePlaylist, 42)) {
 		t.Errorf("clicked through to %+v", a.route)
 	}
 }
@@ -237,7 +237,7 @@ func TestSuggestionOpensPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.route != (route{page: pageAlbum, id: 8}) || !slices.Equal(a.settings.SearchHistory, []string{"迷跡"}) {
+	if a.route != (nroute(pageAlbum, 8)) || !slices.Equal(a.settings.SearchHistory, []string{"迷跡"}) {
 		t.Fatalf("opened %+v, history %q", a.route, a.settings.SearchHistory)
 	}
 }
@@ -262,7 +262,7 @@ func TestArtistAlbumsAndEvents(t *testing.T) {
 	a.settings = defaultSettings()
 	d := &artistData{profile: &netease.ArtistProfile{Artist: netease.Artist{ID: 12, Name: "乙"}, AccountID: 99}}
 	a.artists[12] = d
-	a.open(route{page: pageArtist, id: 12})
+	a.open(nroute(pageArtist, 12))
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 
@@ -279,7 +279,7 @@ func TestArtistAlbumsAndEvents(t *testing.T) {
 	if err := tt.Click("迷跡波"); err != nil {
 		t.Fatal(err)
 	}
-	if a.route != (route{page: pageAlbum, id: 8}) {
+	if a.route != (nroute(pageAlbum, 8)) {
 		t.Fatalf("the album opened %+v", a.route)
 	}
 
@@ -307,7 +307,7 @@ func TestFollowArtist(t *testing.T) {
 	a.settings = defaultSettings()
 	a.profile = &netease.Profile{UserID: 1}
 	a.artists[12] = &artistData{profile: &netease.ArtistProfile{Artist: netease.Artist{ID: 12, Name: "乙"}}}
-	a.open(route{page: pageArtist, id: 12})
+	a.open(nroute(pageArtist, 12))
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if err := tt.Click("关注"); err != nil {
@@ -335,7 +335,7 @@ func TestPlayEpisode(t *testing.T) {
 		return p
 	}
 	a.podcasts[5] = &podcastData{podcast: pod, programs: []netease.Program{ep(1, 11, "第三期"), ep(2, 0, "第二期"), ep(3, 13, "第一期")}, page: paged{loaded: true}}
-	a.open(route{page: pagePodcast, id: 5})
+	a.open(nroute(pagePodcast, 5))
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	if err := tt.Click("第一期"); err != nil {
@@ -363,7 +363,7 @@ func TestPlayEpisode(t *testing.T) {
 // was open.
 func TestEpisodeOpensPodcast(t *testing.T) {
 	a := catalogApp()
-	a.open(route{page: pagePodcast, id: 5})
+	a.open(nroute(pagePodcast, 5))
 	d := a.podcasts[5]
 	a.playProgram(d, 0)
 	a.pl.SetLyrics(nil)
@@ -378,7 +378,7 @@ func TestEpisodeOpensPodcast(t *testing.T) {
 	}
 	tt.ClickAt(r.X+4, r.Y+r.H/2)
 	tt.Frame()
-	if a.nowPlaying || a.route != (route{page: pagePodcast, id: 5}) {
+	if a.nowPlaying || a.route != (nroute(pagePodcast, 5)) {
 		t.Fatalf("Now Playing open %v over %+v", a.nowPlaying, a.route)
 	}
 }
@@ -433,7 +433,7 @@ func TestPodcastCard(t *testing.T) {
 	}
 	tt.ClickAt(r.X+r.W/2, r.Y+r.W/2)
 	tt.Frame()
-	if a.route != (route{page: pagePodcast, id: 5}) {
+	if a.route != (nroute(pagePodcast, 5)) {
 		t.Fatalf("opened %+v", a.route)
 	}
 }
@@ -470,7 +470,7 @@ func TestAlbumLinkInRow(t *testing.T) {
 	a.settings = defaultSettings()
 	song := netease.Track{ID: 2, Name: "起风了", Artists: []netease.Artist{{ID: 13, Name: "丙"}}, Album: netease.Album{ID: 8, Name: "迷跡波"}, Duration: 200000}
 	a.artists[13] = &artistData{profile: &netease.ArtistProfile{Artist: netease.Artist{ID: 13, Name: "丙"}, Songs: []netease.Track{song}}}
-	a.open(route{page: pageArtist, id: 13})
+	a.open(nroute(pageArtist, 13))
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
 	// Its name, at the start of the column it fills.
@@ -480,7 +480,7 @@ func TestAlbumLinkInRow(t *testing.T) {
 	}
 	tt.ClickAt(r.X+8, r.Y+r.H/2)
 	tt.Frame()
-	if a.route != (route{page: pageAlbum, id: 8}) || a.current() != nil {
+	if a.route != (nroute(pageAlbum, 8)) || a.current() != nil {
 		t.Fatalf("opened %+v, playing %+v", a.route, a.current())
 	}
 }
@@ -553,12 +553,12 @@ var catalogScenes = []struct {
 	{"search-albums", route{page: pageSearch, query: "MyGO", kind: music.SearchAlbums}, 0},
 	{"search-users", route{page: pageSearch, query: "MyGO", kind: kindUsers}, 0},
 	{"search-podcasts", route{page: pageSearch, query: "MyGO", kind: music.SearchShows}, 0},
-	{"artist", route{page: pageArtist, id: 7}, artistHot},
-	{"artist-albums", route{page: pageArtist, id: 7}, artistAlbums},
-	{"artist-events", route{page: pageArtist, id: 7}, artistEvents},
-	{"album", route{page: pageAlbum, id: 8}, 0},
-	{"user", route{page: pageUser, id: 9}, 0},
-	{"podcast", route{page: pagePodcast, id: 5}, 0},
+	{"artist", nroute(pageArtist, 7), artistHot},
+	{"artist-albums", nroute(pageArtist, 7), artistAlbums},
+	{"artist-events", nroute(pageArtist, 7), artistEvents},
+	{"album", nroute(pageAlbum, 8), 0},
+	{"user", nroute(pageUser, 9), 0},
+	{"podcast", nroute(pagePodcast, 5), 0},
 	{"podcasts", route{page: pagePodcasts}, 0},
 }
 

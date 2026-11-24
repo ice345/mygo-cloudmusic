@@ -295,7 +295,7 @@ func (a *app) accountMenu(c *ui.Context, row ui.Element) {
 		}
 		if a.menuItem(c, iconUser, "我的主页", "").AutoFocus().Clicked() {
 			a.accountOpen = false
-			a.open(route{page: pageUser, id: a.profile.UserID})
+			a.open(nroute(pageUser, a.profile.UserID))
 		}
 		if a.menuItem(c, iconSettings, "设置…", shortcut).Clicked() {
 			a.accountOpen = false
@@ -363,7 +363,7 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []netease.Playlist,
 	}
 	for i := range lists {
 		pl := &lists[i]
-		selected := a.route.page == pagePlaylist && a.route.id == pl.ID && !a.nowPlaying
+		selected := a.route.page == pagePlaylist && a.route.number() == pl.ID && !a.nowPlaying
 		b := ui.ButtonBase(c.Key(pl.ID)).Height(34).PaddingX(8).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(pl.Name)
 		switch {
 		case selected:
@@ -394,7 +394,7 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []netease.Playlist,
 			})
 		}
 		if b.Clicked() {
-			a.open(route{page: pagePlaylist, id: pl.ID})
+			a.open(nroute(pagePlaylist, pl.ID))
 		}
 	}
 }

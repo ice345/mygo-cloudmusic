@@ -66,7 +66,7 @@ func (a *app) toggleLike(tr *netease.Track) {
 			for _, pl := range a.mine {
 				if pl.SpecialType == 5 {
 					delete(a.playlists, pl.ID)
-					if a.route.page == pagePlaylist && a.route.id == pl.ID {
+					if a.route.page == pagePlaylist && a.route.number() == pl.ID {
 						a.loadPlaylist(pl.ID, false)
 					}
 				}

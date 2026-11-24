@@ -257,9 +257,7 @@ func (a *app) artistCard(c *ui.Context, ar *music.Artist) {
 		ui.Text(c, ar.Name).FontSize(13).FontWeight(500).SingleLine().AlignSelf(ui.Center)
 	})
 	if card.Clicked() {
-		if id := numericID(ar.ID); id != 0 {
-			a.open(route{page: pageArtist, id: id})
-		}
+		a.open(route{page: pageArtist, source: ar.Source, id: ar.ID})
 	}
 }
 
@@ -271,8 +269,8 @@ func (a *app) foundPlaylistCard(c *ui.Context, pl *music.Playlist) {
 	if pl.Owner != "" {
 		sub += " · " + pl.Owner
 	}
-	id := numericID(pl.ID)
-	if a.coverCard(c, pl.Name, pl.ImageURL, float64(pl.PlayCount), sub, func() { a.loadPlaylist(id, true) }) && id != 0 {
-		a.open(route{page: pagePlaylist, id: id})
+	r := route{page: pagePlaylist, source: pl.Source, id: pl.ID}
+	if a.coverCard(c, pl.Name, pl.ImageURL, float64(pl.PlayCount), sub, func() { a.loadPlaylist(r.number(), true) }) {
+		a.open(r)
 	}
 }

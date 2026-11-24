@@ -53,7 +53,7 @@ func (a *app) songItems(tr *netease.Track, pid int64) func(m *ui.Menu) {
 			}
 		}
 		if tr.Album.ID != 0 && m.Item("查看专辑："+tr.Album.Name).Chosen() {
-			a.openPage(route{page: pageAlbum, id: tr.Album.ID})
+			a.openPage(nroute(pageAlbum, tr.Album.ID))
 		}
 		a.playlistItems(m, tr, pid)
 	}
@@ -70,6 +70,6 @@ func (a *app) programItems(m *ui.Menu, tr *netease.Track) {
 	}
 	m.Separator()
 	if m.Item("查看播客").Chosen() {
-		a.openPage(route{page: pagePodcast, id: tr.PodcastID})
+		a.openPage(nroute(pagePodcast, tr.PodcastID))
 	}
 }

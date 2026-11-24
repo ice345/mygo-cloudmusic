@@ -3,6 +3,9 @@ package app
 import (
 	"testing"
 
+	"github.com/egoist/mygo/ui"
+
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -35,5 +38,46 @@ func TestNumericIDOpensOnlyWhatIsOne(t *testing.T) {
 		if got := numericID(id); got != want {
 			t.Errorf("%q: %d, want %d", id, got, want)
 		}
+	}
+}
+
+// A page is named by its source and the ID there, and loads as NetEase's only
+// if NetEase is its source: another source's "8" is not NetEase's 8.
+func TestRoutesNameTheirSource(t *testing.T) {
+	if r := nroute(pageAlbum, 8); r.source != netease.SourceID || r.id != "8" || r.number() != 8 {
+		t.Errorf("NetEase's album 8: %+v, number %d", r, r.number())
+	}
+	if n := (route{page: pageAlbum, source: "plug", id: "8"}).number(); n != 0 {
+		t.Errorf("another source's 8 loads as NetEase's %d", n)
+	}
+	if n := (route{page: pageAlbum, id: "8"}).number(); n != 0 {
+		t.Errorf("an ID with no source loads as NetEase's %d", n)
+	}
+}
+
+// A card opens the page of the source it came from, with its ID there.
+func TestCardsOpenTheirOwnSourcesPage(t *testing.T) {
+	a := catalogApp()
+	r := route{page: pageSearch, query: "MyGO", kind: music.SearchAlbums}
+	a.searches[r] = &searchData{
+		res:  music.SearchResult{Albums: []music.Album{{ID: "a-1", Source: "plug", Name: "别处的专辑"}}},
+		page: paged{loaded: true},
+	}
+	a.open(r)
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if err := tt.Click("别处的专辑"); err != nil {
+		t.Fatal(err)
+	}
+	if a.route != (route{page: pageAlbum, source: "plug", id: "a-1"}) {
+		t.Errorf("opened %+v", a.route)
+	}
+	// Its page says it can't open yet, and asks NetEase for nothing.
+	tt.Frame()
+	if _, ok := tt.Find("暂不支持打开这个来源的页面"); !ok {
+		t.Error("the page does not say it is not supported")
+	}
+	if len(a.albums) != 1 { // catalogApp's own album 8
+		t.Errorf("%d albums loaded or asked for", len(a.albums))
 	}
 }

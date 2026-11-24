@@ -22,6 +22,10 @@ type albumData struct {
 }
 
 func (a *app) loadAlbum(id int64) {
+	// Only NetEase's pages load so far: another source's has no number.
+	if id == 0 {
+		return
+	}
 	d := a.albums[id]
 	if d == nil {
 		d = &albumData{}
@@ -45,7 +49,7 @@ func (a *app) loadAlbum(id int64) {
 }
 
 func (a *app) albumPage(c *ui.Context) {
-	id := a.route.id
+	id := a.route.number()
 	d := a.albums[id]
 	if d.album == nil {
 		if !d.loading {
@@ -73,7 +77,7 @@ func (a *app) albumHeader(c *ui.Context, al *netease.AlbumProfile) {
 					if i > 0 {
 						ui.Text(c, ", ")
 					}
-					a.link(c.Key(i), ar.Name, p.muted, p.text, route{page: pageArtist, id: ar.ID})
+					a.link(c.Key(i), ar.Name, p.muted, p.text, nroute(pageArtist, ar.ID))
 				}
 				meta := fmt.Sprintf(" · %d 首", len(al.Songs))
 				if al.PublishTime > 0 {
@@ -133,8 +137,6 @@ func (a *app) albumCard(c *ui.Context, al *music.Album) {
 		ui.Text(c, strings.Join(meta, " · ")).FontSize(12).TextColor(p.muted).SingleLine().Margin(-6, 0, 0, 0)
 	})
 	if card.Clicked() {
-		if id := numericID(al.ID); id != 0 {
-			a.open(route{page: pageAlbum, id: id})
-		}
+		a.open(route{page: pageAlbum, source: al.Source, id: al.ID})
 	}
 }
