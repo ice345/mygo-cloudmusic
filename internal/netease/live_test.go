@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -501,5 +502,26 @@ func TestSourcePagesLive(t *testing.T) {
 	ar, err := src.Artist(found(music.SearchArtists).Artists[0].ID)
 	if err != nil || len(ar.Tracks) == 0 || ar.Artist.Name == "" {
 		t.Errorf("artist: %+v, %v", ar, err)
+	}
+}
+
+// Signed in, the source says who, and lists their playlists, the liked songs'
+// first and marked the source's own. NM_SESSION is a signed-in session file.
+func TestSourceAccountLive(t *testing.T) {
+	if os.Getenv("LIVE") == "" || os.Getenv("NM_SESSION") == "" {
+		t.Skip()
+	}
+	useSession(t, os.Getenv("NM_SESSION"))
+	prev := restoreSession
+	restoreSession = func() bool { return true } // the session is in the jar already
+	defer func() { restoreSession = prev; restoreOnce, restored = sync.Once{}, false }()
+	src := Source{}
+	acc, err := src.Account()
+	if err != nil || acc == nil || acc.ID == "" || acc.Name == "" {
+		t.Fatalf("account %+v, %v", acc, err)
+	}
+	lists, err := src.Playlists()
+	if err != nil || len(lists) == 0 || !lists[0].Fixed || !lists[0].Mine {
+		t.Fatalf("playlists: %d, first %+v, %v", len(lists), lists[0], err)
 	}
 }

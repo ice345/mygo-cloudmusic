@@ -162,8 +162,20 @@ func decryptEapi(t *testing.T, params string) asked {
 // the eapi was asked, in order. A path with no answer is not found.
 func serveByPath(t *testing.T, answers map[string]string) (eapiAsked func() []asked, done func()) {
 	t.Helper()
+	return serveByPathFn(t, func(path string, _ int) (string, bool) {
+		body, ok := answers[path]
+		return body, ok
+	})
+}
+
+// serveByPathFn is serveByPath with the answer a function of the path and of how
+// many times it has been asked, from 1, so that a poll may be answered
+// differently each time.
+func serveByPathFn(t *testing.T, answer func(path string, n int) (string, bool)) (eapiAsked func() []asked, done func()) {
+	t.Helper()
 	var mu sync.Mutex
 	var seen []asked
+	counts := map[string]int{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		if strings.HasPrefix(path, "/eapi/") {
@@ -174,7 +186,11 @@ func serveByPath(t *testing.T, answers map[string]string) (eapiAsked func() []as
 			mu.Unlock()
 			path = a.path
 		}
-		body, ok := answers[path]
+		mu.Lock()
+		counts[path]++
+		n := counts[path]
+		mu.Unlock()
+		body, ok := answer(path, n)
 		if !ok {
 			http.NotFound(w, r)
 			return

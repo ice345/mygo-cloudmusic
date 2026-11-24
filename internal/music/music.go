@@ -429,6 +429,9 @@ var (
 	ErrSetup = errors.New("the plugin needs setting up")
 	// ErrUnavailable says the track can't be played.
 	ErrUnavailable = errors.New("not available")
+	// ErrExpired says a sign-in's code ran out before it was used, and a new
+	// one asks the listener again. (Added here.)
+	ErrExpired = errors.New("expired")
 	// ErrUnsupported says the source doesn't do this.
 	ErrUnsupported = errors.New("not supported by this source")
 	// ErrDuplicate says what is being added is there already: a song to a
@@ -486,6 +489,17 @@ type SignInPrompt struct {
 	QR string `json:"qr,omitempty"`
 	// Text says what to do, or how it's going.
 	Text string `json:"text,omitempty"`
+	// Name and ImageURL are who has scanned the code and is to confirm on
+	// their phone, once someone has. (Added here: NetEase names them.)
+	Name     string `json:"name,omitempty"`
+	ImageURL string `json:"imageUrl,omitempty"`
+}
+
+// A Canceler is a source whose sign-in can be given up while it waits, as
+// the listener closes its window: SignIn then returns context.Canceled.
+// (Added here.)
+type Canceler interface {
+	CancelSignIn()
 }
 
 // A Prompter is a source that has something to show while signing in.
