@@ -163,7 +163,7 @@ func (a *app) startHeartMode() {
 	}
 	var seed *netease.Track
 	fromPlaying := false
-	if cur := a.current(); cur != nil && a.liked[cur.ID] {
+	if cur := a.current(); cur != nil && a.isLiked(cur) {
 		s := *cur
 		seed, fromPlaying = &s, true
 	}

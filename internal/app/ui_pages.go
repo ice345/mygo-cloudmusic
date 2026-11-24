@@ -431,7 +431,7 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 			}
 			// A liked song's heart shows; the others' as the pointer is on them.
 			ui.Box(c).Size(32, 32).Center().Children(func() {
-				if a.liked[tr.ID] || hovered {
+				if a.isLiked(tr) || hovered {
 					a.likeButton(c.Key("like"), tr, 15, p.muted)
 				}
 			})

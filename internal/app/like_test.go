@@ -14,15 +14,50 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/lyrics"
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
+// likeSource is a source whose likes are what a test says: a song's, an
+// episode's, and which of a list are liked.
+type likeSource struct {
+	music.Unsupported
+	like, likeEpisode func(id string, on bool) error
+	isLiked           func(ids []string) (map[string]bool, error)
+}
+
+func (*likeSource) Info() music.Info { return music.Info{ID: netease.SourceID, Name: "喜欢音源"} }
+func (*likeSource) Can(what string) bool {
+	return what == "like" || what == "likeEpisode" || what == "isLiked"
+}
+func (s *likeSource) Like(id string, on bool) error        { return s.like(id, on) }
+func (s *likeSource) LikeEpisode(id string, on bool) error { return s.likeEpisode(id, on) }
+func (s *likeSource) IsLiked(ids []string) (map[string]bool, error) {
+	return s.isLiked(ids)
+}
+
+// likes makes src a's source of NetEase's, with what a test does not say left
+// to fail it: a like of the wrong kind, or of an episode's audio as a song.
+func likes(t *testing.T, a *app, src *likeSource) {
+	if src.like == nil {
+		src.like = func(string, bool) error { t.Error("liked a song"); return nil }
+	}
+	if src.likeEpisode == nil {
+		src.likeEpisode = func(string, bool) error { t.Error("liked an episode"); return nil }
+	}
+	if src.isLiked == nil {
+		src.isLiked = func([]string) (map[string]bool, error) { return nil, nil }
+	}
+	a.sources[netease.SourceID] = src
+}
+
+// liked is whether the track with the ID id is liked, as NetEase's.
+func (a *app) likedID(id string) bool { return a.liked[trackKey{netease.SourceID, id}] }
+
 func TestLikeFromPlayerBar(t *testing.T) {
 	calls := make(chan bool, 4)
-	likeSong = func(id int64, like bool) error { calls <- like; return nil }
-	defer func() { likeSong = netease.Like }()
-
 	a := newTestApp()
+	likes(t, a, &likeSource{like: func(id string, like bool) error { calls <- like; return nil }})
 	a.settings = defaultSettings()
 	a.profile = &netease.Profile{UserID: 1, Nickname: "小明"}
 	tr := netease.Track{ID: 7, Name: "宝船", Artists: []netease.Artist{{Name: "DOUDOU"}}, Duration: 200000}
@@ -35,7 +70,7 @@ func TestLikeFromPlayerBar(t *testing.T) {
 	if err := tt.Click("喜欢"); err != nil {
 		t.Fatal(err)
 	}
-	if !a.liked[7] {
+	if !a.likedID("7") {
 		t.Fatal("the heart did not fill at once")
 	}
 	if like := <-calls; !like {
@@ -45,7 +80,7 @@ func TestLikeFromPlayerBar(t *testing.T) {
 	if err := tt.Click("取消喜欢"); err != nil {
 		t.Fatal(err)
 	}
-	if a.liked[7] {
+	if a.likedID("7") {
 		t.Error("still liked after unliking")
 	}
 	if like := <-calls; like {
@@ -56,44 +91,42 @@ func TestLikeFromPlayerBar(t *testing.T) {
 // The heart of an episode playing likes the episode, not its audio, once
 // NetEase was asked, once, whether the listener likes it already.
 func TestLikeEpisode(t *testing.T) {
-	asked := make(chan []int64, 4)
-	programsLiked = func(ids []int64) (map[int64]bool, error) { asked <- ids; return nil, nil }
+	asked := make(chan []string, 4)
 	type call struct {
-		id   int64
+		id   string
 		like bool
 	}
 	calls := make(chan call, 4)
-	likeProgram = func(id int64, like bool) error { calls <- call{id, like}; return nil }
-	likeSong = func(int64, bool) error { t.Error("liked the episode's audio as a song"); return nil }
-	defer func() {
-		programsLiked, likeProgram, likeSong = netease.ProgramsLiked, netease.LikeProgram, netease.Like
-	}()
-
 	a := newTestApp()
+	likes(t, a, &likeSource{
+		isLiked:     func(ids []string) (map[string]bool, error) { asked <- ids; return nil, nil },
+		likeEpisode: func(id string, like bool) error { calls <- call{id, like}; return nil },
+		like:        func(string, bool) error { t.Error("liked the episode's audio as a song"); return nil },
+	})
 	a.settings = defaultSettings()
 	a.profile = &netease.Profile{UserID: 1}
 	a.cue([]netease.Track{{ID: 13, Name: "第一期", ProgramID: 3, PodcastID: 5, Duration: 600000}})
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Advance(time.Second)
 	tt.Frame()
-	if ids := wait(t, asked, "whether the episode is liked"); !slices.Equal(ids, []int64{3}) {
+	if ids := wait(t, asked, "whether the episode is liked"); !slices.Equal(ids, []string{"13@3"}) {
 		t.Fatalf("asked of %v", ids)
 	}
 	if err := tt.Click("喜欢"); err != nil {
 		t.Fatal(err)
 	}
-	if !a.likedPrograms[3] {
+	if !a.likedID("13@3") {
 		t.Fatal("the heart did not fill at once")
 	}
-	if c := wait(t, calls, "the like"); c != (call{3, true}) {
+	if c := wait(t, calls, "the like"); c != (call{"13@3", true}) {
 		t.Errorf("asked NetEase for %+v", c)
 	}
 	tt.Frame()
 	if err := tt.Click("取消喜欢"); err != nil {
 		t.Fatal(err)
 	}
-	if c := wait(t, calls, "the unlike"); c != (call{3, false}) || a.likedPrograms[3] {
-		t.Errorf("asked NetEase for %+v, liked %v", c, a.likedPrograms[3])
+	if c := wait(t, calls, "the unlike"); c != (call{"13@3", false}) || a.likedID("13@3") {
+		t.Errorf("asked NetEase for %+v, liked %v", c, a.likedID("13@3"))
 	}
 	if len(asked) > 0 {
 		t.Error("asked again whether the episode is liked")
@@ -104,22 +137,21 @@ func TestLikeEpisode(t *testing.T) {
 // the episode keeps what the click made it; an answer for a listener
 // signed out since is dropped.
 func TestEpisodeLikeClickBeatsAnswer(t *testing.T) {
-	programsLiked = func([]int64) (map[int64]bool, error) { return nil, nil }
-	likeProgram = func(int64, bool) error { return nil }
-	defer func() { programsLiked, likeProgram = netease.ProgramsLiked, netease.LikeProgram }()
 	a := newTestApp()
+	likes(t, a, &likeSource{likeEpisode: func(string, bool) error { return nil }})
 	a.profile = &netease.Profile{UserID: 1}
-	a.askProgramLikes([]int64{3, 4})
-	a.toggleLike(&netease.Track{ID: 13, ProgramID: 3})
-	a.programLikesAnswered(1, []int64{3, 4}, map[int64]bool{4: true})
-	if !a.likedPrograms[3] || !a.likedPrograms[4] {
-		t.Fatalf("liked %v", a.likedPrograms)
+	three, four := netease.Track{ID: 13, ProgramID: 3}, netease.Track{ID: 14, ProgramID: 4}
+	a.askLikes([]netease.Track{three, four})
+	a.toggleLike(&three)
+	a.likesAnswered(1, []string{"13@3", "14@4"}, map[string]bool{"14@4": true})
+	if !a.likedID("13@3") || !a.likedID("14@4") {
+		t.Fatalf("liked %v", a.liked)
 	}
 	a.signedIn(nil)
 	a.profile = &netease.Profile{UserID: 2}
-	a.askProgramLikes([]int64{5})
-	a.programLikesAnswered(1, []int64{5}, map[int64]bool{5: true})
-	if a.likedPrograms[5] {
+	a.askLikes([]netease.Track{{ID: 15, ProgramID: 5}})
+	a.likesAnswered(1, []string{"15@5"}, map[string]bool{"15@5": true})
+	if a.likedID("15@5") {
 		t.Error("took the last listener's answer")
 	}
 }
@@ -127,13 +159,11 @@ func TestEpisodeLikeClickBeatsAnswer(t *testing.T) {
 // On a podcast's page, a liked episode's heart shows, and another's as the
 // pointer is on it, which likes that one.
 func TestLikeEpisodeRow(t *testing.T) {
-	programsLiked = func([]int64) (map[int64]bool, error) { return nil, nil }
-	liked := make(chan int64, 4)
-	likeProgram = func(id int64, like bool) error { liked <- id; return nil }
-	defer func() { programsLiked, likeProgram = netease.ProgramsLiked, netease.LikeProgram }()
+	liked := make(chan string, 4)
 	a := catalogApp()
+	likes(t, a, &likeSource{likeEpisode: func(id string, like bool) error { liked <- id; return nil }})
 	a.profile = &netease.Profile{UserID: 1}
-	a.setProgramLiked(40, true)
+	a.setLiked(trackKey{netease.SourceID, "50@40"}, true)
 	a.open(nroute(pagePodcast, 5))
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -149,8 +179,8 @@ func TestLikeEpisodeRow(t *testing.T) {
 	if err := tt.Click("喜欢"); err != nil {
 		t.Fatal(err)
 	}
-	if id := wait(t, liked, "the like"); id != 42 || !a.likedPrograms[42] {
-		t.Errorf("liked %d", id)
+	if id := wait(t, liked, "the like"); id != "52@42" || !a.likedID("52@42") {
+		t.Errorf("liked %s", id)
 	}
 	if a.current() != nil {
 		t.Error("the heart played the episode")
@@ -164,9 +194,8 @@ func TestLikeBurstFrames(t *testing.T) {
 	if dir == "" {
 		t.Skip()
 	}
-	likeSong = func(int64, bool) error { return nil }
-	defer func() { likeSong = netease.Like }()
 	a := newTestApp()
+	likes(t, a, &likeSource{like: func(string, bool) error { return nil }})
 	a.settings = defaultSettings()
 	a.profile = &netease.Profile{UserID: 1}
 	tr := netease.Track{ID: 7, Name: "宝船", Duration: 200000}
@@ -470,25 +499,46 @@ func TestSegmentedFrames(t *testing.T) {
 
 // ⌘D likes the song playing, and again unlikes it, saying so in a toast.
 func TestLikeCurrent(t *testing.T) {
-	likeSong = func(int64, bool) error { return nil }
-	defer func() { likeSong = netease.Like }()
 	a := newTestApp()
+	likes(t, a, &likeSource{like: func(string, bool) error { return nil }, likeEpisode: func(string, bool) error { return nil }})
 	a.cue([]netease.Track{{ID: 7, Name: "宝船"}})
 	a.profile = &netease.Profile{UserID: 1}
 	a.likeCurrent()
-	if !a.liked[7] || a.toast != "已添加到我喜欢的音乐" {
-		t.Fatalf("liked %v, toast %q", a.liked[7], a.toast)
+	if !a.likedID("7") || a.toast != "已添加到我喜欢的音乐" {
+		t.Fatalf("liked %v, toast %q", a.likedID("7"), a.toast)
 	}
 	a.likeCurrent()
-	if a.liked[7] || a.toast != "已取消喜欢" {
-		t.Fatalf("unliked: liked %v, toast %q", a.liked[7], a.toast)
+	if a.likedID("7") || a.toast != "已取消喜欢" {
+		t.Fatalf("unliked: liked %v, toast %q", a.likedID("7"), a.toast)
 	}
 	// An episode playing: the episode, not its audio.
-	likeProgram = func(int64, bool) error { return nil }
-	defer func() { likeProgram = netease.LikeProgram }()
 	a.cue([]netease.Track{{ID: 13, Name: "第一期", ProgramID: 3}})
 	a.likeCurrent()
-	if !a.likedPrograms[3] || a.liked[13] {
-		t.Fatalf("episode liked %v, its audio %v", a.likedPrograms[3], a.liked[13])
+	if !a.likedID("13@3") || a.likedID("13") {
+		t.Fatalf("episode liked %v, its audio %v", a.likedID("13@3"), a.likedID("13"))
+	}
+}
+
+// Loading the liked songs makes the songs liked those, and keeps what is known
+// of episodes, liked or not: both are in one map, and an episode is not among
+// the songs NetEase lists.
+func TestLoadingLikedSongsKeepsWhatIsKnownOfEpisodes(t *testing.T) {
+	landed := make(chan func(), 2)
+	prev := likedSongs
+	likedSongs = func(uid int64) ([]int64, error) { return []int64{7, 8}, nil }
+	defer func() { likedSongs = prev }()
+	a := newTestApp()
+	a.onPost = func(fn func()) { landed <- fn }
+	a.profile = &netease.Profile{UserID: 1}
+	a.setLiked(trackKey{netease.SourceID, "13@3"}, true)
+	a.setLiked(trackKey{netease.SourceID, "14@4"}, false)
+	a.setLiked(trackKey{netease.SourceID, "9"}, true) // a song since unliked elsewhere
+	a.loadLiked(1)
+	wait(t, landed, "the liked songs")()
+	if !a.likedID("7") || !a.likedID("8") || a.likedID("9") {
+		t.Errorf("songs liked: 7 %v, 8 %v, 9 %v", a.likedID("7"), a.likedID("8"), a.likedID("9"))
+	}
+	if _, known := a.liked[trackKey{netease.SourceID, "14@4"}]; !known || !a.likedID("13@3") || a.likedID("14@4") {
+		t.Errorf("episodes forgotten: %v", a.liked)
 	}
 }

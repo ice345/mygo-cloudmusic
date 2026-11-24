@@ -88,11 +88,11 @@ func (a *app) loadPrograms(id int64) {
 			d.programs = append(d.programs, programs...)
 			d.page.loaded, d.page.more = true, more && len(programs) > 0
 			// Which the listener likes, for their hearts.
-			ids := make([]int64, len(programs))
+			episodes := make([]netease.Track, len(programs))
 			for i := range programs {
-				ids[i] = programs[i].ID
+				episodes[i] = programs[i].Track(d.podcast)
 			}
-			a.askProgramLikes(ids)
+			a.askLikes(episodes)
 			a.playLoaded(d)
 		})
 	}()
@@ -271,8 +271,8 @@ func (a *app) programRow(c *ui.Context, d *podcastData, i int, cur *netease.Trac
 		}
 		// A liked episode's heart shows; the others' as the pointer is on them.
 		ui.Box(c).Size(32, 32).Center().Children(func() {
-			if a.likedPrograms[pr.ID] || row.Hovered() {
-				tr := pr.Track(d.podcast)
+			tr := pr.Track(d.podcast)
+			if a.isLiked(&tr) || row.Hovered() {
 				a.likeButton(c.Key("like"), &tr, 15, p.muted)
 			}
 		})

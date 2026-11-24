@@ -58,16 +58,17 @@ type app struct {
 	savingPl     map[int64]bool     // the playlists whose saving or its end is on its way
 	recPlaylists []netease.Playlist // the day's playlists picked for the listener
 	login        loginState
-	accountOpen  bool           // the dropdown of the account row shows
-	naming       nameDialog     // the name of a playlist asked for
-	deleting     deleteDialog   // whether to delete a playlist, asked
-	liked        map[int64]bool // the songs the listener likes
-	toast        string         // a message to show once
-	picked       pickedUp       // the song a login picked up, waiting to play
+	accountOpen  bool              // the dropdown of the account row shows
+	naming       nameDialog        // the name of a playlist asked for
+	deleting     deleteDialog      // whether to delete a playlist, asked
+	liked        map[trackKey]bool // the songs and episodes the listener likes, once known
+	toast        string            // a message to show once
+	picked       pickedUp          // the song a login picked up, waiting to play
 
 	// The episodes the listener likes, and doesn't, as far as NetEase has
 	// answered, and those asked about: see ui_like.go.
-	likedPrograms, askedPrograms map[int64]bool
+	// likeAsked holds the tracks whose likes were asked of their source.
+	likeAsked map[trackKey]bool
 
 	daily       []netease.Track
 	dailySpin   spinState // the record on the daily card

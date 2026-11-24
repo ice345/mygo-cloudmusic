@@ -1,11 +1,15 @@
 package netease
 
 import (
+	"crypto/aes"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 )
@@ -122,4 +126,70 @@ func TestSongURLDoesNotRetryOtherRefusals(t *testing.T) {
 	if !errors.Is(err, ErrRefused) || f.eapiCalls.Load() != 1 || f.webCalls.Load() != 0 {
 		t.Fatalf("%v after %d eapi and %d web calls", err, f.eapiCalls.Load(), f.webCalls.Load())
 	}
+}
+
+// asked is what the eapi was asked: the path and the data of a request.
+type asked struct {
+	path string
+	data map[string]any
+}
+
+// decryptEapi reads what eapiEncrypt sealed.
+func decryptEapi(t *testing.T, params string) asked {
+	t.Helper()
+	raw, err := hex.DecodeString(params)
+	block, err2 := aes.NewCipher([]byte(eapiKey))
+	if err != nil || err2 != nil || len(raw)%aes.BlockSize != 0 || len(raw) == 0 {
+		t.Fatalf("params %q: %v %v", params, err, err2)
+	}
+	plain := make([]byte, len(raw))
+	for i := 0; i < len(raw); i += aes.BlockSize {
+		block.Decrypt(plain[i:i+aes.BlockSize], raw[i:i+aes.BlockSize])
+	}
+	plain = plain[:len(plain)-int(plain[len(plain)-1])]
+	parts := strings.Split(string(plain), "-36cd479b6b5-")
+	if len(parts) != 3 {
+		t.Fatalf("sealed %q", plain)
+	}
+	var data map[string]any
+	if err := json.Unmarshal([]byte(parts[1]), &data); err != nil {
+		t.Fatal(err)
+	}
+	return asked{parts[0], data}
+}
+
+// serveByPath serves NetEase's eapi and web by the path asked, and keeps what
+// the eapi was asked, in order. A path with no answer is not found.
+func serveByPath(t *testing.T, answers map[string]string) (eapiAsked func() []asked, done func()) {
+	t.Helper()
+	var mu sync.Mutex
+	var seen []asked
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if strings.HasPrefix(path, "/eapi/") {
+			r.ParseForm()
+			a := decryptEapi(t, r.PostForm.Get("params"))
+			mu.Lock()
+			seen = append(seen, a)
+			mu.Unlock()
+			path = a.path
+		}
+		body, ok := answers[path]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Write([]byte(body))
+	}))
+	deviceOnce.Do(func() { deviceID = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123" })
+	prevEapi, prevBase := eapiDomain, apiBase
+	eapiDomain, apiBase = srv.URL, srv.URL
+	return func() []asked {
+			mu.Lock()
+			defer mu.Unlock()
+			return append([]asked(nil), seen...)
+		}, func() {
+			eapiDomain, apiBase = prevEapi, prevBase
+			srv.Close()
+		}
 }
