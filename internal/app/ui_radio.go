@@ -49,8 +49,8 @@ func playable(tracks []netease.Track) []netease.Track {
 // likedPlaylist returns the ID of the listener's liked songs, or 0.
 func (a *app) likedPlaylist() int64 {
 	for _, pl := range a.mine {
-		if pl.SpecialType == 5 {
-			return pl.ID
+		if pl.Fixed {
+			return numericID(pl.ID)
 		}
 	}
 	return 0

@@ -107,3 +107,25 @@ func loadedAlbum(al netease.AlbumProfile) *music.AlbumPage {
 func loadedArtist(ar netease.ArtistProfile) *artistData {
 	return &artistData{page: &music.ArtistPage{Artist: netease.ToArtist(ar), Tracks: netease.ToTracks(ar.Songs)}, rec: ar}
 }
+
+// mineLists are NetEase playlists as the sidebar lists the listener's own.
+func mineLists(pls ...netease.Playlist) []music.Playlist {
+	var out []music.Playlist
+	for _, pl := range pls {
+		mp := netease.ToPlaylist(pl)
+		mp.Mine = true
+		out = append(out, mp)
+	}
+	return out
+}
+
+// savedLists are NetEase playlists as the sidebar lists those the listener saved.
+func savedLists(pls ...netease.Playlist) []music.Playlist {
+	var out []music.Playlist
+	for _, pl := range pls {
+		mp := netease.ToPlaylist(pl)
+		mp.Saved = true
+		out = append(out, mp)
+	}
+	return out
+}

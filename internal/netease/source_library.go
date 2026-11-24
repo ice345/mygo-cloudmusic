@@ -65,6 +65,7 @@ func (Source) CreatePlaylist(name string) (*music.Playlist, error) {
 		return nil, err
 	}
 	out := ToPlaylist(*pl)
+	out.Mine = true
 	return &out, nil
 }
 

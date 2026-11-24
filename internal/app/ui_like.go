@@ -82,10 +82,10 @@ func (a *app) toggleLike(tr music.Track) {
 			}
 			// The liked songs' playlist changed: load it anew when shown.
 			for _, pl := range a.mine {
-				if pl.SpecialType == 5 {
-					delete(a.playlists, nkey(pl.ID))
-					if a.route.page == pagePlaylist && a.route.number() == pl.ID {
-						a.loadPlaylist(nkey(pl.ID), false)
+				if k := (pageKey{pl.Source, pl.ID}); pl.Fixed {
+					delete(a.playlists, k)
+					if a.route.page == pagePlaylist && a.route.key() == k {
+						a.loadPlaylist(k, false)
 					}
 				}
 			}

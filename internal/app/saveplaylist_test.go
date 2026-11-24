@@ -47,7 +47,7 @@ func TestSavePlaylist(t *testing.T) {
 	if got := nextSave(t, calls); got != (saveCall{30, true}) {
 		t.Errorf("asked NetEase for %+v, want playlist 30 saved", got)
 	}
-	if len(a.saved) != 2 || a.saved[0].ID != 30 || a.saved[0].Tracks != nil {
+	if len(a.saved) != 2 || a.saved[0].ID != "30" || a.saved[0].Tracks != nil {
 		t.Errorf("saved playlists are %+v, want playlist 30 first, without its songs", a.saved)
 	}
 }
@@ -72,7 +72,7 @@ func TestUnsavePlaylistFromSidebar(t *testing.T) {
 	calls := make(chan saveCall, 1)
 	a := editTestApp()
 	edits(t, a).save = func(id string, save bool) error { calls <- saveCall{numericID(id), save}; return nil }
-	a.saved[0].Subscribed = true
+	a.saved[0].Saved = true
 	a.playlists[nkey(20)] = loadedPlaylist(netease.Playlist{ID: 20, Name: "飙升榜", Subscribed: true})
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()

@@ -19,12 +19,12 @@ func editTestApp() *app {
 	a := newTestApp()
 	a.settings = defaultSettings()
 	a.account = &music.Account{ID: "1", Name: "小明"}
-	a.mine = []netease.Playlist{
-		{ID: 5, Name: "小明喜欢的音乐", SpecialType: 5},
-		{ID: 10, Name: "通勤"},
-		{ID: 11, Name: "睡前"},
-	}
-	a.saved = []netease.Playlist{{ID: 20, Name: "飙升榜"}}
+	a.mine = mineLists(
+		netease.Playlist{ID: 5, Name: "小明喜欢的音乐", SpecialType: 5},
+		netease.Playlist{ID: 10, Name: "通勤"},
+		netease.Playlist{ID: 11, Name: "睡前"},
+	)
+	a.saved = savedLists(netease.Playlist{ID: 20, Name: "飙升榜"})
 	a.playlists[nkey(10)] = loadedPlaylist(netease.Playlist{ID: 10, Name: "通勤", Tracks: []netease.Track{
 		{ID: 1, Name: "一张相片", Artists: []netease.Artist{{Name: "林宥嘉"}}, Duration: 200000},
 		{ID: 2, Name: "宝船", Artists: []netease.Artist{{Name: "DOUDOU"}}, Duration: 200000},
@@ -295,5 +295,61 @@ func TestPlaylistEditFrames(t *testing.T) {
 		a.confirmDelete(a.editable(11))
 		save("delete" + suffix)
 		a.deleting.open = false
+	}
+}
+
+// listsSource is a source whose account has the playlists the test gives it.
+type listsSource struct {
+	music.Unsupported
+	lists []music.Playlist
+	err   error
+}
+
+func (*listsSource) Info() music.Info { return music.Info{ID: netease.SourceID, Name: "歌单音源"} }
+func (*listsSource) Can(what string) bool {
+	return what == "playlists"
+}
+func (s *listsSource) Playlists() ([]music.Playlist, error) { return s.lists, s.err }
+
+// The sidebar lists what the source says the listener made and saved, in the
+// order it gave, and the liked songs, which the source marks its own, offer
+// neither renaming nor deleting; a listener who signed out meanwhile gets
+// none of it, and a source that fails leaves the sidebar as it was.
+func TestSidebarListsWhatTheSourceSays(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	landed := make(chan func(), 4)
+	a.onPost = func(fn func()) { landed <- fn }
+	src := &listsSource{lists: []music.Playlist{
+		{ID: "5", Source: netease.SourceID, Name: "小明喜欢的音乐", Mine: true, Fixed: true},
+		{ID: "10", Source: netease.SourceID, Name: "通勤", Mine: true},
+		{ID: "20", Source: netease.SourceID, Name: "飙升榜", Saved: true},
+	}}
+	a.sources[netease.SourceID] = src
+	a.account = &music.Account{ID: "1", Name: "小明"}
+
+	a.loadMine(1)
+	wait(t, landed, "the playlists")()
+	if len(a.mine) != 2 || a.mine[0].Name != "小明喜欢的音乐" || len(a.saved) != 1 || a.saved[0].ID != "20" {
+		t.Fatalf("mine %+v, saved %+v", a.mine, a.saved)
+	}
+	if a.editable(5) != nil || a.editable(10) == nil || a.likedPlaylist() != 5 {
+		t.Errorf("editable liked %v, own %v, liked songs %d", a.editable(5), a.editable(10), a.likedPlaylist())
+	}
+
+	src.err = music.Fail(music.ErrSignIn, "")
+	a.loadMine(1)
+	wait(t, landed, "the failure")()
+	if len(a.mine) != 2 {
+		t.Errorf("a failing source emptied the sidebar: %+v", a.mine)
+	}
+
+	src.err = nil
+	a.mine, a.saved = nil, nil
+	a.loadMine(1)
+	a.account = nil
+	wait(t, landed, "a late answer")()
+	if len(a.mine) != 0 || len(a.saved) != 0 {
+		t.Errorf("a listener who signed out was given playlists: %+v %+v", a.mine, a.saved)
 	}
 }

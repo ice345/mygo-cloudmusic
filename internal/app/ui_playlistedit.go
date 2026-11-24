@@ -49,9 +49,9 @@ type deleteDialog struct {
 
 // editable returns the listener's playlist id if they may edit its songs
 // and name, or nil: the liked songs' are their hearts'.
-func (a *app) editable(id int64) *netease.Playlist {
+func (a *app) editable(id int64) *music.Playlist {
 	for i := range a.mine {
-		if a.mine[i].ID == id && a.mine[i].SpecialType != 5 {
+		if a.mine[i].ID == nid(id) && !a.mine[i].Fixed {
 			return &a.mine[i]
 		}
 	}
@@ -61,7 +61,7 @@ func (a *app) editable(id int64) *netease.Playlist {
 // isSavedID reports whether the listener saved the playlist numbered id, as
 // its page or the sidebar says.
 func (a *app) isSavedID(id int64, saved bool) bool {
-	return saved || slices.ContainsFunc(a.saved, func(s netease.Playlist) bool { return s.ID == id })
+	return saved || slices.ContainsFunc(a.saved, func(s music.Playlist) bool { return s.ID == nid(id) })
 }
 
 // isSaved reports whether the listener saved the playlist pl shows.
@@ -76,13 +76,13 @@ func (a *app) savable(pl *music.Playlist) bool {
 // toggleSaved saves playlist pl for the listener, or unsaves it, at once
 // in the app and then with NetEase, going back if NetEase refuses. Signed
 // out, it asks the listener to sign in.
-func (a *app) toggleSaved(pl netease.Playlist) {
+func (a *app) toggleSaved(pl music.Playlist) {
 	if a.account == nil {
 		a.showMain()
 		a.openLogin()
 		return
 	}
-	id := pl.ID
+	id := numericID(pl.ID)
 	if a.savingPl[id] {
 		return
 	}
@@ -90,7 +90,7 @@ func (a *app) toggleSaved(pl netease.Playlist) {
 		a.savingPl = map[int64]bool{}
 	}
 	a.savingPl[id] = true
-	save := !a.isSavedID(pl.ID, pl.Subscribed)
+	save := !a.isSavedID(id, pl.Saved)
 	at := a.setSaved(pl, save, 0)
 	uid := a.uid()
 	src := a.editSource()
@@ -116,19 +116,19 @@ func (a *app) toggleSaved(pl netease.Playlist) {
 // setSaved marks playlist pl saved or not, on its page and in the sidebar,
 // where a saved one goes at index at, and returns where it was there, or
 // -1.
-func (a *app) setSaved(pl netease.Playlist, save bool, at int) int {
-	if loaded := a.playlists[nkey(pl.ID)]; loaded != nil {
+func (a *app) setSaved(pl music.Playlist, save bool, at int) int {
+	if loaded := a.playlists[pageKey{pl.Source, pl.ID}]; loaded != nil {
 		loaded.Saved = save
 	}
 	// A new slice, not shifting the one the sidebar may be listing.
 	saved := slices.Clone(a.saved)
-	was := slices.IndexFunc(saved, func(s netease.Playlist) bool { return s.ID == pl.ID })
+	was := slices.IndexFunc(saved, func(s music.Playlist) bool { return s.ID == pl.ID })
 	if was >= 0 {
 		saved = slices.Delete(saved, was, was+1)
 	}
 	if save {
-		pl.Subscribed = true
-		pl.Tracks, pl.TrackIDs = nil, nil
+		pl.Saved = true
+		pl.Tracks = nil
 		saved = slices.Insert(saved, min(at, len(saved)), pl)
 	}
 	a.saved = saved
@@ -137,12 +137,25 @@ func (a *app) setSaved(pl netease.Playlist, save bool, at int) int {
 
 // loadMine loads the playlists the listener uid made and saved.
 func (a *app) loadMine(uid int64) {
+	src := a.accountSource()
+	if src == nil {
+		return
+	}
 	go func() {
-		made, saved, err := netease.UserPlaylists(uid)
+		lists, err := src.Playlists()
 		a.post(func() {
-			if err == nil && a.account != nil && a.uid() == uid {
-				a.mine, a.saved = made, saved
+			if err != nil || a.account == nil || a.uid() != uid {
+				return
 			}
+			var made, saved []music.Playlist
+			for _, pl := range lists {
+				if pl.Saved {
+					saved = append(saved, pl)
+				} else {
+					made = append(made, pl)
+				}
+			}
+			a.mine, a.saved = made, saved
 		})
 	}()
 }
@@ -171,8 +184,8 @@ func (a *app) newPlaylist(tr *netease.Track) {
 }
 
 // startRename asks for a new name for the listener's playlist pl.
-func (a *app) startRename(pl *netease.Playlist) {
-	a.naming = nameDialog{open: true, name: pl.Name, rename: pl.ID}
+func (a *app) startRename(pl *music.Playlist) {
+	a.naming = nameDialog{open: true, name: pl.Name, rename: numericID(pl.ID)}
 }
 
 // submitName makes the playlist named, or renames one: at once in the app,
@@ -219,24 +232,24 @@ func (a *app) submitName() {
 			a.naming.open = false
 			// Under the liked songs, as NetEase lists the newest.
 			at := 0
-			if len(a.mine) > 0 && a.mine[0].SpecialType == 5 {
+			if len(a.mine) > 0 && a.mine[0].Fixed {
 				at = 1
 			}
-			made := netease.FromPlaylist(*pl)
-			a.mine = slices.Insert(a.mine, at, made)
+			a.mine = slices.Insert(a.mine, at, *pl)
 			pl.Tracks = nil
-			a.playlists[nkey(made.ID)] = pl
-			a.open(nroute(pagePlaylist, made.ID))
+			n := numericID(pl.ID)
+			a.playlists[nkey(n)] = pl
+			a.open(nroute(pagePlaylist, n))
 			if add != nil {
-				a.addTo(made.ID, add)
+				a.addTo(n, add)
 			}
 		})
 	}()
 }
 
 // confirmDelete asks whether to delete the listener's playlist pl.
-func (a *app) confirmDelete(pl *netease.Playlist) {
-	a.deleting = deleteDialog{open: true, id: pl.ID, name: pl.Name}
+func (a *app) confirmDelete(pl *music.Playlist) {
+	a.deleting = deleteDialog{open: true, id: numericID(pl.ID), name: pl.Name}
 }
 
 // deleteChosen deletes the playlist the dialog asked about: at once from
@@ -245,8 +258,8 @@ func (a *app) confirmDelete(pl *netease.Playlist) {
 func (a *app) deleteChosen() {
 	id := a.deleting.id
 	a.deleting.open = false
-	i := slices.IndexFunc(a.mine, func(pl netease.Playlist) bool { return pl.ID == id })
-	if i < 0 || a.mine[i].SpecialType == 5 {
+	i := slices.IndexFunc(a.mine, func(pl music.Playlist) bool { return pl.ID == nid(id) })
+	if i < 0 || a.mine[i].Fixed {
 		return
 	}
 	pl := a.mine[i]
@@ -349,9 +362,9 @@ func (a *app) playlistItems(m *ui.Menu, tr *netease.Track, pid int64) {
 		if m.Item("新建歌单…").Chosen() {
 			a.newPlaylist(tr)
 		}
-		var to []*netease.Playlist
+		var to []*music.Playlist
 		for i := range a.mine {
-			if pl := &a.mine[i]; pl.SpecialType != 5 && pl.ID != pid {
+			if pl := &a.mine[i]; !pl.Fixed && pl.ID != nid(pid) {
 				to = append(to, pl)
 			}
 		}
@@ -360,7 +373,7 @@ func (a *app) playlistItems(m *ui.Menu, tr *netease.Track, pid int64) {
 		}
 		for _, pl := range to {
 			if m.Item(pl.Name).Chosen() {
-				a.addTo(pl.ID, tr)
+				a.addTo(numericID(pl.ID), tr)
 			}
 		}
 	})

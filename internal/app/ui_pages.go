@@ -303,7 +303,7 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 						icon, label = iconCheck, "已收藏"
 					}
 					if pillButton(c.Key("save"), icon, label, p.hover.Over(p.bg), p.text).Clicked() {
-						a.toggleSaved(rec)
+						a.toggleSaved(*pl)
 					}
 				}
 				if mine := a.editable(numericID(pl.ID)); mine != nil {

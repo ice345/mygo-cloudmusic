@@ -374,7 +374,7 @@ func (a *app) menuItem(c *ui.Context, icon *ui.SVG, label, shortcut string) ui.E
 // myPlaylists lists the listener's playlists under a header that opens
 // and closes them: those they made, if mine, with a button to make one
 // and a menu to rename them, or else with a menu to unsave them.
-func (a *app) myPlaylists(c *ui.Context, title string, lists []netease.Playlist, mine bool, collapsed *bool) {
+func (a *app) myPlaylists(c *ui.Context, title string, lists []music.Playlist, mine bool, collapsed *bool) {
 	if len(lists) == 0 {
 		return
 	}
@@ -406,7 +406,7 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []netease.Playlist,
 	}
 	for i := range lists {
 		pl := &lists[i]
-		selected := a.route.page == pagePlaylist && a.route.number() == pl.ID && !a.nowPlaying
+		selected := a.route.page == pagePlaylist && a.route.key() == (pageKey{pl.Source, pl.ID}) && !a.nowPlaying
 		b := ui.ButtonBase(c.Key(pl.ID)).Height(34).PaddingX(8).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(pl.Name)
 		switch {
 		case selected:
@@ -415,11 +415,11 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []netease.Playlist,
 			b.Background(p.hover)
 		}
 		b.Children(func() {
-			a.cover(c, pl.Cover(), 80, 22, 5)
+			a.cover(c, pl.ImageURL, 80, 22, 5)
 			ui.Text(c, pl.Name).FontSize(13).SingleLine().Shrink(1).MinWidth(0)
 		})
 		switch {
-		case mine && pl.SpecialType != 5:
+		case mine && !pl.Fixed:
 			b.ContextMenu(func(m *ui.Menu) {
 				if m.Item("重命名…").Chosen() {
 					a.startRename(pl)
@@ -437,7 +437,7 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []netease.Playlist,
 			})
 		}
 		if b.Clicked() {
-			a.open(nroute(pagePlaylist, pl.ID))
+			a.open(route{page: pagePlaylist, source: pl.Source, id: pl.ID})
 		}
 	}
 }
