@@ -2,12 +2,14 @@ package netease
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestQRLoginLive(t *testing.T) {
@@ -152,7 +154,14 @@ func canonLines(s string) []string {
 
 // useSession signs in with the session kept at path.
 func useSession(t *testing.T, path string) {
-	deviceOnce.Do(func() { deviceID = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123" })
+	deviceOnce.Do(func() {
+		deviceID = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123"
+		// NM_DEVICE is the app's own device-id file, for the device NetEase
+		// knows the session by.
+		if b, err := os.ReadFile(os.Getenv("NM_DEVICE")); err == nil && len(b) == 52 {
+			deviceID = string(b)
+		}
+	})
 	b, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -382,5 +391,54 @@ func TestLyricTextsLive(t *testing.T) {
 	texts, err := Lyrics(3427209483)
 	if err != nil || strings.TrimSpace(texts.YReading) == "" {
 		t.Errorf("3427209483: y reading %q, %v", texts.YReading, err)
+	}
+}
+
+// A signed-in listener is given a free song's address every time they ask,
+// and the audio it names answers: NetEase turned the request away as a risk
+// (-460) when the eapi's User-Agent and headers named two clients. NM_SESSION
+// is a signed-in session file, and NM_DEVICE the device-id file beside it.
+func TestSongURLSignedInLive(t *testing.T) {
+	if os.Getenv("LIVE") == "" || os.Getenv("NM_SESSION") == "" {
+		t.Skip()
+	}
+	useSession(t, os.Getenv("NM_SESSION"))
+	found, err := Search("轻音乐 钢琴", 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var song *Track
+	for i := range found {
+		if found[i].Fee == 0 || found[i].Fee == 8 {
+			song = &found[i]
+			break
+		}
+	}
+	if song == nil {
+		t.Skip("no free song in the search")
+	}
+	var stream *Stream
+	for i := range 5 {
+		stream, err = SongURL(song.ID, "exhigh")
+		if errors.Is(err, ErrUnavailable) {
+			t.Skipf("song %d is not for this account", song.ID)
+		}
+		if err != nil {
+			t.Fatalf("ask %d: %v", i, err)
+		}
+		time.Sleep(time.Second)
+	}
+	req, _ := http.NewRequest("GET", stream.URL, nil)
+	req.Header.Set("Range", "bytes=0-1023")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusPartialContent {
+		t.Fatalf("the audio answered %d", res.StatusCode)
+	}
+	if ct := res.Header.Get("Content-Type"); !strings.Contains(ct, "audio") && !strings.Contains(ct, "octet-stream") {
+		t.Errorf("the audio's type is %q", ct)
 	}
 }

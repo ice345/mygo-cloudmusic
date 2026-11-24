@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"slices"
@@ -481,19 +482,40 @@ func SongURL(id int64, level string) (*Stream, error) {
 	if err := eapiPost("/api/song/enhance/player/url/v1", data, &res); err != nil {
 		return nil, err
 	}
+	// What happened after a refusal, said in the log, so the next one that
+	// gets through every try can be told from a network that changed.
+	var trail []string
 	if res.riskRefused() {
+		trail = append(trail, fmt.Sprintf("eapi %d", res.Code))
 		time.Sleep(songRetryWait)
 		res = songReply{}
 		if err := eapiPost("/api/song/enhance/player/url/v1", data, &res); err != nil {
+			log.Printf("netease: song %d (%s): refused (%s), then %v", id, level, strings.Join(trail, ", "), err)
 			return nil, err
+		}
+		if res.riskRefused() {
+			trail = append(trail, fmt.Sprintf("eapi again %d", res.Code))
 		}
 	}
 	if res.riskRefused() {
 		var web songReply
 		query := url.Values{"ids": {data["ids"].(string)}, "level": {level}, "encodeType": {encode}}
-		if err := get("/api/song/enhance/player/url/v1", query, &web); err == nil && web.whole() {
+		switch err := get("/api/song/enhance/player/url/v1", query, &web); {
+		case err != nil:
+			trail = append(trail, "web: "+err.Error())
+		case web.whole():
+			trail = append(trail, "web: whole")
 			res = web
+		default:
+			trail = append(trail, "web: no address")
 		}
+	}
+	if len(trail) > 0 {
+		end := "gave up"
+		if res.whole() {
+			end = "got the address"
+		}
+		log.Printf("netease: song %d (%s): refused (%s); %s", id, level, strings.Join(trail, ", "), end)
 	}
 	if res.Code != 200 {
 		return nil, &RefusedError{Code: res.Code, Message: res.Message}

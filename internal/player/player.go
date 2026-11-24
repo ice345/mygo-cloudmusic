@@ -64,6 +64,10 @@ type Player struct {
 	playing bool // what the listener wants: false while paused
 	err     string
 	gen     int // counts loads, to drop the results of stale ones
+	// autoTries is how many times in a row the track was asked for again by
+	// the player itself after a refusal; only that retry sets it, and the
+	// load it starts takes it.
+	autoTries int
 
 	lyrics       []lyrics.Line
 	lyricsLoaded bool
@@ -639,12 +643,21 @@ func (p *Player) load(at int) {
 	p.loadSkipping(at, 0, true, 0)
 }
 
+// refusalRetries is how long the player waits, one retry after another,
+// before asking again for a track the source turned away for now, as NetEase
+// does with -460 and the words "try again later". The listener who wanted
+// it would only have pressed play; after the last the track stays, paused,
+// as it did before.
+var refusalRetries = []time.Duration{3 * time.Second, 10 * time.Second, 30 * time.Second}
+
 // loadSkipping loads the track at order[at], to play or not, from from,
 // skipping those that cannot play: skipped of them so far.
 func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 	p.stop()
 	p.gen++
 	gen := p.gen
+	tries := p.autoTries
+	p.autoTries = 0
 	p.at = at
 	t := p.queue[p.order[at]]
 	p.track = &t
@@ -695,8 +708,26 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 				case errors.Is(err, netease.ErrRefused):
 					p.err = "网易云音乐暂时拒绝了请求，请稍后重试"
 				}
+				// A refusal is asked again by itself, if the listener wanted
+				// the track: not one restored paused.
+				again := errors.Is(err, netease.ErrRefused) && p.playing && tries < len(refusalRetries)
+				if again {
+					p.err += "，稍后自动重试"
+				}
 				p.playing = false
 				p.sync()
+				if again {
+					time.AfterFunc(refusalRetries[tries], func() {
+						p.post(func() {
+							// Not if the listener has done anything since: pressed
+							// play, moved to another track, or stopped.
+							if gen == p.gen && p.out == nil && !p.loading {
+								p.autoTries = tries + 1
+								p.loadSkipping(at, skipped, true, p.pending)
+							}
+						})
+					})
+				}
 				return
 			}
 			if err != nil {

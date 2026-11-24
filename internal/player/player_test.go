@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -235,10 +236,18 @@ func TestEndRadio(t *testing.T) {
 // current track has loaded or failed, and until until done says so.
 func offline(t *testing.T, f func(int64, string) (*netease.Stream, error)) (p *Player, settle func(), until func(done func() bool)) {
 	t.Helper()
-	prev := songURL
-	songURL = f
-	t.Cleanup(func() { songURL = prev })
-	ch := make(chan func(), 64)
+	p, _, until = offlineCh(t, f)
+	return p, func() { t.Helper(); until(func() bool { return !p.loading }) }, until
+}
+
+// offlineCh is offline with the channel what is posted comes on, and with
+// no automatic retries, which the tests of them set.
+func offlineCh(t *testing.T, f func(int64, string) (*netease.Stream, error)) (p *Player, ch chan func(), until func(done func() bool)) {
+	t.Helper()
+	prev, prevRetries := songURL, refusalRetries
+	songURL, refusalRetries = f, nil
+	t.Cleanup(func() { songURL, refusalRetries = prev, prevRetries })
+	ch = make(chan func(), 64)
 	p = New(func(fn func()) { ch <- fn })
 	p.queue = []netease.Track{{ID: 1, Name: "一"}, {ID: 2, Name: "二"}, {ID: 3, Name: "三"}}
 	p.order = []int{0, 1, 2}
@@ -248,7 +257,20 @@ func offline(t *testing.T, f func(int64, string) (*netease.Stream, error)) (p *P
 			next(t, ch)
 		}
 	}
-	return p, func() { t.Helper(); until(func() bool { return !p.loading }) }, until
+	return p, ch, until
+}
+
+// runFor runs what is posted, for d.
+func runFor(ch chan func(), d time.Duration) {
+	end := time.After(d)
+	for {
+		select {
+		case fn := <-ch:
+			fn()
+		case <-end:
+			return
+		}
+	}
 }
 
 // dialError is how a request fails with no network.
@@ -372,5 +394,40 @@ func TestSeekBeforeLoadTellsTheApp(t *testing.T) {
 	p.Seek(41 * time.Second)
 	if changed != 1 || p.pending != 41*time.Second {
 		t.Errorf("changed %d times, pending %v", changed, p.pending)
+	}
+}
+
+// A refusal NetEase says to try again after is asked again by itself, as many
+// times as there are waits, and then the track stays, paused, as it did
+// before: the listener had to press play, and the refusals came and went.
+func TestRefusalIsAskedForAgainByItself(t *testing.T) {
+	var asked atomic.Int32
+	p, ch, until := offlineCh(t, func(int64, string) (*netease.Stream, error) {
+		asked.Add(1)
+		return nil, &netease.RefusedError{Code: -460, Message: "检测到您的网络环境存在风险，请稍后再试"}
+	})
+	refusalRetries = []time.Duration{time.Millisecond, time.Millisecond}
+	p.load(0)
+	until(func() bool { return asked.Load() == 3 && !p.loading })
+	runFor(ch, 40*time.Millisecond)
+	if asked.Load() != 3 || p.Current().ID != 1 || p.Playing() || strings.Contains(p.Err(), "自动重试") || !strings.Contains(p.Err(), "网络环境存在风险") {
+		t.Fatalf("asked %d times, track %d, playing %v, err %q", asked.Load(), p.Current().ID, p.Playing(), p.Err())
+	}
+}
+
+// A track restored paused, refused as the app opens, is not asked for by
+// itself: nobody wanted it to play.
+func TestRestoredTrackIsNotAskedForAfterARefusal(t *testing.T) {
+	var asked atomic.Int32
+	p, ch, until := offlineCh(t, func(int64, string) (*netease.Stream, error) {
+		asked.Add(1)
+		return nil, &netease.RefusedError{Code: -460, Message: "检测到您的网络环境存在风险，请稍后再试"}
+	})
+	refusalRetries = []time.Duration{time.Millisecond}
+	p.Restore(Session{Queue: p.queue, Order: p.order, At: 1, Position: 95000})
+	until(func() bool { return asked.Load() == 1 && !p.loading })
+	runFor(ch, 40*time.Millisecond)
+	if asked.Load() != 1 || p.Playing() {
+		t.Fatalf("asked %d times, playing %v", asked.Load(), p.Playing())
 	}
 }
