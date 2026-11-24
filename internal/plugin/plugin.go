@@ -7,6 +7,8 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/MoeForge/moejs"
+
 	"netease-music-mygo/internal/music"
 )
 
@@ -15,13 +17,20 @@ type Plugin struct {
 	manifest Manifest
 	dir      string // where plugin.json is
 	data     string // the plugin's own data, and ours about it
+	mod      *moejs.Module
 	exports  map[string]bool
 	locales  map[string]map[string]string // by language, the English to what it is in it
+
+	// starting is held while the plugin starts, and by Close, so one start
+	// runs at a time and none outlives a Close. It isn't mu: the module's top
+	// level runs as it starts, and the host functions it calls take mu.
+	starting sync.Mutex
 
 	mu       sync.Mutex // guards what follows
 	settings map[string]string
 	storage  map[string]json.RawMessage
 	granted  bool // the listener let it start programs
+	vm       *vm
 	prompt   func(music.SignInPrompt)
 }
 
