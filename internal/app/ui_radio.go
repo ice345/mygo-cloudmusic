@@ -37,45 +37,63 @@ func radioLabel(name string) string {
 	return "私人 FM"
 }
 
-func playable(tracks []netease.Track) []netease.Track {
-	var out []netease.Track
+// A heartModer is a source with a heart mode: songs like those the listener
+// likes, from one of them, in the order of their playlist. NetEase's is.
+type heartModer interface {
+	HeartMode(last, start, playlist string) ([]music.Track, error)
+}
+
+// An fmTrasher is a source whose personal FM can be told that a song is not
+// liked, which it plays no more.
+type fmTrasher interface {
+	TrashFM(id string) error
+}
+
+func playable(tracks []music.Track) []music.Track {
+	var out []music.Track
 	for _, t := range tracks {
-		if t.Playable() {
+		if !t.Unavailable {
 			out = append(out, t)
 		}
 	}
 	return out
 }
 
-// likedPlaylist returns the ID of the listener's liked songs, or 0.
-func (a *app) likedPlaylist() int64 {
+// likedPlaylist returns the ID of the listener's liked songs, or "".
+func (a *app) likedPlaylist() string {
 	for _, pl := range a.mine {
 		if pl.Fixed {
-			return numericID(pl.ID)
+			return pl.ID
 		}
 	}
-	return 0
+	return ""
 }
 
 // radioFeed returns what gives the radio name more tracks: it loads them
 // on a goroutine, and gives them to got on the main thread, none if it
 // cannot.
-func (a *app) radioFeed(name string) func(got func([]netease.Track)) {
-	return func(got func([]netease.Track)) {
-		var fetch func() ([]netease.Track, error)
+func (a *app) radioFeed(name string) func(got func([]music.Track)) {
+	return func(got func([]music.Track)) {
+		src := a.accountSource()
+		if src == nil {
+			got(nil)
+			return
+		}
+		var fetch func() ([]music.Track, error)
 		switch {
 		case strings.HasPrefix(name, "fm:"):
-			mode := strings.TrimPrefix(name, "fm:")
-			fetch = func() ([]netease.Track, error) { return netease.PersonalFM(mode) }
+			station := strings.TrimPrefix(name, "fm:")
+			fetch = func() ([]music.Track, error) { return src.StationNext(station) }
 		case name == heartRadio:
 			// More like the last song queued, from the song it began with.
+			hm, ok := src.(heartModer)
 			q, pid := a.queued(), a.likedPlaylist()
-			if len(q) == 0 || pid == 0 {
+			if !ok || len(q) == 0 || pid == "" {
 				got(nil)
 				return
 			}
-			start, last := numericID(q[0].ID), numericID(q[len(q)-1].ID)
-			fetch = func() ([]netease.Track, error) { return netease.HeartMode(last, start, pid) }
+			start, last := q[0].ID, q[len(q)-1].ID
+			fetch = func() ([]music.Track, error) { return hm.HeartMode(last, start, pid) }
 		default:
 			got(nil)
 			return
@@ -83,7 +101,7 @@ func (a *app) radioFeed(name string) func(got func([]netease.Track)) {
 		go func() {
 			// The FM gives a song or three at a time, some of them VIP
 			// songs the listener may not play: ask again for those.
-			var tracks []netease.Track
+			var tracks []music.Track
 			for tries := 0; tries < 3 && len(tracks) == 0; tries++ {
 				more, err := fetch()
 				if err != nil {
@@ -107,7 +125,7 @@ func (a *app) playFM() {
 	}
 	a.radioStarting = name
 	feed := a.radioFeed(name)
-	feed(func(tracks []netease.Track) {
+	feed(func(tracks []music.Track) {
 		if a.radioStarting != name {
 			return
 		}
@@ -140,9 +158,11 @@ func (a *app) trashFM() {
 	if tr == nil {
 		return
 	}
-	id := numericID(tr.ID)
+	id := tr.ID
 	a.pl.Next()
-	go netease.FMTrash(id)
+	if t, ok := a.accountSource().(fmTrasher); ok {
+		go t.TrashFM(id)
+	}
 }
 
 // startHeartMode plays songs like one the listener likes: the one playing,
@@ -154,7 +174,13 @@ func (a *app) startHeartMode() {
 		return
 	}
 	pid := a.likedPlaylist()
-	if pid == 0 {
+	src := a.accountSource()
+	hm, ok := src.(heartModer)
+	if !ok {
+		a.toast = "这个来源没有心动模式"
+		return
+	}
+	if pid == "" {
 		a.toast = "喜欢一些歌曲后，即可开启心动模式"
 		return
 	}
@@ -162,22 +188,22 @@ func (a *app) startHeartMode() {
 		a.nowPlaying = true
 		return
 	}
-	var seed *netease.Track
+	var seed *music.Track
 	fromPlaying := false
-	if cur := a.current(); cur != nil && a.isLiked(*a.pl.Current()) {
-		s := netease.FromTrack(*cur)
+	if cur := a.current(); cur != nil && a.isLiked(*cur) {
+		s := *cur
 		seed, fromPlaying = &s, true
 	}
-	// The liked songs, as NetEase's tracks, if their page has loaded.
-	var likedSongs []netease.Track
-	if liked := a.playlists[nkey(pid)]; liked != nil {
-		likedSongs = netease.FromPlaylist(*liked).Tracks
+	// The liked songs, if their page has loaded.
+	var likedSongs []music.Track
+	if liked := a.playlists[pageKey{netease.SourceID, pid}]; liked != nil {
+		likedSongs = liked.Tracks
 	}
 	a.radioStarting = heartRadio
 	go func() {
 		if seed == nil {
 			if likedSongs == nil {
-				if liked, _ := netease.PlaylistDetail(pid); liked != nil {
+				if liked, _ := src.Playlist(pid); liked != nil {
 					likedSongs = liked.Tracks
 				}
 			}
@@ -185,10 +211,10 @@ func (a *app) startHeartMode() {
 				seed = &ok[rand.IntN(len(ok))]
 			}
 		}
-		var more []netease.Track
+		var more []music.Track
 		var err error
 		if seed != nil {
-			more, err = netease.HeartMode(seed.ID, seed.ID, pid)
+			more, err = hm.HeartMode(seed.ID, seed.ID, pid)
 		}
 		a.post(func() {
 			if a.radioStarting != heartRadio {
@@ -200,11 +226,11 @@ func (a *app) startHeartMode() {
 				return
 			}
 			more = playable(more)
-			if fromPlaying && a.current() != nil && numericID(a.current().ID) == seed.ID {
+			if fromPlaying && a.current() != nil && a.current().ID == seed.ID {
 				a.radioFrom(heartRadio, more, a.radioFeed(heartRadio))
 				return
 			}
-			a.playRadio(heartRadio, append([]netease.Track{*seed}, more...), a.radioFeed(heartRadio))
+			a.playRadio(heartRadio, append([]music.Track{*seed}, more...), a.radioFeed(heartRadio))
 		})
 	}()
 }

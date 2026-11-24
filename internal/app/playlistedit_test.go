@@ -333,8 +333,8 @@ func TestSidebarListsWhatTheSourceSays(t *testing.T) {
 	if len(a.mine) != 2 || a.mine[0].Name != "小明喜欢的音乐" || len(a.saved) != 1 || a.saved[0].ID != "20" {
 		t.Fatalf("mine %+v, saved %+v", a.mine, a.saved)
 	}
-	if a.editable(5) != nil || a.editable(10) == nil || a.likedPlaylist() != 5 {
-		t.Errorf("editable liked %v, own %v, liked songs %d", a.editable(5), a.editable(10), a.likedPlaylist())
+	if a.editable(5) != nil || a.editable(10) == nil || a.likedPlaylist() != "5" {
+		t.Errorf("editable liked %v, own %v, liked songs %s", a.editable(5), a.editable(10), a.likedPlaylist())
 	}
 
 	src.err = music.Fail(music.ErrSignIn, "")

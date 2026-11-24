@@ -131,24 +131,14 @@ func (a *app) playQueue(tracks []netease.Track, start int) {
 	a.pl.PlayQueue(netease.ToTracks(tracks), start)
 }
 
-// feedOf is a radio's feed, as the player asks it.
-func feedOf(feed func(got func([]netease.Track))) func(got func([]music.Track)) {
-	if feed == nil {
-		return nil
-	}
-	return func(got func([]music.Track)) {
-		feed(func(ts []netease.Track) { got(netease.ToTracks(ts)) })
-	}
+func (a *app) playRadio(name string, tracks []music.Track, feed func(got func([]music.Track))) {
+	a.pl.PlayRadio(name, tracks, feed)
 }
 
-func (a *app) playRadio(name string, tracks []netease.Track, feed func(got func([]netease.Track))) {
-	a.pl.PlayRadio(name, netease.ToTracks(tracks), feedOf(feed))
+func (a *app) radioFrom(name string, tracks []music.Track, feed func(got func([]music.Track))) {
+	a.pl.RadioFrom(name, tracks, feed)
 }
 
-func (a *app) radioFrom(name string, tracks []netease.Track, feed func(got func([]netease.Track))) {
-	a.pl.RadioFrom(name, netease.ToTracks(tracks), feedOf(feed))
-}
-
-func (a *app) attachRadio(name string, feed func(got func([]netease.Track))) {
-	a.pl.AttachRadio(name, feedOf(feed))
+func (a *app) attachRadio(name string, feed func(got func([]music.Track))) {
+	a.pl.AttachRadio(name, feed)
 }
