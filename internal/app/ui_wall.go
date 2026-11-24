@@ -154,10 +154,10 @@ func (a *app) wallSong(c *ui.Context, tr *netease.Track, art *artwork, top, h fl
 			}
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, tr.Name).FontSize(26).FontWeight(800).LetterSpacing(-0.4).SingleLine().Shrink(1).MinWidth(0)
-				a.likeButton(c.Key("like"), tr, 20, white.Alpha(0.7))
-				a.songMenu(c.Key("more"), tr, 20, white.Alpha(0.7)).Margin(0, -8, 0, 0)
+				a.likeButton(c.Key("like"), musicOf(tr), 20, white.Alpha(0.7))
+				a.songMenu(c.Key("more"), musicOf(tr), 20, white.Alpha(0.7)).Margin(0, -8, 0, 0)
 			})
-			a.artistLinks(c, tr, white.Alpha(0.6), white, true).FontSize(14).SingleLine()
+			a.artistLinks(c, musicOf(tr), white.Alpha(0.6), white, true).FontSize(14).SingleLine()
 			lines, _ := pl.Lyrics()
 			if len(lines) == 0 {
 				return
@@ -330,7 +330,7 @@ func rowSwayTarget(r int, now time.Time) (float32, time.Duration) {
 // ringed, and the one under the pointer says what it is.
 func (a *app) wallTile(c *ui.Context, tr *netease.Track, i int, x float32, playing, hovered bool, lift float32) {
 	tile := ui.Box(c.Key(i)).Absolute().Left(x).Top(0).Size(wallTile, wallTile).Radius(12).
-		Label(tr.Name).ContextMenu(a.songItems(tr, 0))
+		Label(tr.Name).ContextMenu(a.songItems(musicOf(tr), 0))
 	tile.AnimatePose(ui.Pose{Scale: lift}, ui.Animation{Spring: ui.SpringOptions{Duration: 400 * time.Millisecond, Bounce: 0.2}})
 	if !tr.Playable() {
 		tile.Opacity(0.4)

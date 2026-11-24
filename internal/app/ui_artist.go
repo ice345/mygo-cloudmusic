@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -15,18 +16,18 @@ import (
 // with album, a link to its album. An artist NetEase has no page for,
 // credited by name alone, is plain text. An episode's host and podcast,
 // in its artists' and album's place, link to the podcast's page.
-func (a *app) artistLinks(c *ui.Context, tr *netease.Track, color, hover ui.Color, album ...bool) ui.Element {
-	podcast := nroute(pagePodcast, tr.PodcastID)
+func (a *app) artistLinks(c *ui.Context, tr music.Track, color, hover ui.Color, album ...bool) ui.Element {
+	podcast := route{page: pagePodcast, source: tr.Source, id: tr.ShowID}
 	return ui.RichText(c).TextColor(color).Children(func() {
 		for i, ar := range tr.Artists {
 			if i > 0 {
 				ui.Text(c, ", ")
 			}
 			switch {
-			case tr.PodcastID != 0:
+			case tr.ShowID != "":
 				a.link(c.Key(i), ar.Name, color, hover, podcast)
-			case ar.ID != 0:
-				a.link(c.Key(i), ar.Name, color, hover, nroute(pageArtist, ar.ID))
+			case ar.ID != "":
+				a.link(c.Key(i), ar.Name, color, hover, route{page: pageArtist, source: tr.Source, id: ar.ID})
 			default:
 				ui.Text(c, ar.Name)
 			}
@@ -34,10 +35,10 @@ func (a *app) artistLinks(c *ui.Context, tr *netease.Track, color, hover ui.Colo
 		if len(album) > 0 && album[0] && tr.Album.Name != "" {
 			ui.Text(c, " — ")
 			switch {
-			case tr.PodcastID != 0:
+			case tr.ShowID != "":
 				a.link(c.Key("album"), tr.Album.Name, color, hover, podcast)
-			case tr.Album.ID != 0:
-				a.link(c.Key("album"), tr.Album.Name, color, hover, nroute(pageAlbum, tr.Album.ID))
+			case tr.Album.ID != "":
+				a.link(c.Key("album"), tr.Album.Name, color, hover, route{page: pageAlbum, source: tr.Source, id: tr.Album.ID})
 			default:
 				ui.Text(c, tr.Album.Name)
 			}
@@ -64,7 +65,9 @@ func (a *app) openPage(r route) {
 }
 
 // openArtist opens an artist's page in the main window.
-func (a *app) openArtist(id int64) { a.openPage(nroute(pageArtist, id)) }
+func (a *app) openArtist(source, id string) {
+	a.openPage(route{page: pageArtist, source: source, id: id})
+}
 
 // These load an artist, their songs, albums and events from NetEase, and
 // follow them; tests replace them.
@@ -318,7 +321,7 @@ func (a *app) artistPage(c *ui.Context) {
 			}
 		}
 	}
-	a.trackRows(c, songs, true, header)
+	a.trackRows(c, neteaseList(songs), true, header)
 }
 
 // scrollPage scrolls a page of cards and rows, inset as one of tracks is:

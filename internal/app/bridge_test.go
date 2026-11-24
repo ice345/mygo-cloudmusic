@@ -81,3 +81,38 @@ func TestCardsOpenTheirOwnSourcesPage(t *testing.T) {
 		t.Errorf("%d albums loaded or asked for", len(a.albums))
 	}
 }
+
+// A song's row shows why a list has it and the VIP mark of one the listener
+// can't play, whose click plays nothing, while a song they can play starts
+// the list from it: all of it from the app's track, which the NetEase source
+// made of NetEase's, fee and reason included.
+func TestSongRowsShowReasonAndVIP(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.playlists[7] = &netease.Playlist{ID: 7, Name: "单", Tracks: []netease.Track{
+		{ID: 1, Name: "第一首", Duration: 60000},
+		{ID: 2, Name: "会员的歌", Fee: 1, Duration: 60000},
+		{ID: 3, Name: "推荐的歌", Reason: "每日推荐", Duration: 60000},
+	}}
+	a.open(nroute(pagePlaylist, 7))
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if _, ok := tt.Find("VIP"); !ok {
+		t.Error("no VIP mark on the song the listener cannot play")
+	}
+	if _, ok := tt.Find("每日推荐"); !ok {
+		t.Error("the reason a list has the song is not shown")
+	}
+	if err := tt.Click("会员的歌"); err != nil {
+		t.Fatal(err)
+	}
+	if a.pl.Current() != nil {
+		t.Errorf("played the song the listener cannot play: %+v", a.pl.Current())
+	}
+	if err := tt.Click("推荐的歌"); err != nil {
+		t.Fatal(err)
+	}
+	if cur := a.pl.Current(); cur == nil || cur.ID != "3" || len(a.pl.Queue()) != 3 {
+		t.Errorf("playing %+v of %d", cur, len(a.pl.Queue()))
+	}
+}

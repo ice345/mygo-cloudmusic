@@ -66,6 +66,11 @@ type Track struct {
 	URL string `json:"url,omitempty"`
 	// Unavailable says the listener can't play it, for a source that knows.
 	Unavailable bool `json:"unavailable,omitempty"`
+	// Alias is what else it is called, one such as a translated title, which
+	// lists show after its name; Reason says why a list has it, such as
+	// "recommended for you". (Both added here: NetEase has them.)
+	Alias  []string `json:"alias,omitempty"`
+	Reason string   `json:"reason,omitempty"`
 	// Extra is the source's own record of the track, as it keeps it: the app
 	// never reads it, and the queue and the session keep it for the source
 	// to read again. A plugin may leave it out. (Added here: NetEase's has

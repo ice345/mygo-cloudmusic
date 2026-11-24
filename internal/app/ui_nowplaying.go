@@ -185,10 +185,10 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 							a.radioChip(c, r)
 						}
 						ui.Text(c, tr.Name).FontSize(22).FontWeight(700).LetterSpacing(-0.3).SingleLine()
-						a.artistLinks(c, tr, white.Alpha(0.6), white, true).FontSize(15).SingleLine()
+						a.artistLinks(c, musicOf(tr), white.Alpha(0.6), white, true).FontSize(15).SingleLine()
 					})
-					a.likeButton(c.Key("like"), tr, 22, white.Alpha(0.7))
-					a.songMenu(c.Key("more"), tr, 22, white.Alpha(0.7)).Margin(0, -8, 0, 0)
+					a.likeButton(c.Key("like"), musicOf(tr), 22, white.Alpha(0.7))
+					a.songMenu(c.Key("more"), musicOf(tr), 22, white.Alpha(0.7)).Margin(0, -8, 0, 0)
 				})
 				a.scrubber(c.Key("np-scrub"), &a.npScrub, white.Alpha(0.18), white.Alpha(0.9), 16, accent.Mix(white, 0.35))
 				// As tall with the quality's badge as without it: the badge goes
@@ -449,10 +449,10 @@ func (a *app) stageBar(c *ui.Context, tr *netease.Track, art *artwork, accent ui
 				}
 				ui.Column(c).Shrink(1).MinWidth(0).Gap(2).Children(func() {
 					ui.Text(c, tr.Name).FontSize(14).FontWeight(700).SingleLine()
-					a.artistLinks(c, tr, white.Alpha(0.55), white).FontSize(12).SingleLine()
+					a.artistLinks(c, musicOf(tr), white.Alpha(0.55), white).FontSize(12).SingleLine()
 				})
-				a.likeButton(c.Key("like"), tr, 17, white.Alpha(0.6))
-				a.songMenu(c.Key("more"), tr, 17, white.Alpha(0.6)).Margin(0, 0, 0, -10)
+				a.likeButton(c.Key("like"), musicOf(tr), 17, white.Alpha(0.6))
+				a.songMenu(c.Key("more"), musicOf(tr), 17, white.Alpha(0.6)).Margin(0, 0, 0, -10)
 			})
 			a.transport(c, white, white.Alpha(0.45), white, 22)
 			ui.Row(c).Grow(1).Basis(0).MinWidth(0).Justify(ui.End).Children(func() {
@@ -781,7 +781,7 @@ func (a *app) queuePane(c *ui.Context) {
 		tr := a.fromMusic(a.pl.Queue()[i])
 		playing := r == at
 		row := ui.ButtonBase(c.Key(i)).Height(58).PaddingX(10).Gap(14).Radius(12).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
-			ContextMenu(a.songItems(tr, 0))
+			ContextMenu(a.songItems(musicOf(tr), 0))
 		switch {
 		case playing:
 			row.Background(white.Alpha(0.12))
@@ -795,7 +795,7 @@ func (a *app) queuePane(c *ui.Context) {
 			a.cover(c, tr.Album.PicURL, 96, 42, 7)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
 				ui.Text(c, tr.Name).FontSize(14).FontWeight(600).SingleLine()
-				a.artistLinks(c, tr, white.Alpha(0.55), white).FontSize(12.5).SingleLine()
+				a.artistLinks(c, musicOf(tr), white.Alpha(0.55), white).FontSize(12.5).SingleLine()
 			})
 			ui.Text(c, clock(tr.Length())).FontSize(12).FontFeatures("tnum").TextColor(white.Alpha(0.4))
 		})

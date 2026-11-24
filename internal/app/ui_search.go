@@ -44,10 +44,7 @@ var searchKinds = []struct {
 // searchData is what a search found, as far as its pages have loaded.
 type searchData struct {
 	res music.SearchResult
-	// songs are the tracks of res as the views that have not moved over hold
-	// them, made once as each page comes in; users are of the one kind a
-	// source cannot search for.
-	songs []netease.Track
+	// users are of the one kind a source cannot search for.
 	users []netease.User
 	total int
 	page  paged
@@ -122,9 +119,6 @@ func (a *app) moreResults(r route, d *searchData) {
 			}
 			if res != nil {
 				d.res.Append(*res)
-				for _, t := range res.Tracks {
-					d.songs = append(d.songs, *a.fromMusic(t))
-				}
 				d.total, d.page.loaded, d.page.more = res.Total, true, res.More
 				return
 			}
@@ -166,7 +160,7 @@ func (a *app) searchPage(c *ui.Context) {
 			a.trackSkeleton(c, a.pageShimmer(c), true, header)
 			return
 		}
-		a.trackRows(c, d.songs, true, header, func(c *ui.Context) {
+		a.trackRows(c, listOf(d.res.Tracks), true, header, func(c *ui.Context) {
 			a.pageFoot(c, &d.page, more)
 			a.searchEmpty(c, d)
 		})

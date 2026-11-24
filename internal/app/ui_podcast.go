@@ -88,9 +88,9 @@ func (a *app) loadPrograms(id int64) {
 			d.programs = append(d.programs, programs...)
 			d.page.loaded, d.page.more = true, more && len(programs) > 0
 			// Which the listener likes, for their hearts.
-			episodes := make([]netease.Track, len(programs))
+			episodes := make([]music.Track, len(programs))
 			for i := range programs {
-				episodes[i] = programs[i].Track(d.podcast)
+				episodes[i] = netease.ToTrack(programs[i].Track(d.podcast))
 			}
 			a.askLikes(episodes)
 			a.playLoaded(d)
@@ -271,9 +271,9 @@ func (a *app) programRow(c *ui.Context, d *podcastData, i int, cur *netease.Trac
 		}
 		// A liked episode's heart shows; the others' as the pointer is on them.
 		ui.Box(c).Size(32, 32).Center().Children(func() {
-			tr := pr.Track(d.podcast)
-			if a.isLiked(&tr) || row.Hovered() {
-				a.likeButton(c.Key("like"), &tr, 15, p.muted)
+			tr := netease.ToTrack(pr.Track(d.podcast))
+			if a.isLiked(tr) || row.Hovered() {
+				a.likeButton(c.Key("like"), tr, 15, p.muted)
 			}
 		})
 		ui.Text(c, clock(time.Duration(pr.Duration)*time.Millisecond)).FontSize(12).FontFeatures("tnum").TextColor(p.muted)

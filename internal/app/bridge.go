@@ -56,6 +56,33 @@ func sizedImage(url string, px int) string {
 	return netease.Sized(url, px)
 }
 
+// musicOf is a NetEase track as the app's, for the views that have not moved
+// over to call what has. It costs about two microseconds.
+func musicOf(tr *netease.Track) music.Track { return netease.ToTrack(*tr) }
+
+// trackList is the tracks a list shows: those a source gave, or those of a
+// page that still holds NetEase's, which are made the app's one row at a time
+// as the list builds them, and all at once only to play them.
+type trackList struct {
+	n   int
+	at  func(i int) music.Track
+	all func() []music.Track
+}
+
+// listOf is a list of the tracks a source gave.
+func listOf(tracks []music.Track) trackList {
+	return trackList{len(tracks), func(i int) music.Track { return tracks[i] }, func() []music.Track { return tracks }}
+}
+
+// neteaseList is a list of NetEase's tracks.
+func neteaseList(tracks []netease.Track) trackList {
+	return trackList{
+		len(tracks),
+		func(i int) music.Track { return netease.ToTrack(tracks[i]) },
+		func() []music.Track { return netease.ToTracks(tracks) },
+	}
+}
+
 // trackKey names a track among all sources'.
 type trackKey struct{ source, id string }
 

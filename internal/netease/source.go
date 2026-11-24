@@ -90,6 +90,8 @@ func ToTrack(t Track) music.Track {
 		Duration:    t.Duration,
 		URL:         t.URL(),
 		Unavailable: !t.Playable(),
+		Alias:       t.Alias,
+		Reason:      t.Reason,
 		Description: t.Description,
 		Album:       music.Album{Name: t.Album.Name},
 	}
@@ -97,11 +99,20 @@ func ToTrack(t Track) music.Track {
 		mt.Album.ID = strconv.FormatInt(t.Album.ID, 10)
 	}
 	mt.Album.ImageURL = imageURL(t.Album.PicURL)
+	// An episode says which show it is of; one whose show NetEase did not
+	// say is of show "0", which opens nothing, rather than a song.
 	if t.PodcastID != 0 {
 		mt.ShowID = strconv.FormatInt(t.PodcastID, 10)
+	} else if t.ProgramID != 0 {
+		mt.ShowID = "0"
 	}
+	// An artist credited by name alone, with no page, has no ID.
 	for _, a := range t.Artists {
-		mt.Artists = append(mt.Artists, music.Artist{ID: strconv.FormatInt(a.ID, 10), Name: a.Name})
+		ar := music.Artist{Name: a.Name}
+		if a.ID != 0 {
+			ar.ID = strconv.FormatInt(a.ID, 10)
+		}
+		mt.Artists = append(mt.Artists, ar)
 	}
 	mt.Extra, _ = json.Marshal(t)
 	return mt

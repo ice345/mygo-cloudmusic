@@ -163,7 +163,7 @@ func (a *app) startHeartMode() {
 	}
 	var seed *netease.Track
 	fromPlaying := false
-	if cur := a.current(); cur != nil && a.isLiked(cur) {
+	if cur := a.current(); cur != nil && a.isLiked(*a.pl.Current()) {
 		s := *cur
 		seed, fromPlaying = &s, true
 	}
@@ -299,7 +299,7 @@ func (a *app) fmCard(c *ui.Context) {
 				case pl.Err() != "":
 					ui.Text(c, pl.Err()).FontSize(14).TextColor(white).SingleLine()
 				default:
-					a.artistLinks(c, tr, white.Alpha(0.7), white, true).FontSize(14).SingleLine()
+					a.artistLinks(c, musicOf(tr), white.Alpha(0.7), white, true).FontSize(14).SingleLine()
 				}
 				ui.Row(c).Gap(14).AlignItems(ui.Center).Margin(20, 0, 0, -8).Children(func() {
 					if a.profile != nil {
@@ -307,7 +307,7 @@ func (a *app) fmCard(c *ui.Context) {
 							a.trashFM()
 						}
 					}
-					a.likeButton(c.Key("like"), tr, 20, white.Alpha(0.8))
+					a.likeButton(c.Key("like"), musicOf(tr), 20, white.Alpha(0.8))
 					play := ui.ButtonBase(c.Key("play")).Size(56, 56).Center().Radius(999).Background(white).TextColor(ui.Hex("#1d1d1f")).Label("播放/暂停")
 					pose := ui.Pose{}
 					if play.Pressed() {

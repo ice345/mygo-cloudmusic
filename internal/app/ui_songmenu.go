@@ -5,6 +5,7 @@ import (
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -12,7 +13,7 @@ import (
 var copyText = func(text string) error { return mygo.Clipboard.Write(transfer.TextData(text)) }
 
 // songMenu is three dots that open the menu of tr.
-func (a *app) songMenu(c *ui.Context, tr *netease.Track, size float32, color ui.Color) ui.Element {
+func (a *app) songMenu(c *ui.Context, tr music.Track, size float32, color ui.Color) ui.Element {
 	b := iconButton(c, iconMore, size, color, "更多")
 	b.Menu(a.songItems(tr, 0))
 	return b
@@ -23,9 +24,9 @@ func (a *app) songMenu(c *ui.Context, tr *netease.Track, size float32, color ui.
 // artists, or the link to its page, opening its artists' or album's, and,
 // signed in, adding it to a playlist or taking it out of pid, the playlist
 // it is listed in, if set.
-func (a *app) songItems(tr *netease.Track, pid int64) func(m *ui.Menu) {
+func (a *app) songItems(tr music.Track, pid int64) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
-		if tr.ProgramID != 0 {
+		if tr.ShowID != "" {
 			a.programItems(m, tr)
 			return
 		}
@@ -37,39 +38,41 @@ func (a *app) songItems(tr *netease.Track, pid int64) func(m *ui.Menu) {
 		}
 		m.Separator()
 		if m.Item("复制链接").Chosen() {
-			copyText(tr.URL())
+			copyText(tr.URL)
 		}
-		// Its artists' and album's pages, those NetEase has.
-		linked := tr.Album.ID != 0
+		// Its artists' and album's pages, those its source has.
+		linked := tr.Album.ID != ""
 		for _, ar := range tr.Artists {
-			linked = linked || ar.ID != 0
+			linked = linked || ar.ID != ""
 		}
 		if linked {
 			m.Separator()
 		}
 		for _, ar := range tr.Artists {
-			if ar.ID != 0 && m.Item("查看歌手："+ar.Name).Chosen() {
-				a.openArtist(ar.ID)
+			if ar.ID != "" && m.Item("查看歌手："+ar.Name).Chosen() {
+				a.openArtist(tr.Source, ar.ID)
 			}
 		}
-		if tr.Album.ID != 0 && m.Item("查看专辑："+tr.Album.Name).Chosen() {
-			a.openPage(nroute(pageAlbum, tr.Album.ID))
+		if tr.Album.ID != "" && m.Item("查看专辑："+tr.Album.Name).Chosen() {
+			a.openPage(route{page: pageAlbum, source: tr.Source, id: tr.Album.ID})
 		}
-		a.playlistItems(m, tr, pid)
+		// Playlists are NetEase's, edited by its numbers, until they move.
+		ntr := netease.FromTrack(tr)
+		a.playlistItems(m, &ntr, pid)
 	}
 }
 
 // programItems builds the menu of an episode: copying its title or the
 // link to its page, or opening its podcast's.
-func (a *app) programItems(m *ui.Menu, tr *netease.Track) {
+func (a *app) programItems(m *ui.Menu, tr music.Track) {
 	if m.Item("复制节目名").Chosen() {
 		copyText(tr.Name)
 	}
 	if m.Item("复制链接").Chosen() {
-		copyText(tr.URL())
+		copyText(tr.URL)
 	}
 	m.Separator()
 	if m.Item("查看播客").Chosen() {
-		a.openPage(nroute(pagePodcast, tr.PodcastID))
+		a.openPage(route{page: pagePodcast, source: tr.Source, id: tr.ShowID})
 	}
 }

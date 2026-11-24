@@ -574,10 +574,10 @@ func (n *notch) expanded(c *ui.Context, tr *netease.Track, open, left float32) {
 				if pl.Loading() {
 					ui.Text(c, "正在缓冲…").FontSize(12.5).TextColor(white.Alpha(0.55)).SingleLine()
 				} else {
-					a.artistLinks(c, tr, white.Alpha(0.55), white).FontSize(12.5).SingleLine()
+					a.artistLinks(c, musicOf(tr), white.Alpha(0.55), white).FontSize(12.5).SingleLine()
 				}
 			})
-			a.likeButton(c.Key("like"), tr, 17, white.Alpha(0.6))
+			a.likeButton(c.Key("like"), musicOf(tr), 17, white.Alpha(0.6))
 			n.levels(c, tr, 26, 22, 5)
 		})
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {

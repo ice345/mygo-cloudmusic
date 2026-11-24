@@ -253,7 +253,7 @@ func (a *app) playlistPage(c *ui.Context) {
 		a.trackSkeleton(c, s, true, func(c *ui.Context) { a.playlistHeaderSkeleton(c, s) })
 		return
 	}
-	a.trackRows(c, pl.Tracks, true, func(c *ui.Context) { a.playlistHeader(c, pl) })
+	a.trackRows(c, neteaseList(pl.Tracks), true, func(c *ui.Context) { a.playlistHeader(c, pl) })
 }
 
 func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
@@ -337,9 +337,9 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 
 // trackRows lists tracks under a header, which scrolls with them; a click
 // plays the list from the track clicked.
-func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, header func(c *ui.Context), footer ...func(c *ui.Context)) {
+func (a *app) trackRows(c *ui.Context, tracks trackList, covers bool, header func(c *ui.Context), footer ...func(c *ui.Context)) {
 	p := a.pal
-	cur := a.current()
+	cur := a.pl.Current()
 	// A song's menu can take it out of the playlist it is listed in.
 	var pid int64
 	if a.route.page == pagePlaylist {
@@ -352,7 +352,7 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 	// Rows out of view are not built, their marks with them: a list
 	// scrolled away from its start or end has content under the bars.
 	a.underTop, a.underBottom = true, true
-	rows := len(tracks) + 1 + len(footer)
+	rows := tracks.n + 1 + len(footer)
 	ui.List(c.Key(a.route), &a.trackList, rows, func(i int) {
 		if i == 0 {
 			ui.Column(c).Children(func() {
@@ -364,14 +364,14 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 		if i == rows-1 {
 			defer a.endMark(c)
 		}
-		if i > len(tracks) {
-			footer[i-len(tracks)-1](c)
+		if i > tracks.n {
+			footer[i-tracks.n-1](c)
 			return
 		}
 		i--
-		tr := &tracks[i]
-		playing := cur != nil && cur.ID == tr.ID
-		row := ui.ButtonBase(c.Key(tr.ID)).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
+		tr := tracks.at(i)
+		playing := cur != nil && cur.Source == tr.Source && cur.ID == tr.ID
+		row := ui.ButtonBase(c.Key(tr.Source + "/" + tr.ID)).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
 			ContextMenu(a.songItems(tr, pid))
 		hovered := row.Hovered()
 		bg := ui.Transparent
@@ -382,7 +382,7 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 			bg = p.hover
 		}
 		row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 100 * time.Millisecond}))
-		if !tr.Playable() {
+		if tr.Unavailable {
 			row.Opacity(0.42)
 		}
 		row.Children(func() {
@@ -390,14 +390,14 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 				switch {
 				case playing:
 					a.nowPlayingBars(c)
-				case hovered && tr.Playable():
+				case hovered && !tr.Unavailable:
 					ui.Icon(c, iconPlay).Size(13, 13).TextColor(p.text)
 				default:
 					ui.Textf(c, "%d", i+1).FontSize(13).FontFeatures("tnum").TextColor(p.faint)
 				}
 			})
 			if covers {
-				a.cover(c, tr.Album.PicURL, 96, 38, 6)
+				a.cover(c, tr.Album.ImageURL, 96, 38, 6)
 			}
 			ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
 				name := p.text
@@ -410,7 +410,7 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 				}
 				ui.RichText(c, spans...).FontSize(14).SingleLine()
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					if !tr.Playable() {
+					if tr.Unavailable {
 						ui.Text(c, "VIP").FontSize(9).FontWeight(800).TextColor(p.accent).Padding(0, 4).Radius(3).Border(1, p.accent.Alpha(0.6))
 					}
 					a.artistLinks(c, tr, p.muted, p.text).FontSize(12.5).SingleLine().Shrink(1).MinWidth(0)
@@ -422,10 +422,10 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 			if wide {
 				album := ui.RichText(c).Grow(2).Basis(0).MinWidth(0).FontSize(12.5).TextColor(p.muted).SingleLine()
 				album.Children(func() {
-					if tr.Album.ID == 0 {
+					if tr.Album.ID == "" {
 						ui.Text(c, tr.Album.Name)
 					} else {
-						a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, nroute(pageAlbum, tr.Album.ID))
+						a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, source: tr.Source, id: tr.Album.ID})
 					}
 				})
 			}
@@ -437,8 +437,8 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 			})
 			ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
 		})
-		if row.Clicked() && tr.Playable() {
-			a.playQueue(tracks, i)
+		if row.Clicked() && !tr.Unavailable {
+			a.pl.PlayQueue(tracks.all(), i)
 		}
 	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
 }

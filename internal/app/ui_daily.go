@@ -353,7 +353,7 @@ func (a *app) dailyPicks(c *ui.Context, songs []netease.Track, ours bool) {
 		for i := range min(3, len(songs)) {
 			tr := &songs[i]
 			row := ui.ButtonBase(c.Key(tr.ID)).Row().Gap(12).Padding(7, 12).Radius(12).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
-				ContextMenu(a.songItems(tr, 0))
+				ContextMenu(a.songItems(musicOf(tr), 0))
 			bg := white.Alpha(0)
 			if row.Hovered() {
 				bg = white.Alpha(0.1)
@@ -370,7 +370,7 @@ func (a *app) dailyPicks(c *ui.Context, songs []netease.Track, ours bool) {
 				})
 				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(1).Children(func() {
 					ui.Text(c, tr.Name).FontSize(13).FontWeight(600).MaxLines(1)
-					a.artistLinks(c, tr, white.Alpha(0.6), white).FontSize(11.5).MaxLines(1)
+					a.artistLinks(c, musicOf(tr), white.Alpha(0.6), white).FontSize(11.5).MaxLines(1)
 				})
 			})
 			if row.Clicked() {
@@ -517,5 +517,5 @@ func (a *app) dailyPage(c *ui.Context) {
 		a.trackSkeleton(c, s, true, header)
 		return
 	}
-	a.trackRows(c, songs, true, header)
+	a.trackRows(c, neteaseList(songs), true, header)
 }

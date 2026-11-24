@@ -239,7 +239,7 @@ func (a *app) sidebarNowPlaying(c *ui.Context, tr *netease.Track) {
 		a.cover(c, tr.Album.PicURL, 96, 40, 6).Shadow(0, 2, 6, 0, p.cardShade)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(2).Children(func() {
 			ui.Text(c, tr.Name).FontSize(12.5).FontWeight(600).SingleLine()
-			a.artistLinks(c, tr, p.muted, p.text).FontSize(11.5).SingleLine()
+			a.artistLinks(c, musicOf(tr), p.muted, p.text).FontSize(11.5).SingleLine()
 		})
 	})
 	if card.Clicked() {

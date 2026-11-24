@@ -530,7 +530,7 @@ func catalogApp() *app {
 	a.podcastTab = &podcastTab{subs: []netease.Podcast{subbed}, picks: hot[:3], hot: hot, hotPage: paged{loaded: true}}
 	artists := []netease.ArtistProfile{*a.artists[7].profile, {Artist: netease.Artist{ID: 10, Name: "Ave Mujica"}}}
 	for kind, d := range map[music.SearchKind]*searchData{
-		music.SearchTracks:  {res: music.SearchResult{Tracks: netease.ToTracks(songs)}, songs: songs, total: 38},
+		music.SearchTracks:  {res: music.SearchResult{Tracks: netease.ToTracks(songs)}, total: 38},
 		music.SearchArtists: {res: music.SearchResult{Artists: netease.ToArtists(artists)}, total: 2},
 		music.SearchAlbums:  {res: music.SearchResult{Albums: netease.ToAlbums(albums)}, total: 6},
 		kindUsers:           {users: []netease.User{user, {UserID: 10, Nickname: "夏日来信"}}, total: 2},
@@ -638,13 +638,13 @@ func TestSearchPagesComeFromTheSource(t *testing.T) {
 	a.loadSearch(r, true)
 	d := a.searches[r]
 	wait(t, landed, "the first page")()
-	if len(d.songs) != 2 || d.songs[0].Fee != 1 || !d.page.more || d.total != 3 || !d.page.loaded {
-		t.Fatalf("first page: %d songs, fee %d, more %v, total %d", len(d.songs), d.songs[0].Fee, d.page.more, d.total)
+	if len(d.res.Tracks) != 2 || !d.res.Tracks[0].Unavailable || !d.page.more || d.total != 3 || !d.page.loaded {
+		t.Fatalf("first page: %d songs, more %v, total %d", len(d.res.Tracks), d.page.more, d.total)
 	}
 	a.moreResults(r, d)
 	wait(t, landed, "the second page")()
-	if len(d.songs) != 3 || d.songs[2].ProgramID != 9 || d.page.more || d.len() != 3 {
-		t.Fatalf("second page: %d songs, more %v", len(d.songs), d.page.more)
+	if len(d.res.Tracks) != 3 || netease.FromTrack(d.res.Tracks[2]).ProgramID != 9 || d.page.more || d.len() != 3 {
+		t.Fatalf("second page: %d songs, more %v", len(d.res.Tracks), d.page.more)
 	}
 	if !slices.Equal(src.offsets, []int{0, 2}) {
 		t.Errorf("asked from %v, want 0 then 2", src.offsets)

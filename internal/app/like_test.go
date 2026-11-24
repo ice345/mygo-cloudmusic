@@ -140,17 +140,18 @@ func TestEpisodeLikeClickBeatsAnswer(t *testing.T) {
 	a := newTestApp()
 	likes(t, a, &likeSource{likeEpisode: func(string, bool) error { return nil }})
 	a.profile = &netease.Profile{UserID: 1}
-	three, four := netease.Track{ID: 13, ProgramID: 3}, netease.Track{ID: 14, ProgramID: 4}
-	a.askLikes([]netease.Track{three, four})
-	a.toggleLike(&three)
-	a.likesAnswered(1, []string{"13@3", "14@4"}, map[string]bool{"14@4": true})
+	three := netease.ToTrack(netease.Track{ID: 13, ProgramID: 3, PodcastID: 5})
+	four := netease.ToTrack(netease.Track{ID: 14, ProgramID: 4, PodcastID: 5})
+	a.askLikes([]music.Track{three, four})
+	a.toggleLike(three)
+	a.likesAnswered(1, netease.SourceID, []string{"13@3", "14@4"}, map[string]bool{"14@4": true})
 	if !a.likedID("13@3") || !a.likedID("14@4") {
 		t.Fatalf("liked %v", a.liked)
 	}
 	a.signedIn(nil)
 	a.profile = &netease.Profile{UserID: 2}
-	a.askLikes([]netease.Track{{ID: 15, ProgramID: 5}})
-	a.likesAnswered(1, []string{"15@5"}, map[string]bool{"15@5": true})
+	a.askLikes([]music.Track{netease.ToTrack(netease.Track{ID: 15, ProgramID: 5, PodcastID: 5})})
+	a.likesAnswered(1, netease.SourceID, []string{"15@5"}, map[string]bool{"15@5": true})
 	if a.likedID("15@5") {
 		t.Error("took the last listener's answer")
 	}

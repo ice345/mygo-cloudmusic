@@ -190,7 +190,7 @@ func init() {
 				step(0, func() { a.nowPlaying, a.npPane = true, paneLyrics })
 				time.Sleep(3 * time.Second)
 				shot("a-np", a.win)
-				step(0, func() { a.openArtist(a.current().Artists[0].ID) })
+				step(0, func() { a.openPage(nroute(pageArtist, a.current().Artists[0].ID)) })
 				time.Sleep(150 * time.Millisecond)
 				shot("a-loading", a.win)
 				time.Sleep(4 * time.Second)

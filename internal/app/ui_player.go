@@ -400,7 +400,7 @@ func (a *app) playerBar(c *ui.Context) {
 						sub, color = pl.Err(), p.accent
 					}
 					if sub == "" {
-						a.artistLinks(c, tr, p.muted, p.text).FontSize(12).SingleLine()
+						a.artistLinks(c, musicOf(tr), p.muted, p.text).FontSize(12).SingleLine()
 					} else {
 						ui.Text(c, sub).FontSize(12).TextColor(color).SingleLine()
 					}
@@ -409,7 +409,7 @@ func (a *app) playerBar(c *ui.Context) {
 			if info.Clicked() {
 				a.nowPlaying = true
 			}
-			a.likeButton(c.Key("like"), tr, 16, p.muted).Margin(0, 0, 0, 4).Shrink(0)
+			a.likeButton(c.Key("like"), musicOf(tr), 16, p.muted).Margin(0, 0, 0, 4).Shrink(0)
 		})
 
 		// Controls over the progress.

@@ -60,7 +60,7 @@ func (a *app) albumPage(c *ui.Context) {
 		a.trackSkeleton(c, s, false, func(c *ui.Context) { a.playlistHeaderSkeleton(c, s) })
 		return
 	}
-	a.trackRows(c, d.album.Songs, false, func(c *ui.Context) { a.albumHeader(c, d.album) })
+	a.trackRows(c, neteaseList(d.album.Songs), false, func(c *ui.Context) { a.albumHeader(c, d.album) })
 }
 
 func (a *app) albumHeader(c *ui.Context, al *netease.AlbumProfile) {
