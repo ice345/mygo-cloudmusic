@@ -9,7 +9,6 @@ import (
 
 	"netease-music-mygo/internal/lyrics"
 	"netease-music-mygo/internal/music"
-	"netease-music-mygo/internal/netease"
 )
 
 var white = ui.RGB(255, 255, 255)
@@ -434,7 +433,7 @@ func (a *app) radioChip(c *ui.Context, name string) {
 
 // qualityBadge marks a lossless stream, as it plays.
 func qualityBadge(c *ui.Context, st *music.Stream) {
-	if st == nil || !netease.Lossless(st.Quality) {
+	if st == nil || !music.Lossless(st.Quality) {
 		return
 	}
 	label := "无损"
@@ -792,7 +791,7 @@ func (a *app) queuePane(c *ui.Context) {
 		tr := &a.pl.Queue()[i]
 		playing := r == at
 		row := ui.ButtonBase(c.Key(i)).Height(58).PaddingX(10).Gap(14).Radius(12).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
-			ContextMenu(a.songItems(*tr, 0))
+			ContextMenu(a.songItems(*tr, ""))
 		switch {
 		case playing:
 			row.Background(white.Alpha(0.12))

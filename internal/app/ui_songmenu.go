@@ -6,7 +6,6 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/music"
-	"netease-music-mygo/internal/netease"
 )
 
 // copyText puts text on the clipboard; tests replace it.
@@ -15,7 +14,7 @@ var copyText = func(text string) error { return mygo.Clipboard.Write(transfer.Te
 // songMenu is three dots that open the menu of tr.
 func (a *app) songMenu(c *ui.Context, tr music.Track, size float32, color ui.Color) ui.Element {
 	b := iconButton(c, iconMore, size, color, "更多")
-	b.Menu(a.songItems(tr, 0))
+	b.Menu(a.songItems(tr, ""))
 	return b
 }
 
@@ -24,7 +23,7 @@ func (a *app) songMenu(c *ui.Context, tr music.Track, size float32, color ui.Col
 // artists, or the link to its page, opening its artists' or album's, and,
 // signed in, adding it to a playlist or taking it out of pid, the playlist
 // it is listed in, if set.
-func (a *app) songItems(tr music.Track, pid int64) func(m *ui.Menu) {
+func (a *app) songItems(tr music.Track, pid string) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		if tr.ShowID != "" {
 			a.programItems(m, tr)
@@ -56,9 +55,7 @@ func (a *app) songItems(tr music.Track, pid int64) func(m *ui.Menu) {
 		if tr.Album.ID != "" && m.Item("查看专辑："+tr.Album.Name).Chosen() {
 			a.openPage(route{page: pageAlbum, source: tr.Source, id: tr.Album.ID})
 		}
-		// Playlists are NetEase's, edited by its numbers, until they move.
-		ntr := netease.FromTrack(tr)
-		a.playlistItems(m, &ntr, pid)
+		a.playlistItems(m, tr, pid)
 	}
 }
 

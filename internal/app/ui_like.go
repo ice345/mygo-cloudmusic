@@ -2,7 +2,6 @@ package app
 
 import (
 	"math"
-	"strconv"
 	"strings"
 	"time"
 
@@ -21,14 +20,22 @@ import (
 // likeKey names a track in the likes.
 func likeKey(tr music.Track) trackKey { return trackKey{tr.Source, tr.ID} }
 
-// likedSongs lists the songs the listener likes, all at once; tests replace it.
-var likedSongs = netease.LikedIDs
+// A likedLister is a source that lists the songs the listener likes all at
+// once, as NetEase does: the hearts of a source that cannot are asked after
+// the songs a page shows.
+type likedLister interface {
+	LikedSongIDs() ([]string, error)
+}
 
 // loadLiked loads the listener's liked songs, which NetEase lists at once,
 // where asking after each would not do. What is known of episodes stays.
 func (a *app) loadLiked(uid int64) {
+	src, ok := a.accountSource().(likedLister)
+	if !ok {
+		return
+	}
 	go func() {
-		ids, err := likedSongs(uid)
+		ids, err := src.LikedSongIDs()
 		a.post(func() {
 			if err != nil || a.account == nil || a.uid() != uid {
 				return
@@ -40,7 +47,7 @@ func (a *app) loadLiked(uid int64) {
 				}
 			}
 			for _, id := range ids {
-				liked[trackKey{netease.SourceID, strconv.FormatInt(id, 10)}] = true
+				liked[trackKey{netease.SourceID, id}] = true
 			}
 			a.liked = liked
 		})

@@ -142,7 +142,7 @@ func TestCreatePlaylistForSong(t *testing.T) {
 		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
 	}
 	tt.Frame()
-	if !a.naming.open || a.naming.add == nil || a.naming.add.ID != 2 {
+	if !a.naming.open || a.naming.add == nil || a.naming.add.ID != "2" {
 		t.Fatalf("the dialog is %+v, want it open to add song 2", a.naming)
 	}
 }
@@ -230,7 +230,7 @@ func TestDeletePlaylist(t *testing.T) {
 	if got := <-ids; got != 10 {
 		t.Errorf("deleted playlist %d, want 10", got)
 	}
-	if a.editable(10) != nil {
+	if a.editable("10") != nil {
 		t.Error("the sidebar still lists it")
 	}
 	if a.route.page != pageCharts || len(a.history) != 0 || len(a.forward) != 0 {
@@ -258,7 +258,7 @@ func TestCancelDeletingPlaylist(t *testing.T) {
 	}
 	tt.Advance(300 * time.Millisecond)
 	tt.Frame()
-	if a.editable(11) == nil {
+	if a.editable("11") == nil {
 		t.Error("the playlist left the sidebar")
 	}
 }
@@ -289,10 +289,10 @@ func TestPlaylistEditFrames(t *testing.T) {
 		a.newPlaylist(nil)
 		save("create" + suffix)
 		a.naming.open = false
-		a.startRename(a.editable(11))
+		a.startRename(a.editable("11"))
 		save("rename" + suffix)
 		a.naming.open = false
-		a.confirmDelete(a.editable(11))
+		a.confirmDelete(a.editable("11"))
 		save("delete" + suffix)
 		a.deleting.open = false
 	}
@@ -333,8 +333,8 @@ func TestSidebarListsWhatTheSourceSays(t *testing.T) {
 	if len(a.mine) != 2 || a.mine[0].Name != "小明喜欢的音乐" || len(a.saved) != 1 || a.saved[0].ID != "20" {
 		t.Fatalf("mine %+v, saved %+v", a.mine, a.saved)
 	}
-	if a.editable(5) != nil || a.editable(10) == nil || a.likedPlaylist() != "5" {
-		t.Errorf("editable liked %v, own %v, liked songs %s", a.editable(5), a.editable(10), a.likedPlaylist())
+	if a.editable("5") != nil || a.editable("10") == nil || a.likedPlaylist() != "5" {
+		t.Errorf("editable liked %v, own %v, liked songs %s", a.editable("5"), a.editable("10"), a.likedPlaylist())
 	}
 
 	src.err = music.Fail(music.ErrSignIn, "")
@@ -351,5 +351,34 @@ func TestSidebarListsWhatTheSourceSays(t *testing.T) {
 	wait(t, landed, "a late answer")()
 	if len(a.mine) != 0 || len(a.saved) != 0 {
 		t.Errorf("a listener who signed out was given playlists: %+v %+v", a.mine, a.saved)
+	}
+}
+
+// A song of another source is not offered the listener's playlists, which are
+// its own source's: adding it would put a song in a playlist that cannot hold
+// it. A song of the playlists' source is.
+func TestSongOfAnotherSourceCannotGoInTheListenersPlaylists(t *testing.T) {
+	a := editTestApp()
+	a.sources["plug"] = &artistSource{id: "plug"}
+	a.playlists[pageKey{"plug", "p1"}] = &music.Playlist{ID: "p1", Source: "plug", Name: "别处的歌单", Tracks: []music.Track{
+		{ID: "t1", Source: "plug", Name: "外来的歌", Duration: 200000},
+	}}
+	a.route = route{page: pagePlaylist, source: "plug", id: "p1"}
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if err := tt.RightClick("外来的歌"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("添加到歌单", "睡前"); err == nil {
+		t.Error("offered to add a song of another source to the listener's playlist")
+	}
+
+	a.route = nroute(pagePlaylist, 10)
+	tt.Frame()
+	if err := tt.RightClick("宝船"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("添加到歌单", "睡前"); err != nil {
+		t.Errorf("a song of the playlists' own source: %v; the menu shows %q", err, tt.Menu())
 	}
 }

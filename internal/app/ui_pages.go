@@ -306,7 +306,7 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 						a.toggleSaved(*pl)
 					}
 				}
-				if mine := a.editable(numericID(pl.ID)); mine != nil {
+				if mine := a.editable(pl.ID); mine != nil {
 					more := iconButton(c.Key("more"), iconMore, 18, p.muted, "更多")
 					more.Menu(func(m *ui.Menu) {
 						if m.Item("重命名…").Chosen() {
@@ -344,9 +344,9 @@ func (a *app) trackRows(c *ui.Context, tracks trackList, covers bool, header fun
 	p := a.pal
 	cur := a.pl.Current()
 	// A song's menu can take it out of the playlist it is listed in.
-	var pid int64
-	if a.route.page == pagePlaylist {
-		pid = a.route.number()
+	var pid string
+	if a.route.page == pagePlaylist && a.route.source == a.accountKey("").source {
+		pid = a.route.id
 	}
 	w, _ := c.Size()
 	// An album's page has no column of the album its songs are on.

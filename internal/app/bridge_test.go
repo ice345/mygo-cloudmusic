@@ -31,6 +31,22 @@ func TestPicturesAreFetchedAtTheURLsTheyAlwaysWere(t *testing.T) {
 	}
 }
 
+// A picture of another source is fetched as that source gave it: its size
+// filled in where its URL says, and its URL left alone where it says nothing,
+// where NetEase's rule would add a query to an address that may be signed.
+func TestPicturesOfOtherSourcesAreNotSizedByNetEasesRule(t *testing.T) {
+	for url, want := range map[string]string{
+		"https://img.example/c/{size}.jpg":      "https://img.example/c/240.jpg",
+		"https://img.example/c.jpg?token=abc":   "https://img.example/c.jpg?token=abc",
+		"file:///Users/x/cover.png":             "file:///Users/x/cover.png",
+		"https://notmusic.126.net.example/a.jp": "https://notmusic.126.net.example/a.jp",
+	} {
+		if got := sizedImage(url, 240); got != want {
+			t.Errorf("%s: %q, want %q", url, got, want)
+		}
+	}
+}
+
 // A page is opened by NetEase's numeric ID, which a source's ID names only if
 // it is one: anything else opens nothing, rather than the page of ID 0.
 func TestNumericIDOpensOnlyWhatIsOne(t *testing.T) {

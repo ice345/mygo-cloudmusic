@@ -525,10 +525,8 @@ func TestLikeCurrent(t *testing.T) {
 // the songs NetEase lists.
 func TestLoadingLikedSongsKeepsWhatIsKnownOfEpisodes(t *testing.T) {
 	landed := make(chan func(), 2)
-	prev := likedSongs
-	likedSongs = func(uid int64) ([]int64, error) { return []int64{7, 8}, nil }
-	defer func() { likedSongs = prev }()
 	a := newTestApp()
+	a.sources[netease.SourceID] = &likedListSource{ids: []string{"7", "8"}}
 	a.onPost = func(fn func()) { landed <- fn }
 	a.account = &music.Account{ID: "1"}
 	a.setLiked(trackKey{netease.SourceID, "13@3"}, true)
@@ -543,3 +541,14 @@ func TestLoadingLikedSongsKeepsWhatIsKnownOfEpisodes(t *testing.T) {
 		t.Errorf("episodes forgotten: %v", a.liked)
 	}
 }
+
+// likedListSource is a source that lists the songs the listener likes all at once.
+type likedListSource struct {
+	music.Unsupported
+	ids []string
+}
+
+func (*likedListSource) Info() music.Info {
+	return music.Info{ID: netease.SourceID, Name: "喜欢音源"}
+}
+func (s *likedListSource) LikedSongIDs() ([]string, error) { return s.ids, nil }

@@ -1,6 +1,7 @@
 package app
 
 import (
+	neturl "net/url"
 	"strconv"
 	"strings"
 
@@ -48,12 +49,27 @@ func numericID(id string) int64 {
 
 // sizedImage is the URL to fetch the picture at url with, to show it px
 // pixels across: one a source gives, which says where its size goes, or
-// NetEase's, as the views that have not moved over hold them.
+// NetEase's own, as the views that have not moved over hold them, which are
+// sized by NetEase's rule; any other picture is fetched as it is.
 func sizedImage(url string, px int) string {
-	if strings.Contains(url, "{size}") || strings.Contains(url, "%7Bsize%7D") {
+	switch {
+	case strings.Contains(url, "{size}") || strings.Contains(url, "%7Bsize%7D"):
 		return music.SizedImage(url, px)
+	case neteaseImage(url):
+		return netease.Sized(url, px)
 	}
-	return netease.Sized(url, px)
+	return url
+}
+
+// neteaseImage says a picture is of NetEase's image CDN, whose pictures take a
+// size in their address.
+func neteaseImage(url string) bool {
+	u, err := neturl.Parse(url)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	return host == "126.net" || strings.HasSuffix(host, ".126.net")
 }
 
 // musicOf is a NetEase track as the app's, for the views that have not moved
