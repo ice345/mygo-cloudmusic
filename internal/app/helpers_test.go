@@ -13,7 +13,7 @@ func newTestApp() *app {
 	a := &app{
 		playlists: map[pageKey]*music.Playlist{}, loadingPl: map[pageKey]bool{}, plErr: map[pageKey]string{},
 		artists: map[pageKey]*artistData{}, albums: map[pageKey]*albumData{}, users: map[int64]*userData{},
-		podcasts: map[int64]*podcastData{}, podcastTab: &podcastTab{}, searches: map[route]*searchData{},
+		podcasts: map[pageKey]*podcastData{}, podcastTab: &podcastTab{}, searches: map[route]*searchData{},
 		lyricAt: -1, queueAt: -1,
 		sources: map[string]music.Source{netease.SourceID: netease.Source{}},
 	}
@@ -159,4 +159,34 @@ func (s *commentSource) LikeComment(id, comment string, on bool) error {
 		return music.ErrUnsupported
 	}
 	return s.like(id, comment, on)
+}
+
+// loadedPodcast is a NetEase podcast and its episodes as the podcast page holds
+// them once they have loaded.
+func loadedPodcast(pod netease.Podcast, programs ...netease.Program) *podcastData {
+	show := netease.ToShow(pod)
+	d := &podcastData{show: &show, page: paged{loaded: true}}
+	for _, p := range programs {
+		d.episodes = append(d.episodes, netease.ToEpisode(p, &pod))
+	}
+	return d
+}
+
+// picksSource is a source with podcasts to pick from, and those the listener
+// subscribes to, as a test says.
+type picksSource struct {
+	music.Unsupported
+	subs  []music.Show
+	picks func() ([]music.Show, error)
+	hot   func(offset int) ([]music.Show, bool, error)
+}
+
+func (*picksSource) Info() music.Info { return music.Info{ID: netease.SourceID, Name: "播客音源"} }
+func (*picksSource) Can(what string) bool {
+	return what == "shows"
+}
+func (s *picksSource) Shows() ([]music.Show, error)        { return s.subs, nil }
+func (s *picksSource) PodcastPicks() ([]music.Show, error) { return s.picks() }
+func (s *picksSource) HotPodcasts(offset int) ([]music.Show, bool, error) {
+	return s.hot(offset)
 }

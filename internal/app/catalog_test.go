@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -332,7 +333,7 @@ func TestPlayEpisode(t *testing.T) {
 		p.MainSong.ID = audio
 		return p
 	}
-	a.podcasts[5] = &podcastData{podcast: pod, programs: []netease.Program{ep(1, 11, "第三期"), ep(2, 0, "第二期"), ep(3, 13, "第一期")}, page: paged{loaded: true}}
+	a.podcasts[nkey(5)] = loadedPodcast(*pod, ep(1, 11, "第三期"), ep(2, 0, "第二期"), ep(3, 13, "第一期"))
 	a.open(nroute(pagePodcast, 5))
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -362,7 +363,7 @@ func TestPlayEpisode(t *testing.T) {
 func TestEpisodeOpensPodcast(t *testing.T) {
 	a := catalogApp()
 	a.open(nroute(pagePodcast, 5))
-	d := a.podcasts[5]
+	d := a.podcasts[nkey(5)]
 	a.playProgram(d, 0)
 	a.pl.SetLyrics(nil)
 	a.nowPlaying, a.npPane = true, paneProgram
@@ -370,7 +371,7 @@ func TestEpisodeOpensPodcast(t *testing.T) {
 	tt.Advance(time.Second)
 	tt.Frame()
 	// The host, as Now Playing credits them, not the podcast's.
-	r, ok := tt.Find(d.podcast.DJ.Nickname)
+	r, ok := tt.Find(d.show.Publisher)
 	if !ok {
 		t.Fatal("no host")
 	}
@@ -385,13 +386,14 @@ func TestEpisodeOpensPodcast(t *testing.T) {
 // of the most popular podcasts.
 func TestPodcastsTabLoads(t *testing.T) {
 	asked := make(chan int, 4)
-	hotPodcasts = func(_, offset int) ([]netease.Podcast, bool, error) {
-		asked <- offset
-		return nil, false, errors.New("offline")
-	}
-	recommendedPodcasts = func() ([]netease.Podcast, error) { return nil, errors.New("offline") }
-	defer func() { hotPodcasts, recommendedPodcasts = netease.HotPodcasts, netease.RecommendedPodcasts }()
 	a := newTestApp()
+	a.sources[netease.SourceID] = &picksSource{
+		hot: func(offset int) ([]music.Show, bool, error) {
+			asked <- offset
+			return nil, false, errors.New("offline")
+		},
+		picks: func() ([]music.Show, error) { return nil, errors.New("offline") },
+	}
 	a.settings = defaultSettings()
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()
@@ -440,21 +442,21 @@ func TestPodcastCard(t *testing.T) {
 // starts past all of it. NetEase's pages overlap: the tab listed podcasts
 // twice, two cards under one key sharing their state.
 func TestHotPodcastsOverlap(t *testing.T) {
-	pods := func(ids ...int64) []netease.Podcast {
-		var out []netease.Podcast
+	pods := func(ids ...int64) []music.Show {
+		var out []music.Show
 		for _, id := range ids {
-			out = append(out, netease.Podcast{ID: id})
+			out = append(out, music.Show{ID: strconv.FormatInt(id, 10), Source: netease.SourceID})
 		}
 		return out
 	}
 	var tab podcastTab
 	tab.addHot(pods(1, 2, 3))
 	tab.addHot(pods(4, 2, 5))
-	var ids []int64
+	var ids []string
 	for _, p := range tab.hot {
 		ids = append(ids, p.ID)
 	}
-	if !slices.Equal(ids, []int64{1, 2, 3, 4, 5}) || tab.hotAt != 6 {
+	if !slices.Equal(ids, []string{"1", "2", "3", "4", "5"}) || tab.hotAt != 6 {
 		t.Fatalf("listed %v, next from %d", ids, tab.hotAt)
 	}
 }
@@ -516,14 +518,14 @@ func catalogApp() *app {
 		p.MainSong.ID = int64(50 + i)
 		programs = append(programs, p)
 	}
-	a.podcasts[5] = &podcastData{podcast: pod, programs: programs, page: paged{loaded: true}}
+	a.podcasts[nkey(5)] = loadedPodcast(*pod, programs...)
 	var hot []netease.Podcast
 	for i, name := range []string{"深夜书店", "城市漫游", "慢慢说", "周末早餐", "通勤十分钟", "老唱片"} {
 		hot = append(hot, netease.Podcast{ID: int64(60 + i), Name: name, DJ: netease.User{Nickname: "主播"}, RcmdText: "陪你度过每个夜晚", PlayCount: float64(1e6 * (i + 1))})
 	}
 	subbed := *pod
 	subbed.LastProgram = programs[0].Name
-	a.podcastTab = &podcastTab{subs: []netease.Podcast{subbed}, picks: hot[:3], hot: hot, hotPage: paged{loaded: true}}
+	a.podcastTab = &podcastTab{subs: netease.ToShows([]netease.Podcast{subbed}), picks: netease.ToShows(hot[:3]), hot: netease.ToShows(hot), hotPage: paged{loaded: true}}
 	artists := []netease.ArtistProfile{a.artists[nkey(7)].rec, {Artist: netease.Artist{ID: 10, Name: "Ave Mujica"}}}
 	for kind, d := range map[music.SearchKind]*searchData{
 		music.SearchTracks:  {res: music.SearchResult{Tracks: netease.ToTracks(songs)}, total: 38},

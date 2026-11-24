@@ -173,7 +173,7 @@ func init() {
 					a.pl.SetVolume(0)
 					t := a.podcastTab
 					if pods := append(t.subs, append(t.picks, t.hot...)...); len(pods) > 0 {
-						a.playPodcast(pods[0].ID)
+						a.playPodcast(pageKey{pods[0].Source, pods[0].ID})
 					}
 				})
 				time.Sleep(4 * time.Second)

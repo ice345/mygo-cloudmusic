@@ -4,23 +4,11 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
-)
-
-// These load a podcast and its episodes from NetEase, and subscribe to it,
-// and the podcasts the tab picks and the most popular; tests replace them.
-var (
-	podcastDetail    = netease.PodcastDetail
-	podcastPrograms  = netease.PodcastPrograms
-	subscribePodcast = netease.SubscribePodcast
-
-	recommendedPodcasts = netease.RecommendedPodcasts
-	hotPodcasts         = netease.HotPodcasts
 )
 
 // programsPage is how many of a podcast's episodes load at a time.
@@ -29,70 +17,73 @@ const programsPage = 30
 // podcastData is what the app has of a podcast: what it is, and its
 // episodes, the newest first, as far as they have loaded.
 type podcastData struct {
-	podcast     *netease.Podcast
+	show        *music.Show
 	loading     bool
 	err         string
-	programs    []netease.Program
+	episodes    []music.Track
 	page        paged
 	subscribing bool // a subscription or its end is on its way
 	thenPlay    bool // its card's play button waits for it to load
 }
 
-func (a *app) loadPodcast(id int64) {
-	// Only NetEase's pages load so far: another source's has no number.
-	if id == 0 {
-		return
-	}
-	d := a.podcasts[id]
+// loadPodcast loads a podcast and its first page of episodes, asked of the
+// source its route names, unless it has.
+func (a *app) loadPodcast(k pageKey) {
+	d := a.podcasts[k]
 	if d == nil {
 		d = &podcastData{}
-		a.podcasts[id] = d
+		a.podcasts[k] = d
 	}
-	if !d.page.loaded {
-		a.loadPrograms(id)
+	if d.show != nil || d.loading {
+		return
 	}
-	if d.podcast != nil || d.loading {
+	src := a.source(k.source)
+	if src == nil {
+		d.err = "暂不支持打开这个来源的页面"
 		return
 	}
 	d.loading, d.err = true, ""
 	go func() {
-		pod, err := podcastDetail(id)
+		page, err := src.Show(k.id, 0)
 		a.post(func() {
 			d.loading = false
 			if err != nil {
 				d.err, d.thenPlay = "播客加载失败", false
 				return
 			}
-			d.podcast = pod
+			show := page.Show
+			if show.Source == "" {
+				show.Source = k.source
+			}
+			d.show, d.episodes = &show, page.Episodes
+			d.page = paged{loaded: true, more: page.More && len(page.Episodes) > 0}
+			a.askLikes(page.Episodes)
 			a.playLoaded(d)
 		})
 	}()
 }
 
 // loadPrograms loads the next page of a podcast's episodes.
-func (a *app) loadPrograms(id int64) {
-	d := a.podcasts[id]
-	if d.page.loading {
+func (a *app) loadPrograms(k pageKey) {
+	d := a.podcasts[k]
+	src := a.source(k.source)
+	if d == nil || src == nil || d.page.loading {
 		return
 	}
 	d.page.loading, d.page.err = true, ""
-	offset := len(d.programs)
+	offset := len(d.episodes)
 	go func() {
-		programs, more, err := podcastPrograms(id, programsPage, offset)
+		page, err := src.Show(k.id, offset)
 		a.post(func() {
 			d.page.loading = false
 			if err != nil {
 				d.page.err, d.thenPlay = "节目加载失败", false
 				return
 			}
-			d.programs = append(d.programs, programs...)
-			d.page.loaded, d.page.more = true, more && len(programs) > 0
+			d.episodes = append(d.episodes, page.Episodes...)
+			d.page.loaded, d.page.more = true, page.More && len(page.Episodes) > 0
 			// Which the listener likes, for their hearts.
-			episodes := make([]music.Track, len(programs))
-			for i := range programs {
-				episodes[i] = netease.ToTrack(programs[i].Track(d.podcast))
-			}
-			a.askLikes(episodes)
+			a.askLikes(page.Episodes)
 			a.playLoaded(d)
 		})
 	}()
@@ -101,77 +92,81 @@ func (a *app) loadPrograms(id int64) {
 // playProgram plays the episodes loaded, from the one at i: those with
 // audio to play.
 func (a *app) playProgram(d *podcastData, i int) {
-	var queue []netease.Track
+	var queue []music.Track
 	at := 0
-	for j := range d.programs {
-		if d.programs[j].MainSong.ID == 0 {
+	for j := range d.episodes {
+		if d.episodes[j].Unavailable {
 			continue
 		}
 		if j <= i {
 			at = len(queue)
 		}
-		queue = append(queue, d.programs[j].Track(d.podcast))
+		queue = append(queue, d.episodes[j])
 	}
 	if len(queue) > 0 {
-		a.playQueue(queue, at)
+		a.pl.PlayQueue(queue, at)
 	}
 }
 
 // playPodcast plays a podcast's episodes from the newest, from its card,
 // once it and they have loaded.
-func (a *app) playPodcast(id int64) {
-	a.loadPodcast(id)
-	d := a.podcasts[id]
+func (a *app) playPodcast(k pageKey) {
+	a.loadPodcast(k)
+	d := a.podcasts[k]
 	d.thenPlay = true
 	a.playLoaded(d)
 }
 
 // playLoaded plays a podcast its card asked to play, once it can.
 func (a *app) playLoaded(d *podcastData) {
-	if d.thenPlay && d.podcast != nil && d.page.loaded {
+	if d.thenPlay && d.show != nil && d.page.loaded {
 		d.thenPlay = false
 		a.playProgram(d, 0)
 	}
 }
 
 // toggleSubscribe subscribes the listener to a podcast, or unsubscribes
-// them, at once, going back if NetEase refuses. Signed out, it asks the
+// them, at once, going back if its source refuses. Signed out, it asks the
 // listener to sign in.
 func (a *app) toggleSubscribe(d *podcastData) {
-	if d.podcast == nil || d.subscribing {
+	if d.show == nil || d.subscribing {
 		return
 	}
 	if a.account == nil {
 		a.openLogin()
 		return
 	}
-	pod := d.podcast
+	show := d.show
+	src := a.source(show.Source)
 	tab := a.podcastTab
-	sub := !pod.Subed
-	pod.Subed, d.subscribing = sub, true
+	sub := !show.Subscribed
+	show.Subscribed, d.subscribing = sub, true
 	if sub {
-		pod.SubCount++
+		show.Subscribers++
 	} else {
-		pod.SubCount--
+		show.Subscribers = max(show.Subscribers-1, 0)
 	}
 	go func() {
-		err := subscribePodcast(pod.ID, sub)
+		err := music.ErrUnsupported
+		if src != nil {
+			err = src.SubscribeShow(show.ID, sub)
+		}
 		a.post(func() {
 			d.subscribing = false
 			switch {
 			case err != nil:
-				pod.Subed = !sub
+				show.Subscribed = !sub
 				if sub {
-					pod.SubCount--
+					show.Subscribers = max(show.Subscribers-1, 0)
 				} else {
-					pod.SubCount++
+					show.Subscribers++
 				}
 				a.toast = "操作失败，请稍后再试"
 			case sub:
-				tab.subscribed(pod)
+				tab.subscribed(show)
 				a.toast = "已订阅"
 			default:
-				tab.unsubscribed(pod.ID)
+				tab.unsubscribed(pageKey{show.Source, show.ID})
 				a.toast = "已取消订阅"
 			}
 		})
@@ -180,23 +175,26 @@ func (a *app) toggleSubscribe(d *podcastData) {
 
 func (a *app) podcastPage(c *ui.Context) {
 	p := a.pal
-	id := a.route.number()
-	d := a.podcasts[id]
-	if d.podcast == nil {
+	k := a.route.key()
+	d := a.podcasts[k]
+	if d == nil {
+		return
+	}
+	if d.show == nil {
 		if !d.loading {
-			a.centered(c, d.err, func() { a.loadPodcast(id) })
+			a.centered(c, d.err, func() { a.loadPodcast(k) })
 			return
 		}
 		s := a.pageShimmer(c)
 		a.trackSkeleton(c, s, true, func(c *ui.Context) { a.playlistHeaderSkeleton(c, s) })
 		return
 	}
-	pod := d.podcast
+	pod := d.show
 	cur := a.current()
 	a.scrollPage(c, func() {
 		ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 8, 0).Children(func() {
 			ui.Box(c).Size(212, 212).Radius(14).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
-				a.coverFill(c, pod.PicURL, 600, 14)
+				a.coverFill(c, pod.ImageURL, 600, 14)
 			})
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 				kind := "播客"
@@ -206,11 +204,18 @@ func (a *app) podcastPage(c *ui.Context) {
 				ui.Text(c, kind).FontSize(12).FontWeight(600).TextColor(p.accent)
 				ui.Text(c, pod.Name).FontSize(30).FontWeight(800).LetterSpacing(-0.6).MaxLines(2).LineHeight(1.2)
 				ui.RichText(c).FontSize(13).TextColor(p.muted).Children(func() {
-					if pod.DJ.UserID != 0 {
-						a.link(c.Key("dj"), pod.DJ.Nickname, p.muted, p.text, nroute(pageUser, pod.DJ.UserID))
+					if uid := hostOf(pod); uid != 0 {
+						a.link(c.Key("dj"), pod.Publisher, p.muted, p.text, nroute(pageUser, uid))
+						ui.Text(c, " · ")
+					} else if pod.Publisher != "" {
+						ui.Text(c, pod.Publisher)
 						ui.Text(c, " · ")
 					}
-					ui.Text(c, fmt.Sprintf("%d 期 · %s 人订阅", pod.ProgramCount, count(int(pod.SubCount))))
+					meta := fmt.Sprintf("%d 期", pod.EpisodeCount)
+					if pod.Subscribers > 0 {
+						meta += " · " + count(pod.Subscribers) + " 人订阅"
+					}
+					ui.Text(c, meta)
 				})
 				if desc := strings.TrimSpace(pod.Description); desc != "" {
 					ui.Text(c, strings.ReplaceAll(desc, "\n", " ")).FontSize(12.5).TextColor(p.muted).MaxLines(2).LineHeight(1.45).Margin(2, 0, 0, 0)
@@ -219,22 +224,24 @@ func (a *app) podcastPage(c *ui.Context) {
 					if pillButton(c.Key("play"), iconPlay, "播放", p.accent, p.onAccent).Clicked() {
 						a.playProgram(d, 0)
 					}
-					icon, label := iconPlus, "订阅"
-					if pod.Subed {
-						icon, label = iconCheck, "已订阅"
-					}
-					if pillButton(c.Key("subscribe"), icon, label, p.hover.Over(p.bg), p.text).Clicked() {
-						a.toggleSubscribe(d)
+					if src := a.source(pod.Source); src != nil && src.Can("subscribeShow") {
+						icon, label := iconPlus, "订阅"
+						if pod.Subscribed {
+							icon, label = iconCheck, "已订阅"
+						}
+						if pillButton(c.Key("subscribe"), icon, label, p.hover.Over(p.bg), p.text).Clicked() {
+							a.toggleSubscribe(d)
+						}
 					}
 				})
 			})
 		})
 		a.section(c, "节目")
-		for i := range d.programs {
-			a.programRow(c.Key(d.programs[i].ID), d, i, cur)
+		for i := range d.episodes {
+			a.programRow(c.Key(d.episodes[i].ID), d, i, cur)
 		}
-		a.pageFoot(c, &d.page, func() { a.loadPrograms(id) })
-		if d.page.loaded && len(d.programs) == 0 {
+		a.pageFoot(c, &d.page, func() { a.loadPrograms(k) })
+		if d.page.loaded && len(d.episodes) == 0 {
 			a.empty(c, "暂无节目")
 		}
 	})
@@ -243,10 +250,10 @@ func (a *app) podcastPage(c *ui.Context) {
 // programRow is an episode in its podcast's list, which a click plays.
 func (a *app) programRow(c *ui.Context, d *podcastData, i int, cur *music.Track) {
 	p := a.pal
-	pr := &d.programs[i]
-	playing := cur != nil && cur.ID == netease.TrackID(pr.Track(d.podcast))
+	ep := &d.episodes[i]
+	playing := cur != nil && keyOf(cur) == keyOf(ep)
 	row := ui.ButtonBase(c).Height(60).PaddingX(12).Gap(14).Radius(8).AlignItems(ui.Center).FocusRing(false).
-		Label(pr.Name).Disabled(pr.MainSong.ID == 0)
+		Label(ep.Name).Disabled(ep.Unavailable)
 	switch {
 	case playing:
 		row.Background(p.accent.Alpha(0.08))
@@ -254,29 +261,28 @@ func (a *app) programRow(c *ui.Context, d *podcastData, i int, cur *music.Track)
 		row.Background(p.hover)
 	}
 	row.Children(func() {
-		cover := pr.CoverURL
+		cover := ep.Album.ImageURL
 		if cover == "" {
-			cover = d.podcast.PicURL
+			cover = d.show.ImageURL
 		}
 		a.cover(c, cover, 96, 40, 6)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
-			title := ui.Text(c, pr.Name).FontSize(13.5).FontWeight(500).SingleLine()
+			title := ui.Text(c, ep.Name).FontSize(13.5).FontWeight(500).SingleLine()
 			if playing {
 				title.TextColor(p.accent)
 			}
-			ui.Text(c, time.UnixMilli(pr.CreateTime).Format("2006-01-02")).FontSize(12).TextColor(p.muted)
+			ui.Text(c, ep.Published).FontSize(12).TextColor(p.muted)
 		})
 		if playing {
 			a.nowPlayingBars(c)
 		}
 		// A liked episode's heart shows; the others' as the pointer is on them.
 		ui.Box(c).Size(32, 32).Center().Children(func() {
-			tr := netease.ToTrack(pr.Track(d.podcast))
-			if a.isLiked(tr) || row.Hovered() {
-				a.likeButton(c.Key("like"), tr, 15, p.muted)
+			if a.isLiked(*ep) || row.Hovered() {
+				a.likeButton(c.Key("like"), *ep, 15, p.muted)
 			}
 		})
-		ui.Text(c, clock(time.Duration(pr.Duration)*time.Millisecond)).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
+		ui.Text(c, clock(ep.Length())).FontSize(12).FontFeatures("tnum").TextColor(p.muted)
 	})
 	if row.Clicked() {
 		a.playProgram(d, i)
@@ -321,15 +327,22 @@ func (a *app) programPane(c *ui.Context, tr *music.Track) {
 	})
 }
 
+// A podcastPicker is a source with podcasts of its own to pick from, besides
+// those the listener subscribes to: NetEase's picks and its most popular.
+type podcastPicker interface {
+	PodcastPicks() ([]music.Show, error)
+	HotPodcasts(offset int) ([]music.Show, bool, error)
+}
+
 // podcastTab is what the podcasts tab lists: the podcasts the listener
-// subscribes to, NetEase's picks, and the most popular, as far as they have
-// loaded.
+// subscribes to, the source's picks, and the most popular, as far as they
+// have loaded.
 type podcastTab struct {
-	subs    []netease.Podcast // the latest subscribed first
-	picks   []netease.Podcast
-	hot     []netease.Podcast
+	subs    []music.Show // the latest subscribed first
+	picks   []music.Show
+	hot     []music.Show
 	hotPage paged
-	hotAt   int // how far into NetEase's list the next page starts
+	hotAt   int // how far into the source's list the next page starts
 	loading bool
 	err     string
 }
@@ -339,15 +352,25 @@ func (a *app) loadPodcastTab() {
 	if t.hotPage.loaded || t.loading {
 		return
 	}
+	src := a.accountSource()
+	if src == nil {
+		t.err = "暂不支持打开这个来源的页面"
+		return
+	}
 	t.loading, t.err = true, ""
 	signedIn := a.account != nil
 	go func() {
-		var subs []netease.Podcast
+		var subs []music.Show
 		if signedIn {
-			subs, _ = subscribedPodcasts()
+			subs, _ = src.Shows()
 		}
-		picks, err1 := recommendedPodcasts()
-		hot, more, err2 := hotPodcasts(programsPage, 0)
+		var picks, hot []music.Show
+		var more bool
+		var err1, err2 error
+		if pk, ok := src.(podcastPicker); ok {
+			picks, err1 = pk.PodcastPicks()
+			hot, more, err2 = pk.HotPodcasts(0)
+		}
 		a.post(func() {
 			t.loading = false
 			if err1 != nil && err2 != nil {
@@ -367,13 +390,14 @@ func (a *app) loadPodcastTab() {
 // loadHotPodcasts loads the next page of the most popular podcasts.
 func (a *app) loadHotPodcasts() {
 	t := a.podcastTab
-	if t.hotPage.loading {
+	pk, ok := a.accountSource().(podcastPicker)
+	if !ok || t.hotPage.loading {
 		return
 	}
 	t.hotPage.loading, t.hotPage.err = true, ""
 	offset := t.hotAt
 	go func() {
-		hot, more, err := hotPodcasts(programsPage, offset)
+		hot, more, err := pk.HotPodcasts(offset)
 		a.post(func() {
 			t.hotPage.loading = false
 			if err != nil {
@@ -389,10 +413,10 @@ func (a *app) loadHotPodcasts() {
 // addHot lists a page of the most popular podcasts after those listed,
 // but those already listed: NetEase's pages overlap, a podcast often
 // coming again a page or two later.
-func (t *podcastTab) addHot(page []netease.Podcast) {
+func (t *podcastTab) addHot(page []music.Show) {
 	t.hotAt += len(page)
 	for _, pod := range page {
-		if !slices.ContainsFunc(t.hot, func(p netease.Podcast) bool { return p.ID == pod.ID }) {
+		if !slices.ContainsFunc(t.hot, func(p music.Show) bool { return p.Source == pod.Source && p.ID == pod.ID }) {
 			t.hot = append(t.hot, pod)
 		}
 	}
@@ -400,17 +424,17 @@ func (t *podcastTab) addHot(page []netease.Podcast) {
 
 // subscribed lists a podcast the listener just subscribed to first, once
 // the tab has loaded what they subscribe to.
-func (t *podcastTab) subscribed(pod *netease.Podcast) {
+func (t *podcastTab) subscribed(pod *music.Show) {
 	if !t.hotPage.loaded {
 		return
 	}
-	t.unsubscribed(pod.ID)
-	t.subs = append([]netease.Podcast{*pod}, t.subs...)
+	t.unsubscribed(pageKey{pod.Source, pod.ID})
+	t.subs = append([]music.Show{*pod}, t.subs...)
 }
 
 // unsubscribed takes a podcast out of the listener's subscriptions.
-func (t *podcastTab) unsubscribed(id int64) {
-	t.subs = slices.DeleteFunc(t.subs, func(p netease.Podcast) bool { return p.ID == id })
+func (t *podcastTab) unsubscribed(k pageKey) {
+	t.subs = slices.DeleteFunc(t.subs, func(p music.Show) bool { return p.Source == k.source && p.ID == k.id })
 }
 
 func (a *app) podcastsPage(c *ui.Context) {
@@ -435,7 +459,7 @@ func (a *app) podcastsPage(c *ui.Context) {
 		}
 		// The first list starts right under the heading.
 		first := true
-		list := func(title string, pods []netease.Podcast) {
+		list := func(title string, pods []music.Show) {
 			if len(pods) == 0 {
 				return
 			}
@@ -459,16 +483,25 @@ func (a *app) podcastsPage(c *ui.Context) {
 // podcastCard is a podcast's cover over its name and, for those the
 // listener subscribes to, its newest episode; for the others, why to
 // listen.
-func (a *app) podcastCard(c *ui.Context, pod *netease.Podcast) {
-	sub := pod.LastProgram
+func (a *app) podcastCard(c *ui.Context, pod *music.Show) {
+	sub := pod.Latest
 	if sub == "" {
-		sub = pod.RcmdText
+		sub = pod.Reason
 	}
 	if sub == "" {
-		sub = pod.DJ.Nickname
+		sub = pod.Publisher
 	}
-	id := pod.ID
-	if a.coverCard(c, pod.Name, pod.PicURL, pod.PlayCount, sub, func() { a.playPodcast(id) }) {
-		a.open(nroute(pagePodcast, id))
+	k := pageKey{pod.Source, pod.ID}
+	if a.coverCard(c, pod.Name, pod.ImageURL, float64(pod.PlayCount), sub, func() { a.playPodcast(k) }) {
+		a.open(route{page: pagePodcast, source: pod.Source, id: pod.ID})
 	}
+}
+
+// hostOf is the number of the page of who hosts a NetEase podcast, which only
+// NetEase says, or 0.
+func hostOf(pod *music.Show) int64 {
+	if pod.Source != netease.SourceID {
+		return 0
+	}
+	return netease.PodcastRecord(*pod).DJ.UserID
 }

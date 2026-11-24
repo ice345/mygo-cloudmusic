@@ -174,7 +174,7 @@ func TestLikeEpisodeRow(t *testing.T) {
 	if _, ok := tt.Find("喜欢"); ok {
 		t.Fatal("a heart shows with the pointer on no episode")
 	}
-	r, _ := tt.Find(a.podcasts[5].programs[2].Name)
+	r, _ := tt.Find(a.podcasts[nkey(5)].episodes[2].Name)
 	tt.Move(r.X+r.W/2, r.Y+r.H/2)
 	tt.Frame()
 	if err := tt.Click("喜欢"); err != nil {

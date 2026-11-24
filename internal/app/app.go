@@ -86,7 +86,7 @@ type app struct {
 	artistTab  int // what an artist's page lists: artistHot, artistLatest, artistAlbums or artistEvents
 	albums     map[pageKey]*albumData
 	users      map[int64]*userData
-	podcasts   map[int64]*podcastData
+	podcasts   map[pageKey]*podcastData
 	podcastTab *podcastTab // the podcasts tab's lists
 	trackList  ui.ListState
 	// Where the page and the sidebar are scrolled, kept while Now Playing
@@ -218,7 +218,7 @@ func Run() error {
 		artists:    map[pageKey]*artistData{},
 		albums:     map[pageKey]*albumData{},
 		users:      map[int64]*userData{},
-		podcasts:   map[int64]*podcastData{},
+		podcasts:   map[pageKey]*podcastData{},
 		podcastTab: &podcastTab{},
 		searches:   map[route]*searchData{},
 		sources:    map[string]music.Source{netease.SourceID: netease.Source{}},

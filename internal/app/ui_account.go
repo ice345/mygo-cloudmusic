@@ -80,7 +80,7 @@ func (a *app) signedIn(who *music.Account) {
 	// again.
 	a.playlists = map[pageKey]*music.Playlist{}
 	a.plErr = map[pageKey]string{}
-	a.artists, a.albums, a.users, a.podcasts = map[pageKey]*artistData{}, map[pageKey]*albumData{}, map[int64]*userData{}, map[int64]*podcastData{}
+	a.artists, a.albums, a.users, a.podcasts = map[pageKey]*artistData{}, map[pageKey]*albumData{}, map[int64]*userData{}, map[pageKey]*podcastData{}
 	a.podcastTab = &podcastTab{}
 	a.searches = map[route]*searchData{}
 	a.load(a.route)

@@ -212,3 +212,147 @@ func TestArtistPageOfAnotherSource(t *testing.T) {
 		t.Error("their albums are not shown on the 专辑 tab")
 	}
 }
+
+// showSource is a source of podcasts whose pages, and subscribing, are what a
+// test says.
+type showSource struct {
+	music.Unsupported
+	id        string
+	show      func(id string, offset int) (*music.ShowPage, error)
+	subscribe func(id string, on bool) error
+}
+
+func (s *showSource) Info() music.Info { return music.Info{ID: s.id, Name: "播客音源"} }
+func (s *showSource) Can(what string) bool {
+	return what == "show" || what == "subscribeShow" && s.subscribe != nil
+}
+func (s *showSource) Show(id string, offset int) (*music.ShowPage, error) { return s.show(id, offset) }
+func (s *showSource) SubscribeShow(id string, on bool) error              { return s.subscribe(id, on) }
+
+// A podcast of a source other than NetEase's loads through that source, a page
+// of episodes at a time from where the last ended, and its episodes play through
+// their own source, those with no audio left out of the queue; it offers
+// subscribing only if the source can, and a source that is gone says so.
+func TestPodcastOfAnotherSource(t *testing.T) {
+	type ask struct {
+		id     string
+		offset int
+	}
+	asks := make(chan ask, 4)
+	a := newTestApp()
+	a.settings = defaultSettings()
+	landed := make(chan func(), 4)
+	a.onPost = func(fn func()) { landed <- fn }
+	a.sources["plug"] = &showSource{id: "plug", show: func(id string, offset int) (*music.ShowPage, error) {
+		asks <- ask{id, offset}
+		show := music.Show{ID: "p1", Name: "别处的播客", Publisher: "他们的主播", EpisodeCount: 3}
+		if offset == 0 {
+			return &music.ShowPage{Show: show, More: true, Episodes: []music.Track{
+				{ID: "e3", Source: "plug", ShowID: "p1", Name: "第三期", Duration: 60000, Published: "2026-03-01"},
+				{ID: "e2", Source: "plug", ShowID: "p1", Name: "第二期", Duration: 60000, Unavailable: true},
+			}}, nil
+		}
+		return &music.ShowPage{Show: show, Episodes: []music.Track{{ID: "e1", Source: "plug", ShowID: "p1", Name: "第一期", Duration: 60000}}}, nil
+	}}
+
+	a.open(route{page: pagePodcast, source: "plug", id: "p1"})
+	wait(t, landed, "the podcast")()
+	if got := wait(t, asks, "the first ask"); got != (ask{"p1", 0}) {
+		t.Fatalf("asked %+v", got)
+	}
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	for _, text := range []string{"别处的播客", "他们的主播", "第三期", "第二期", "2026-03-01"} {
+		if !tt.HasText(text) {
+			t.Errorf("%q is not shown", text)
+		}
+	}
+	if _, ok := tt.Find("订阅"); ok {
+		t.Error("offered subscribing on a source that cannot")
+	}
+	d := a.podcasts[pageKey{"plug", "p1"}]
+	a.loadPrograms(pageKey{"plug", "p1"})
+	wait(t, landed, "the second page")()
+	if got := wait(t, asks, "the second ask"); got != (ask{"p1", 2}) {
+		t.Errorf("asked %+v, want the next page from 2", got)
+	}
+	if len(d.episodes) != 3 || d.page.more {
+		t.Fatalf("episodes %d, more %v", len(d.episodes), d.page.more)
+	}
+	a.playProgram(d, 2)
+	q := a.queued()
+	if len(q) != 2 || q[0].Source != "plug" || q[0].ID != "e3" || q[1].ID != "e1" || a.current().ID != "e1" {
+		t.Errorf("queue %+v, playing %+v", q, a.current())
+	}
+
+	a.open(route{page: pagePodcast, source: "gone", id: "x"})
+	tt.Frame()
+	if _, ok := tt.Find("暂不支持打开这个来源的页面"); !ok {
+		t.Error("a podcast of a source that is gone does not say so")
+	}
+}
+
+// Subscribing to a podcast shows at once, with one more subscriber, and asks
+// its source; the tab lists it first once it has loaded; if the source refuses,
+// it goes back and says so; signed out, it asks to sign in.
+func TestSubscribeToPodcast(t *testing.T) {
+	calls := make(chan bool, 2)
+	var fail bool
+	a := newTestApp()
+	a.settings = defaultSettings()
+	landed := make(chan func(), 4)
+	a.onPost = func(fn func()) { landed <- fn }
+	a.sources["plug"] = &showSource{id: "plug",
+		show: func(id string, offset int) (*music.ShowPage, error) {
+			return &music.ShowPage{Show: music.Show{ID: "p1", Name: "别处的播客", Subscribers: 10}}, nil
+		},
+		subscribe: func(id string, on bool) error {
+			calls <- on
+			if fail {
+				return errors.New("refused")
+			}
+			return nil
+		},
+	}
+	a.open(route{page: pagePodcast, source: "plug", id: "p1"})
+	wait(t, landed, "the podcast")()
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	d := a.podcasts[pageKey{"plug", "p1"}]
+
+	a.sources[netease.SourceID] = &loginSource{ends: make(chan loginEnd, 1)}
+	if err := tt.Click("订阅"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.login.open || d.show.Subscribed {
+		t.Fatalf("signed out: dialog %v, subscribed %v", a.login.open, d.show.Subscribed)
+	}
+	a.login.open = false
+	a.account = &music.Account{ID: "1"}
+	a.podcastTab.hotPage.loaded = true
+	tt.Frame()
+	if err := tt.Click("订阅"); err != nil {
+		t.Fatal(err)
+	}
+	if !d.show.Subscribed || d.show.Subscribers != 11 {
+		t.Fatalf("not shown at once: %+v", d.show)
+	}
+	if on := wait(t, calls, "the subscription"); !on {
+		t.Error("asked to unsubscribe")
+	}
+	wait(t, landed, "its end")()
+	if len(a.podcastTab.subs) != 1 || a.podcastTab.subs[0].ID != "p1" {
+		t.Errorf("the tab lists %+v", a.podcastTab.subs)
+	}
+
+	fail = true
+	tt.Frame()
+	if err := tt.Click("已订阅"); err != nil {
+		t.Fatal(err)
+	}
+	wait(t, calls, "the unsubscription")
+	wait(t, landed, "its refusal")()
+	if !d.show.Subscribed || d.show.Subscribers != 11 || a.toast != "操作失败，请稍后再试" {
+		t.Errorf("a refusal was not undone: %+v, toast %q", d.show, a.toast)
+	}
+}
