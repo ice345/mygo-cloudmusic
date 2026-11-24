@@ -57,7 +57,7 @@ func (a *app) signedIn(prof *netease.Profile) {
 	// again.
 	a.playlists = map[pageKey]*music.Playlist{}
 	a.plErr = map[pageKey]string{}
-	a.artists, a.albums, a.users, a.podcasts = map[int64]*artistData{}, map[int64]*albumData{}, map[int64]*userData{}, map[int64]*podcastData{}
+	a.artists, a.albums, a.users, a.podcasts = map[int64]*artistData{}, map[pageKey]*albumData{}, map[int64]*userData{}, map[int64]*podcastData{}
 	a.podcastTab = &podcastTab{}
 	a.searches = map[route]*searchData{}
 	a.load(a.route)

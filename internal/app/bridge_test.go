@@ -77,8 +77,8 @@ func TestCardsOpenTheirOwnSourcesPage(t *testing.T) {
 	if _, ok := tt.Find("暂不支持打开这个来源的页面"); !ok {
 		t.Error("the page does not say it is not supported")
 	}
-	if len(a.albums) != 1 { // catalogApp's own album 8
-		t.Errorf("%d albums loaded or asked for", len(a.albums))
+	if d := a.albums[pageKey{"plug", "a-1"}]; d == nil || d.loading || d.page != nil {
+		t.Errorf("the album of a source with none was loaded or asked for: %+v", d)
 	}
 }
 

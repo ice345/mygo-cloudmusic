@@ -94,3 +94,56 @@ func TestPlaylistHeaderReadsWhatOnlyNetEaseSays(t *testing.T) {
 		t.Error("another playlist shows a chart's label")
 	}
 }
+
+// albumSource is a source that serves albums by ID, and fails the others, as
+// being offline does.
+type albumSource struct {
+	music.Unsupported
+	id     string
+	albums map[string]*music.AlbumPage
+	asked  []string
+}
+
+func (s *albumSource) Info() music.Info     { return music.Info{ID: s.id, Name: "专辑音源"} }
+func (s *albumSource) Can(what string) bool { return what == "album" }
+func (s *albumSource) Album(id string) (*music.AlbumPage, error) {
+	s.asked = append(s.asked, id)
+	if page := s.albums[id]; page != nil {
+		return page, nil
+	}
+	return nil, errors.New("offline")
+}
+
+// An album of a source other than NetEase's loads through that source: its
+// page names its artists as links to their pages at that source, shows its
+// songs and its date, and plays them through their own source.
+func TestAlbumPageOfAnotherSource(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	landed := make(chan func(), 2)
+	a.onPost = func(fn func()) { landed <- fn }
+	src := &albumSource{id: "plug", albums: map[string]*music.AlbumPage{"al1": {
+		Album:  music.Album{ID: "al1", Name: "别处的专辑", Released: "2024-03-01", Description: "介绍", Artists: []music.Artist{{ID: "ar1", Name: "某人"}, {Name: "无页面的人"}}},
+		Tracks: []music.Track{{ID: "t1", Source: "plug", Name: "专辑第一首", Duration: 60000}},
+	}}}
+	a.sources["plug"] = src
+
+	a.open(route{page: pageAlbum, source: "plug", id: "al1"})
+	wait(t, landed, "the album")()
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+	if len(src.asked) != 1 || src.asked[0] != "al1" {
+		t.Fatalf("asked %v", src.asked)
+	}
+	for _, text := range []string{"别处的专辑", "专辑第一首", "某人"} {
+		if _, ok := tt.Find(text); !ok {
+			t.Errorf("%q is not shown", text)
+		}
+	}
+	if err := tt.Click("某人"); err != nil {
+		t.Fatal(err)
+	}
+	if a.route != (route{page: pageArtist, source: "plug", id: "ar1"}) {
+		t.Errorf("the artist's link opened %+v", a.route)
+	}
+}

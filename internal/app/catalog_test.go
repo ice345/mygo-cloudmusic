@@ -254,11 +254,9 @@ func TestArtistAlbumsAndEvents(t *testing.T) {
 		events <- [2]int64{uid, before}
 		return nil, 0, false, errors.New("offline")
 	}
-	albumDetail = func(int64) (*netease.AlbumProfile, error) { return nil, errors.New("offline") }
-	defer func() {
-		albumsBy, accountEvents, albumDetail = netease.ArtistAlbums, netease.Events, netease.AlbumDetail
-	}()
+	defer func() { albumsBy, accountEvents = netease.ArtistAlbums, netease.Events }()
 	a := newTestApp()
+	a.sources[netease.SourceID] = &albumSource{id: netease.SourceID}
 	a.settings = defaultSettings()
 	d := &artistData{profile: &netease.ArtistProfile{Artist: netease.Artist{ID: 12, Name: "乙"}, AccountID: 99}}
 	a.artists[12] = d
@@ -464,9 +462,8 @@ func TestHotPodcastsOverlap(t *testing.T) {
 // A song row's album opens its page, not playing the song as the row's
 // click would.
 func TestAlbumLinkInRow(t *testing.T) {
-	albumDetail = func(int64) (*netease.AlbumProfile, error) { return nil, errors.New("offline") }
-	defer func() { albumDetail = netease.AlbumDetail }()
 	a := newTestApp()
+	a.sources[netease.SourceID] = &albumSource{id: netease.SourceID}
 	a.settings = defaultSettings()
 	song := netease.Track{ID: 2, Name: "起风了", Artists: []netease.Artist{{ID: 13, Name: "丙"}}, Album: netease.Album{ID: 8, Name: "迷跡波"}, Duration: 200000}
 	a.artists[13] = &artistData{profile: &netease.ArtistProfile{Artist: netease.Artist{ID: 13, Name: "丙"}, Songs: []netease.Track{song}}}
@@ -510,7 +507,7 @@ func catalogApp() *app {
 		},
 		eventsPage: paged{loaded: true},
 	}
-	a.albums[8] = &albumData{album: &netease.AlbumProfile{Album: al, Artists: []netease.Artist{band}, PublishTime: day, Description: "MyGO!!!!! 的第一张专辑。", Songs: songs}}
+	a.albums[nkey(8)] = &albumData{page: loadedAlbum(netease.AlbumProfile{Album: al, Artists: []netease.Artist{band}, PublishTime: day, Description: "MyGO!!!!! 的第一张专辑。", Songs: songs})}
 	user := netease.User{UserID: 9, Nickname: "听歌的人", Signature: "在音乐里，寻找同路的人。", Follows: 12, Followeds: 24}
 	a.users[9] = &userData{user: &user, playlists: []netease.Playlist{{ID: 30, Name: "通勤路上", TrackCount: 40}, {ID: 31, Name: "睡前", TrackCount: 12}}}
 	pod := &netease.Podcast{ID: 5, Name: "夜航电台", Category: "情感", DJ: user, ProgramCount: 120, SubCount: 34000, Description: "每晚陪你说说话。"}

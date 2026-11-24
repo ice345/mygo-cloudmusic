@@ -3,71 +3,77 @@ package app
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/music"
-	"netease-music-mygo/internal/netease"
 )
-
-// albumDetail loads an album from NetEase; tests replace it.
-var albumDetail = netease.AlbumDetail
 
 // albumData is what the app has of an album.
 type albumData struct {
-	album   *netease.AlbumProfile
+	page    *music.AlbumPage
 	loading bool
 	err     string
 }
 
-func (a *app) loadAlbum(id int64) {
-	// Only NetEase's pages load so far: another source's has no number.
-	if id == 0 {
+// loadAlbum asks the source for the album k names, unless it has it or is
+// asking.
+func (a *app) loadAlbum(k pageKey) {
+	src := a.source(k.source)
+	if k.id == "" || k.id == "0" {
 		return
 	}
-	d := a.albums[id]
+	d := a.albums[k]
 	if d == nil {
 		d = &albumData{}
-		a.albums[id] = d
+		a.albums[k] = d
 	}
-	if d.album != nil || d.loading {
+	if d.page != nil || d.loading {
+		return
+	}
+	if src == nil {
+		d.err = "暂不支持打开这个来源的页面"
 		return
 	}
 	d.loading, d.err = true, ""
 	go func() {
-		al, err := albumDetail(id)
+		page, err := src.Album(k.id)
 		a.post(func() {
 			d.loading = false
 			if err != nil {
 				d.err = "专辑加载失败"
 				return
 			}
-			d.album = al
+			d.page = page
 		})
 	}()
 }
 
 func (a *app) albumPage(c *ui.Context) {
-	id := a.route.number()
-	d := a.albums[id]
-	if d.album == nil {
+	k := a.route.key()
+	d := a.albums[k]
+	if d == nil {
+		d = &albumData{}
+		a.albums[k] = d
+	}
+	if d.page == nil {
 		if !d.loading {
-			a.centered(c, d.err, func() { a.loadAlbum(id) })
+			a.centered(c, d.err, func() { a.loadAlbum(k) })
 			return
 		}
 		s := a.pageShimmer(c)
 		a.trackSkeleton(c, s, false, func(c *ui.Context) { a.playlistHeaderSkeleton(c, s) })
 		return
 	}
-	a.trackRows(c, neteaseList(d.album.Songs), false, func(c *ui.Context) { a.albumHeader(c, d.album) })
+	a.trackRows(c, listOf(d.page.Tracks), false, func(c *ui.Context) { a.albumHeader(c, k.source, d.page) })
 }
 
-func (a *app) albumHeader(c *ui.Context, al *netease.AlbumProfile) {
+func (a *app) albumHeader(c *ui.Context, source string, page *music.AlbumPage) {
 	p := a.pal
+	al := &page.Album
 	ui.Row(c).Gap(28).AlignItems(ui.End).Padding(0, 0, 26, 0).Children(func() {
 		ui.Box(c).Size(212, 212).Radius(14).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {
-			a.coverFill(c, al.PicURL, 600, 14)
+			a.coverFill(c, al.ImageURL, 600, 14)
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(8).Children(func() {
 			ui.Text(c, "专辑").FontSize(12).FontWeight(600).TextColor(p.accent)
@@ -77,11 +83,15 @@ func (a *app) albumHeader(c *ui.Context, al *netease.AlbumProfile) {
 					if i > 0 {
 						ui.Text(c, ", ")
 					}
-					a.link(c.Key(i), ar.Name, p.muted, p.text, nroute(pageArtist, ar.ID))
+					if ar.ID == "" {
+						ui.Text(c, ar.Name)
+						continue
+					}
+					a.link(c.Key(i), ar.Name, p.muted, p.text, route{page: pageArtist, source: source, id: ar.ID})
 				}
-				meta := fmt.Sprintf(" · %d 首", len(al.Songs))
-				if al.PublishTime > 0 {
-					meta = " · " + time.UnixMilli(al.PublishTime).Format("2006-01-02") + meta
+				meta := fmt.Sprintf(" · %d 首", len(page.Tracks))
+				if al.Released != "" {
+					meta = " · " + al.Released + meta
 				}
 				ui.Text(c, meta)
 			})
@@ -93,7 +103,7 @@ func (a *app) albumHeader(c *ui.Context, al *netease.AlbumProfile) {
 					if a.pl.Shuffle() {
 						a.pl.ToggleShuffle()
 					}
-					a.playQueue(al.Songs, firstPlayable(al.Songs))
+					a.pl.PlayQueue(page.Tracks, firstAvailable(page.Tracks))
 				}
 			})
 		})
