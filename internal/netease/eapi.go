@@ -26,11 +26,10 @@ import (
 // not look like the client's, so the login goes through it, as the
 // NeteaseCloudMusicApi project's does.
 
-const (
-	eapiDomain = "https://interfacepc.music.163.com"
-	eapiKey    = "e82ckenh8dichen8"
-	eapiUA     = "NeteaseMusic 9.0.90/5038 (iPhone; iOS 16.2; zh_CN)"
-)
+const eapiKey = "e82ckenh8dichen8"
+
+// eapiDomain is where the eapi is called; tests swap it.
+var eapiDomain = "https://interfacepc.music.163.com"
 
 // The desktop client this app speaks as.
 var eapiClient = map[string]string{
@@ -38,6 +37,17 @@ var eapiClient = map[string]string{
 	"appver":  "3.1.17.204416",
 	"osver":   "Microsoft-Windows-10-Professional-build-19045-64bit",
 	"channel": "netease",
+}
+
+// eapiUA is the User-Agent of the client eapiClient names: the Windows
+// desktop client, of the same version. It used to be an iPhone's, beside
+// headers that said a Windows PC, and NetEase took that for a client lying
+// about itself: every song's address came back -460, 检测到您的网络环境存在风险,
+// as it did for no other shape of request (measured 2026-11-24). It is
+// built from eapiClient so the two cannot drift apart again.
+func eapiUA() string {
+	return "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) " +
+		"Safari/537.36 Chrome/91.0.4472.164 NeteaseMusicDesktop/" + eapiClient["appver"]
 }
 
 var (
@@ -115,7 +125,7 @@ func eapiPost(path string, data map[string]any, out any) error {
 		cookie = append(cookie, url.QueryEscape(k)+"="+url.QueryEscape(v))
 	}
 	req.Header.Set("Cookie", strings.Join(cookie, "; "))
-	req.Header.Set("User-Agent", eapiUA)
+	req.Header.Set("User-Agent", eapiUA())
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	// Sent by hand: the jar would add the site's cookies to these.
 	res, err := (&http.Client{Timeout: httpClient.Timeout}).Do(req)

@@ -28,6 +28,7 @@ Priorities: **P0** blocks a release. **P1** wrong in normal use. **P2** worth do
 | 0.1.27's macOS build opens, after the quarantine step its notes give | the release page | pending |
 | The `NM_FRAMES` frames looked at on macOS, with its fonts: 青鸟 in Hiragino Mincho, AppleMyungjo and Songti, and the line breaks there | [`stage.md`](stage.md#looking-at-it) | pending |
 | `TestLyricTextsLive` signed in, for the one lyrics request (`7c8f425`) | `internal/netease/live_test.go` | pending: needs a signed-in session |
+| A song that isn't cached plays, signed in: the eapi's User-Agent now matches its headers, and `SongURL` asks again after a -460, then the web's endpoint | `eapi.go`, `netease.go` | done in code 2026-11-24, **pending a signed-in listener**: signed out, only the old shape (iPhone User-Agent, Windows headers) came back -460, on every song and try; the dev build here has no NetEase session to play one |
 
 ## 3. Lyrics, for 0.1.28
 
@@ -86,3 +87,4 @@ Done (`ui_stage_chorus.go`, `backdrop_backlit.go`): a sibling of 青鸟 on the s
 | 2026-11-23 | 青鸟's answer ends at the line's right edge; one wider than the line sets out from the line's middle, to the right. Both captions read at 4.5:1 over the lightest glass: the glass went from value 0.40 to 0.36 at the top for it. |
 | 2026-11-23 | The Euphonium sibling is named 和鸣 ("sounding together"), not 余晖 ("afterglow"), which is elegiac: id `chorus`. No sparks, as the gold is its one accent. |
 | 2026-11-23 | Captions by role: in the foot band the translation is 18/600/72% always and the reading 16/500/70%; in 歌词 the reading is closer to its line than the translation. This departs from Folia's "the first row is louder". |
+| 2026-11-24 | The -460 on every song's address (检测到您的网络环境存在风险) was the eapi's User-Agent, an iPhone's, beside headers saying a Windows PC: measured signed out, that shape was refused on every try, and a Windows User-Agent of the same version, or an iPhone's with iPhone headers, or the web's endpoint, was not. It is now built from the headers' `appver`, so the two can't drift apart. |

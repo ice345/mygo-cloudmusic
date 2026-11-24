@@ -16,7 +16,8 @@ import (
 // The public NetEase Cloud Music API, as the web player calls it, without
 // an account: what anyone may listen to.
 
-const apiBase = "https://music.163.com"
+// apiBase is the web API's address; tests swap it.
+var apiBase = "https://music.163.com"
 
 const UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
 
@@ -428,27 +429,71 @@ var Levels = []string{"standard", "higher", "exhigh", "lossless", "hires"}
 // Lossless reports whether level streams FLAC.
 func Lossless(level string) bool { return level == "lossless" || level == "hires" }
 
+// songReply is NetEase's answer to where a song streams from.
+type songReply struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    []struct {
+		Stream
+		URL           string          `json:"url"`
+		Peak          *float64        `json:"peak"`
+		FreeTrialInfo json.RawMessage `json:"freeTrialInfo"`
+	} `json:"data"`
+}
+
+// preview reports whether the answer is for a taste of a VIP song, not the
+// song.
+func (r *songReply) preview() bool {
+	d := r.Data[0].FreeTrialInfo
+	return len(d) > 0 && string(d) != "null"
+}
+
+// whole reports whether the answer gives the song's address in full.
+func (r *songReply) whole() bool {
+	return r.Code == 200 && len(r.Data) > 0 && r.Data[0].URL != "" && !r.preview()
+}
+
+// riskRefused reports whether NetEase turned the request away as a risk,
+// which it takes back after a while, or when asked another way.
+func (r *songReply) riskRefused() bool { return r.Code == -460 || r.Code == 460 }
+
+// songRetryWait is how long SongURL waits before asking again after a
+// refusal as a risk; tests shorten it.
+var songRetryWait = time.Second
+
 // SongURL returns where to stream a track, MP3 or FLAC, at level (one of
 // Levels) or the best below it the listener may play. It goes through
 // the eapi, which carries the session, so VIP songs play for subscribers.
+//
+// NetEase now and then turns a request away as a risk (-460), which asking
+// again a moment later, or asking the web's endpoint, can get past. Only the
+// web's whole answer is taken: it gives no address for songs the eapi would
+// stream to this listener, so its silence says nothing of the song. If it
+// has none, the refusal is what comes back, and the track is kept rather
+// than skipped as one that can't play.
 func SongURL(id int64, level string) (*Stream, error) {
-	var res struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-		Data    []struct {
-			Stream
-			URL           string          `json:"url"`
-			Peak          *float64        `json:"peak"`
-			FreeTrialInfo json.RawMessage `json:"freeTrialInfo"`
-		} `json:"data"`
-	}
 	encode := "mp3"
 	if Lossless(level) {
 		encode = "flac"
 	}
 	data := map[string]any{"ids": fmt.Sprintf("[%d]", id), "level": level, "encodeType": encode}
+	var res songReply
 	if err := eapiPost("/api/song/enhance/player/url/v1", data, &res); err != nil {
 		return nil, err
+	}
+	if res.riskRefused() {
+		time.Sleep(songRetryWait)
+		res = songReply{}
+		if err := eapiPost("/api/song/enhance/player/url/v1", data, &res); err != nil {
+			return nil, err
+		}
+	}
+	if res.riskRefused() {
+		var web songReply
+		query := url.Values{"ids": {data["ids"].(string)}, "level": {level}, "encodeType": {encode}}
+		if err := get("/api/song/enhance/player/url/v1", query, &web); err == nil && web.whole() {
+			res = web
+		}
 	}
 	if res.Code != 200 {
 		return nil, &RefusedError{Code: res.Code, Message: res.Message}
@@ -458,7 +503,7 @@ func SongURL(id int64, level string) (*Stream, error) {
 	}
 	d := res.Data[0]
 	// A preview of a VIP song is no song.
-	if len(d.FreeTrialInfo) > 0 && string(d.FreeTrialInfo) != "null" {
+	if res.preview() {
 		return nil, ErrUnavailable
 	}
 	s := d.Stream
