@@ -10,6 +10,7 @@
 package music
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -48,6 +49,12 @@ type Track struct {
 	URL string `json:"url,omitempty"`
 	// Unavailable says the listener can't play it, for a source that knows.
 	Unavailable bool `json:"unavailable,omitempty"`
+	// Extra is the source's own record of the track, as it keeps it: the app
+	// never reads it, and the queue and the session keep it for the source
+	// to read again. A plugin may leave it out. (Added here: NetEase's has
+	// what a Track has no place for, such as the fee and the program of an
+	// episode.)
+	Extra json.RawMessage `json:"extra,omitempty"`
 
 	// An episode of a podcast is a track like any other, that says which show
 	// it's of, what it's about and when it came out, as the source has it.
@@ -399,6 +406,14 @@ func Reason(err error) string {
 // Qualities are the levels of audio the listener can ask a source for, worst
 // first. A source may have others, or none, and answers what it has.
 var Qualities = []string{"standard", "high", "lossless"}
+
+// A Leveler is a source whose levels of audio are not Qualities: it names
+// them, the worst first, as Stream is asked for them and answers them. The
+// cache keeps a song by its level, and looks for the one asked for or a
+// better. (Added here: NetEase has five levels.)
+type Leveler interface {
+	Levels() []string
+}
 
 // SignInPrompt is what a source wants shown while the listener signs in.
 type SignInPrompt struct {

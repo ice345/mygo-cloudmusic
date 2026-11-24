@@ -1,9 +1,12 @@
 package lyrics
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"netease-music-mygo/internal/music"
 )
 
 func TestParseLRC(t *testing.T) {
@@ -351,5 +354,55 @@ func TestLinesAtOneTimeAreALineAndItsTranslation(t *testing.T) {
 	apart := Build(Source{LRC: "[00:10.00]Hello\n[00:10.00]你好\n[00:15.00]Bye", Translation: "[00:10.00]您好"})
 	if len(apart) != 2 || apart[0].Text != "Hello" || apart[0].Translation != "您好" {
 		t.Errorf("with a translation apart: %+v", apart)
+	}
+}
+
+// Lines made of what NetEase serves go to a source's shape and back as they
+// were: the word-timed ones with their words and merged translations, the
+// others with the words their time is shared into, readings, and the language
+// of a Japanese song, so that the lyrics a source gives show as they did
+// before the player asked a source for them.
+func TestLinesSurviveTheSourcesShape(t *testing.T) {
+	for name, src := range map[string]Source{
+		"word-timed, merged translations and readings": {
+			YRC:         "[37450,4400](37450,4400,0)光も痛みも怒りも全部抱きしめて\n[43000,2000](43000,2000,0)次",
+			Translation: "[00:37.64]光与痛与怒\n[00:39.84]全都 拥入怀中\n[00:43.00]下一行",
+			Reading:     "[00:37.64]hikari mo itami mo\n[00:43.00]tsugi",
+			YReading:    "[00:43.00]tsugi",
+		},
+		"timed lines of a Japanese song": {
+			LRC:         "[00:10.00]風が吹く\n[00:20.00]雨\n[00:30.00]また\n[00:40.00]hey\n[00:50.00]作词 : あい",
+			Translation: "[00:10.00]风吹来",
+			Reading:     "[00:10.00]kaze ga fuku",
+		},
+		"parentheses and a Korean line": {
+			YRC: "[1000,3000](1000,500,0)I (1500,500,0)love (2000,400,0)(oh(2400,400,0) yeah)(2800,500,0) you\n[6000,2000](6000,1000,0)저기(7000,1000,0)멀리",
+		},
+	} {
+		want := Build(src)
+		if len(want) == 0 {
+			t.Fatalf("%s: no lines", name)
+		}
+		got := FromMusic(ToMusic(want))
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s:\n got  %+v\n want %+v", name, got, want)
+		}
+	}
+}
+
+// A source that gives only an LRC and its translation has them built as
+// NetEase's are, and one that gives timed lines has no word lost.
+func TestFromMusicReadsLRCAndLines(t *testing.T) {
+	lines := FromMusic(&music.Lyrics{LRC: "[00:01.00]一\n[00:04.00]二", Translation: "[00:01.00]one"})
+	if len(lines) != 2 || lines[0].Translation != "one" || lines[0].Timed || len(lines[0].Words) == 0 {
+		t.Fatalf("lrc: %+v", lines)
+	}
+	lines = FromMusic(&music.Lyrics{Lines: []music.LyricLine{{Start: 1000, Words: []music.LyricWord{
+		{Start: 1000, End: 1500, Text: "Word "}, {Start: 1500, End: 2200, Text: "by"}}}}})
+	if len(lines) != 1 || lines[0].Text != "Word by" || !lines[0].Timed || len(lines[0].Words) != 2 || lines[0].End != 7*time.Second {
+		t.Fatalf("lines: %+v", lines)
+	}
+	if FromMusic(nil) != nil {
+		t.Error("nothing is not lines")
 	}
 }
