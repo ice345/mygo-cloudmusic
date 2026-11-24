@@ -361,3 +361,16 @@ func TestLyricsFailureIsNotNone(t *testing.T) {
 		t.Fatalf("after retrying: asked %d times, failed %v, %d lines", asked, p.LyricsFailed(), len(lines))
 	}
 }
+
+// A seek on a track whose audio has not loaded still tells the app, so
+// that the notch's lyrics move to the line there: they stayed on the
+// credits, though the progress bar had moved.
+func TestSeekBeforeLoadTellsTheApp(t *testing.T) {
+	p := &Player{at: -1}
+	changed := 0
+	p.Changed = func() { changed++ }
+	p.Seek(41 * time.Second)
+	if changed != 1 || p.pending != 41*time.Second {
+		t.Errorf("changed %d times, pending %v", changed, p.pending)
+	}
+}

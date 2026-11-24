@@ -4,9 +4,11 @@ package app
 
 import (
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
+	"github.com/egoist/mygo"
 )
 
 type nsPoint struct{ X, Y float64 }
@@ -136,6 +138,11 @@ func otherNotchApp() string {
 	n := objc.Send[uint](apps, objc.RegisterName("count"))
 	for i := range n {
 		app := apps.Send(objc.RegisterName("objectAtIndex:"), i)
+		// The quit notification arrives while the app is still listed,
+		// marked terminated: counted, the notch stayed away for good.
+		if objc.Send[bool](app, objc.RegisterName("isTerminated")) {
+			continue
+		}
 		id := nsUTF8(app.Send(objc.RegisterName("bundleIdentifier")))
 		if !notchBundle(id) {
 			continue
@@ -195,6 +202,15 @@ func watchApps(fn func()) {
 	block := objc.NewBlock(func(_ objc.Block, _ objc.ID) { fn() })
 	block = block.Copy()
 	appWatchBlock = block
+	// An app that has no Dock icon, as Atoll has none, launches without a
+	// notification: the notch stayed open under it until some other app
+	// came or went. So look again every few seconds; a look at the
+	// running apps is cheap and does nothing while they are the same.
+	go func() {
+		for range time.Tick(2 * time.Second) {
+			mygo.RunOnMain(fn)
+		}
+	}()
 	for i, name := range []string{
 		"NSWorkspaceDidLaunchApplicationNotification",
 		"NSWorkspaceDidTerminateApplicationNotification",

@@ -23,11 +23,11 @@ Priorities: **P0** blocks a release. **P1** wrong in normal use. **P2** worth do
 
 | Check | Where | State |
 |---|---|---|
-| The notch on a Mac with a notch: card, greeting, lyrics under the notch (with 0.1.28's rows and window), intro and outro, Atoll making way, an external display | [`notch.md`](notch.md#on-a-mac-before-a-release), steps 1-6 | pending |
-| Podcast captions on a Mac: the model and libraries download, and an episode is transcribed | [`lyrics.md`](lyrics.md#podcast-captions) | pending |
+| The notch on a Mac with a notch: card, greeting, lyrics under the notch (with 0.1.28's rows and window), intro and outro, Atoll making way, an external display | [`notch.md`](notch.md#on-a-mac-before-a-release), steps 1-6 | done 2026-11-24 for 1, 2, 4 (outro), 5 and 3's rows with a translation; two bugs fixed (Atoll's quit and launch); Left: a reading under the notch, a click through the lyrics, a long intro, 6 (skipped) |
+| Podcast captions on a Mac: the model and libraries download, and an episode is transcribed | [`lyrics.md`](lyrics.md#podcast-captions) | Apple silicon, 2026-11-24: libraries and model download, load and transcribe a minute in 24 s (`TestTranscribe`, English speech; its punctuation check wants Chinese); `TestNativesLive` passes. Not yet: the settings button, Intel, and the app's own 字幕 tab |
 | 0.1.27's macOS build opens, after the quarantine step its notes give | the release page | pending |
 | The `NM_FRAMES` frames looked at on macOS, with its fonts: 青鸟 in Hiragino Mincho, AppleMyungjo and Songti, and the line breaks there | [`stage.md`](stage.md#looking-at-it) | pending |
-| `TestLyricTextsLive` signed in, for the one lyrics request (`7c8f425`) | `internal/netease/live_test.go` | pending |
+| `TestLyricTextsLive` signed in, for the one lyrics request (`7c8f425`) | `internal/netease/live_test.go` | pending: needs a signed-in session |
 
 ## 3. Lyrics, for 0.1.28
 
@@ -41,10 +41,10 @@ Priorities: **P0** blocks a release. **P1** wrong in normal use. **P2** worth do
 | `Lang` on the line's own text in 歌词, not on its row | P2 | `ui_nowplaying.go`, `timedLines` | done, `5bd50ea` |
 | A lyrics request that fails says so, with 重试, and is tried again once | P2 | `player.go`, `loadLyrics`; `lyricsFailedNote` | done, `bce8059` |
 | 青鸟's translation arrives after its line, and answers from the right | P1 | `ui_stage_bird.go`, `birdCaptions` | done, `aee62b8` |
-| `settings.json` written to a temporary file and renamed | P2 | `settings.go:144` | open |
-| A cover that failed on the network is asked for again after a while | P2 | `artwork.go:129` | open |
-| Downloads stop when their track does, and give up when stalled | P2 | `player.go`, `stop`; `stream.go` | open |
-| The notch's levels at 30 frames a second | P2 | `ui_notch.go:513`, `ui_pages.go:449` | open |
+| `settings.json` written to a temporary file and renamed | P2 | `settings.go`, `save` | done |
+| A cover that failed on the network is asked for again after a while | P2 | `artwork.go`, `get`: after a minute | done |
+| Downloads stop when their track does, and give up when stalled | P2 | `player.go`, `stop`; `stream.go` | stalls give up after 30 s: done. Closing at `stop` left: `out.Close` may already close the stream; unverified |
+| The notch's levels at 30 frames a second | P2 | `ui_notch.go`, `ui_pages.go`, `barFrame` | done |
 
 ## 4. Typography and 青鸟, for 0.1.28
 

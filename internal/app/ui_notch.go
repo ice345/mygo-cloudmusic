@@ -540,7 +540,7 @@ func (n *notch) levels(c *ui.Context, tr *netease.Track, w, h float32, count int
 		n.bars.step(p.Now(), lv, live)
 		drawBars(p, r, &n.bars, count, color, 2.5)
 		if live || n.bars.group(0, player.Bands) > 0.01 {
-			p.AnimationFrame()
+			p.After(barFrame)
 		}
 	})
 }

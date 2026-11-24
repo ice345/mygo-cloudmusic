@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/egoist/mygo/audio"
 	gomp3 "github.com/hajimehoshi/go-mp3"
@@ -61,6 +62,9 @@ func startDownload(url string, size int64, part *os.File, keep func(string, int6
 	return d
 }
 
+// downloadStall is how long a song may go without a byte coming in.
+var downloadStall = 30 * time.Second
+
 // maxPrealloc is the most memory set aside for a song before its bytes
 // come in: the size it is said to be is the API's word, which a song that
 // turns out longer only outgrows.
@@ -107,10 +111,15 @@ func (d *download) run(ctx context.Context, url string) {
 		finish(&statusError{res.StatusCode, res.Status})
 		return
 	}
+	// A download that brings nothing in for downloadStall gives up, as
+	// the network's failure, rather than holding a song forever.
+	stall := time.AfterFunc(downloadStall, d.cancel)
+	defer stall.Stop()
 	buf := make([]byte, 64<<10)
 	for {
 		n, err := res.Body.Read(buf)
 		if n > 0 {
+			stall.Reset(downloadStall)
 			d.write(buf[:n])
 		}
 		if err == io.EOF {

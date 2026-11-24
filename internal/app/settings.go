@@ -153,7 +153,17 @@ func (s settings) save() error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o600)
+	// Written beside the file and renamed over it, so a crash mid-write
+	// leaves the old settings, not half of the new.
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // applyAppearance makes the windows light, dark, or follow the system.

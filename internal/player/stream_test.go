@@ -337,3 +337,26 @@ func TestStreamSizeIsNotTrusted(t *testing.T) {
 		t.Errorf("set aside %d bytes", n)
 	}
 }
+
+// A download whose server goes quiet gives up instead of holding the song
+// forever: the listener sat on a spinner until they skipped it.
+func TestDownloadGivesUpWhenStalled(t *testing.T) {
+	defer func(d time.Duration) { downloadStall = d }(downloadStall)
+	downloadStall = 100 * time.Millisecond
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("abc"))
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+	d := startDownload(srv.URL, 1000, nil, nil)
+	defer d.Close()
+	deadline := time.After(5 * time.Second)
+	for d.failed() == nil {
+		select {
+		case <-deadline:
+			t.Fatal("still downloading after the server went quiet")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}

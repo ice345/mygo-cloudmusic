@@ -528,6 +528,11 @@ const seekGap = 30 * time.Millisecond
 func (p *Player) Seek(t time.Duration) {
 	if p.out == nil {
 		p.pending = t
+		// Nothing is playing to ask for a frame, but the notch's lyrics
+		// show where it will start.
+		if p.Changed != nil {
+			p.Changed()
+		}
 		return
 	}
 	out := p.out

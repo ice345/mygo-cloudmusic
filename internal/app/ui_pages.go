@@ -13,6 +13,10 @@ import (
 
 const pagePad = 40
 
+// barFrame is how often level bars repaint: 30 frames a second, which
+// the eye takes for smooth, at half the display's rate.
+const barFrame = time.Second / 30
+
 // columns returns how many cards of at least min DIPs fit across the page.
 func (a *app) columns(c *ui.Context, min float32) int {
 	w, _ := c.Size()
@@ -447,7 +451,7 @@ func (a *app) nowPlayingBars(c *ui.Context) {
 		a.rowBars.step(p.Now(), lv, live)
 		drawBars(p, r, &a.rowBars, 4, color, 2.5)
 		if live || a.rowBars.group(0, player.Bands) > 0.01 {
-			p.AnimationFrame()
+			p.After(barFrame)
 		}
 	})
 }

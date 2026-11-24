@@ -88,3 +88,23 @@ func TestArtCacheKeepsHeldCovers(t *testing.T) {
 	}
 	runtime.KeepAlive(held)
 }
+
+// A cover that failed on the network is asked for again after a while,
+// though something asks for it every frame: it stayed blank until the
+// app was restarted.
+func TestArtCacheRetriesFailedCovers(t *testing.T) {
+	now := time.Unix(1e9, 0)
+	c := newArtCache(func(func()) {})
+	c.now = func() time.Time { return now }
+	c.add("cover", &artwork{failed: true, used: now})
+	for range 50 {
+		now = now.Add(time.Second)
+		if a := c.get("cover", false); a == nil || !a.failed {
+			t.Fatalf("asked again after %v, before its time", artRetry)
+		}
+	}
+	now = now.Add(artRetry)
+	if a := c.get("cover", false); a != nil && a.failed {
+		t.Error("still failed after a minute of being asked for")
+	}
+}

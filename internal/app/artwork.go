@@ -101,8 +101,18 @@ func (c *artCache) get(url string, backdrop bool) *artwork {
 	}
 	now := c.now()
 	if a, ok := c.art[key]; ok {
-		a.used = now
-		return a
+		if !a.failed {
+			a.used = now
+			return a
+		}
+		// Asking doesn't renew a failure, or a cover shown every frame
+		// would never be tried again.
+		if now.Sub(a.used) < artRetry {
+			return a
+		}
+		// A cover that failed on the network is asked for again after a
+		// while; one that never decodes fails again just as quietly.
+		delete(c.art, key)
 	}
 	if a := c.gone[key].Value(); a != nil {
 		delete(c.gone, key)
@@ -146,6 +156,10 @@ func (c *artCache) get(url string, backdrop bool) *artwork {
 	}()
 	return nil
 }
+
+// artRetry is how long a cover that failed stays failed before it is
+// asked for again.
+const artRetry = time.Minute
 
 // artRelease is how long a cover keeps its pixels once loaded: past the
 // frame that first shows it, and the smaller copies it shows from there.
