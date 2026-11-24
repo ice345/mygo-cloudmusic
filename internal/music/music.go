@@ -23,9 +23,15 @@ type Artist struct {
 	// Source is the ID of the source it came from, which its page is opened
 	// through. A source's own answers leave it out, as a track's do; a source
 	// built in fills it in. (Added here.)
-	Source   string `json:"source,omitempty"`
-	Name     string `json:"name"`
-	ImageURL string `json:"imageUrl,omitempty"`
+	Source string `json:"source,omitempty"`
+	// Description is what it says of itself. (Added here.)
+	Description string `json:"description,omitempty"`
+	// Extra is the source's own record of it, as it keeps it: the app never
+	// reads it, and the source reads it back, for what its page has that no
+	// field has. (Added here.)
+	Extra    json.RawMessage `json:"extra,omitempty"`
+	Name     string          `json:"name"`
+	ImageURL string          `json:"imageUrl,omitempty"`
 	// Following says the listener follows them, for a source with followArtist.
 	Following bool `json:"following,omitempty"`
 }
@@ -35,11 +41,17 @@ type Album struct {
 	// Source is the ID of the source it came from, which its page is opened
 	// through. A source's own answers leave it out, as a track's do; a source
 	// built in fills it in. (Added here.)
-	Source   string   `json:"source,omitempty"`
-	Name     string   `json:"name"`
-	ImageURL string   `json:"imageUrl,omitempty"`
-	Artists  []Artist `json:"artists,omitempty"`
-	Released string   `json:"released,omitempty"` // as the source has it, such as 2024-03-01
+	Source string `json:"source,omitempty"`
+	// Description is what it says of itself. (Added here.)
+	Description string `json:"description,omitempty"`
+	// Extra is the source's own record of it, as it keeps it: the app never
+	// reads it, and the source reads it back, for what its page has that no
+	// field has. (Added here.)
+	Extra    json.RawMessage `json:"extra,omitempty"`
+	Name     string          `json:"name"`
+	ImageURL string          `json:"imageUrl,omitempty"`
+	Artists  []Artist        `json:"artists,omitempty"`
+	Released string          `json:"released,omitempty"` // as the source has it, such as 2024-03-01
 	// Saved says the listener saved it, for a source with saveAlbum.
 	Saved bool `json:"saved,omitempty"`
 }
@@ -101,12 +113,16 @@ type Playlist struct {
 	// Source is the ID of the source it came from, which its page is opened
 	// through. A source's own answers leave it out, as a track's do; a source
 	// built in fills it in. (Added here.)
-	Source      string `json:"source,omitempty"`
-	Name        string `json:"name"`
-	ImageURL    string `json:"imageUrl,omitempty"`
-	Description string `json:"description,omitempty"`
-	Owner       string `json:"owner,omitempty"`
-	TrackCount  int    `json:"trackCount,omitempty"`
+	Source string `json:"source,omitempty"`
+	// Extra is the source's own record of it, as it keeps it: the app never
+	// reads it, and the source reads it back, for what its page has that no
+	// field has. (Added here.)
+	Extra       json.RawMessage `json:"extra,omitempty"`
+	Name        string          `json:"name"`
+	ImageURL    string          `json:"imageUrl,omitempty"`
+	Description string          `json:"description,omitempty"`
+	Owner       string          `json:"owner,omitempty"`
+	TrackCount  int             `json:"trackCount,omitempty"`
 	// PlayCount is how many times it was played, if the source says. (Added
 	// here: NetEase's cards show it.)
 	PlayCount int64   `json:"playCount,omitempty"`
@@ -415,6 +431,9 @@ var (
 	ErrUnavailable = errors.New("not available")
 	// ErrUnsupported says the source doesn't do this.
 	ErrUnsupported = errors.New("not supported by this source")
+	// ErrDuplicate says what is being added is there already: a song to a
+	// playlist that has it. (Added here.)
+	ErrDuplicate = errors.New("already there")
 	// ErrRefused says the source turned the request away for now, as NetEase
 	// does when it takes the client for a risk (-460): nothing is wrong with
 	// the track, and asked again later it may play, so it stays rather than

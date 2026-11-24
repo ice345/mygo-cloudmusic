@@ -474,3 +474,32 @@ func TestSourceSearchLive(t *testing.T) {
 		t.Errorf("an artist with nothing to show: %+v", res.Artists[0])
 	}
 }
+
+// The source loads a playlist, an album and an artist that a search found, each
+// with songs to play and what its page shows.
+func TestSourcePagesLive(t *testing.T) {
+	if os.Getenv("LIVE") == "" {
+		t.Skip()
+	}
+	deviceOnce.Do(func() { deviceID = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123" })
+	src := Source{}
+	found := func(kind music.SearchKind) *music.SearchResult {
+		res, err := src.Search("周杰伦", kind, 0)
+		if err != nil || res.Len() == 0 {
+			t.Fatalf("%s: %v", kind, err)
+		}
+		return res
+	}
+	pl, err := src.Playlist(found(music.SearchPlaylists).Playlists[0].ID)
+	if err != nil || len(pl.Tracks) == 0 || pl.Name == "" || pl.ImageURL == "" {
+		t.Errorf("playlist: %d songs, %v", len(pl.Tracks), err)
+	}
+	al, err := src.Album(found(music.SearchAlbums).Albums[0].ID)
+	if err != nil || len(al.Tracks) == 0 || al.Album.Name == "" || len(al.Album.Artists) == 0 {
+		t.Errorf("album: %+v, %v", al, err)
+	}
+	ar, err := src.Artist(found(music.SearchArtists).Artists[0].ID)
+	if err != nil || len(ar.Tracks) == 0 || ar.Artist.Name == "" {
+		t.Errorf("artist: %+v, %v", ar, err)
+	}
+}

@@ -1,6 +1,7 @@
 package netease
 
 import (
+	"encoding/json"
 	"strconv"
 	"time"
 
@@ -55,7 +56,21 @@ func ToArtist(a ArtistProfile) music.Artist {
 	if pic == "" {
 		pic = a.PicURL
 	}
-	return music.Artist{ID: strconv.FormatInt(a.ID, 10), Source: SourceID, Name: a.Name, ImageURL: imageURL(pic), Following: a.Followed}
+	out := music.Artist{ID: strconv.FormatInt(a.ID, 10), Source: SourceID, Name: a.Name, ImageURL: imageURL(pic), Following: a.Followed, Description: a.BriefDesc}
+	out.Extra, _ = json.Marshal(a)
+	return out
+}
+
+// FromArtist is the NetEase artist of one the app has: its own record, or
+// else what the app's says of it.
+func FromArtist(ma music.Artist) ArtistProfile {
+	var a ArtistProfile
+	if len(ma.Extra) > 0 && json.Unmarshal(ma.Extra, &a) == nil {
+		return a
+	}
+	a.ID, _ = strconv.ParseInt(ma.ID, 10, 64)
+	a.Name, a.BriefDesc, a.Followed = ma.Name, ma.Description, ma.Following
+	return a
 }
 
 // ToArtists is ToArtist of each.
@@ -76,7 +91,21 @@ func ToAlbum(al AlbumProfile) music.Album {
 	if al.PublishTime > 0 {
 		out.Released = time.UnixMilli(al.PublishTime).Format("2006-01-02")
 	}
+	out.Description = al.Description
+	out.Extra, _ = json.Marshal(al)
 	return out
+}
+
+// FromAlbum is the NetEase album of one the app has: its own record, or else
+// what the app's says of it.
+func FromAlbum(ma music.Album) AlbumProfile {
+	var al AlbumProfile
+	if len(ma.Extra) > 0 && json.Unmarshal(ma.Extra, &al) == nil {
+		return al
+	}
+	al.ID, _ = strconv.ParseInt(ma.ID, 10, 64)
+	al.Name, al.Description = ma.Name, ma.Description
+	return al
 }
 
 // ToAlbums is ToAlbum of each.
@@ -88,13 +117,40 @@ func ToAlbums(als []AlbumProfile) []music.Album {
 	return out
 }
 
-// ToPlaylist is a playlist as the app has it, without its tracks.
+// ToPlaylist is a playlist as the app has it, with its tracks if it has them:
+// the liked songs' is the source's own, and one the listener saved is theirs
+// saved. Its own record, less the tracks, which carry theirs, is its Extra.
 func ToPlaylist(pl Playlist) music.Playlist {
-	return music.Playlist{
+	out := music.Playlist{
 		ID: strconv.FormatInt(pl.ID, 10), Source: SourceID, Name: pl.Name, ImageURL: imageURL(pl.Cover()),
 		Description: pl.Description, Owner: pl.Creator.Nickname,
 		TrackCount: pl.TrackCount, PlayCount: int64(pl.PlayCount),
+		Saved: pl.Subscribed, Fixed: pl.SpecialType == 5,
+		Tracks: ToTracks(pl.Tracks),
 	}
+	if len(pl.Tracks) > 0 {
+		out.TrackCount = len(pl.Tracks)
+	}
+	rec := pl
+	rec.Tracks, rec.TrackIDs = nil, nil
+	out.Extra, _ = json.Marshal(rec)
+	return out
+}
+
+// FromPlaylist is the NetEase playlist of one the app has: its own record,
+// with its tracks, or else what the app's says of it.
+func FromPlaylist(mp music.Playlist) Playlist {
+	var pl Playlist
+	if len(mp.Extra) == 0 || json.Unmarshal(mp.Extra, &pl) != nil {
+		pl = Playlist{Name: mp.Name, Description: mp.Description, TrackCount: mp.TrackCount, Subscribed: mp.Saved}
+		pl.ID, _ = strconv.ParseInt(mp.ID, 10, 64)
+		pl.Creator.Nickname = mp.Owner
+	}
+	pl.Tracks = nil
+	for _, t := range mp.Tracks {
+		pl.Tracks = append(pl.Tracks, FromTrack(t))
+	}
+	return pl
 }
 
 // ToShow is a podcast as the app has it.

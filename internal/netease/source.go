@@ -33,7 +33,9 @@ func (Source) Info() music.Info {
 
 func (Source) Can(what string) bool {
 	switch what {
-	case "stream", "lyrics", "search", "like", "likeEpisode", "isLiked":
+	case "stream", "lyrics", "search", "like", "likeEpisode", "isLiked",
+		"playlist", "album", "artist", "followArtist",
+		"createPlaylist", "renamePlaylist", "deletePlaylist", "addToPlaylist", "removeFromPlaylist", "savePlaylist":
 		return true
 	}
 	return false
