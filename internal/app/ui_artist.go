@@ -258,7 +258,7 @@ func (a *app) toggleFollow(k pageKey) {
 	if d.page == nil || d.following || src == nil {
 		return
 	}
-	if a.profile == nil {
+	if a.account == nil {
 		a.openLogin()
 		return
 	}

@@ -45,7 +45,7 @@ func (a *app) loadUser(id int64) {
 		d = &userData{}
 		a.users[id] = d
 	}
-	if a.profile != nil && a.profile.UserID == id {
+	if a.account != nil && a.uid() == id {
 		a.loadSubscriptions(d)
 	}
 	if d.user != nil || d.loading > 0 {
@@ -133,7 +133,7 @@ func (a *app) userPage(c *ui.Context) {
 		return
 	}
 	u := d.user
-	own := a.profile != nil && a.profile.UserID == id
+	own := a.account != nil && a.uid() == id
 	a.scrollPage(c, func() {
 		ui.Row(c).Gap(28).AlignItems(ui.End).Children(func() {
 			ui.Box(c).Size(artistPhotoSize, artistPhotoSize).Radius(artistPhotoSize/2).Shadow(0, 18, 40, -10, p.cardShade).Children(func() {

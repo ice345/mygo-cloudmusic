@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/music"
 )
 
 // fakeUpdater swaps the update plugin's preferences for ones in memory,
@@ -75,7 +75,7 @@ func TestCheckForUpdatesFromSettings(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
 	a.updates = true
-	a.profile = &netease.Profile{UserID: 1}
+	a.account = &music.Account{ID: "1"}
 	tt := ui.NewTester(a.settingsView, 560, 2000)
 	tt.Frame()
 	if err := tt.Click("检查更新"); err != nil {

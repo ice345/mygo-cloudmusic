@@ -141,7 +141,7 @@ func (a *app) toggleSubscribe(d *podcastData) {
 	if d.podcast == nil || d.subscribing {
 		return
 	}
-	if a.profile == nil {
+	if a.account == nil {
 		a.openLogin()
 		return
 	}
@@ -340,7 +340,7 @@ func (a *app) loadPodcastTab() {
 		return
 	}
 	t.loading, t.err = true, ""
-	signedIn := a.profile != nil
+	signedIn := a.account != nil
 	go func() {
 		var subs []netease.Podcast
 		if signedIn {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -19,7 +20,7 @@ import (
 func TestAccountMenu(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.profile = &netease.Profile{UserID: 1, Nickname: "小明"}
+	a.account = &music.Account{ID: "1", Name: "小明"}
 	tt := ui.NewTester(a.view, 1000, 700)
 	tt.Frame()
 
@@ -64,7 +65,7 @@ func TestAccountMenuOpensOwnPage(t *testing.T) {
 
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.profile = &netease.Profile{UserID: 42, Nickname: "小明"}
+	a.account = &music.Account{ID: "42", Name: "小明"}
 	tt := ui.NewTester(a.view, 1000, 700)
 	tt.Frame()
 	tt.Click("小明")
@@ -96,7 +97,7 @@ func fakeSubscriptions(t *testing.T) chan struct{} {
 func ownPageApp() *app {
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.profile = &netease.Profile{UserID: 9, Nickname: "听歌的人"}
+	a.account = &music.Account{ID: "9", Name: "听歌的人"}
 	user := netease.User{UserID: 9, Nickname: "听歌的人", Signature: "在音乐里，寻找同路的人。", Follows: 12, Followeds: 24}
 	a.users[9] = &userData{
 		user:      &user,
@@ -137,7 +138,7 @@ func TestOwnPageFollows(t *testing.T) {
 func TestOthersPageHidesFollows(t *testing.T) {
 	asked := fakeSubscriptions(t)
 	a := ownPageApp()
-	a.profile = &netease.Profile{UserID: 1}
+	a.account = &music.Account{ID: "1"}
 	a.open(nroute(pageUser, 9))
 	tt := ui.NewTester(a.view, 1200, 1200)
 	tt.Frame()
@@ -198,7 +199,7 @@ func TestAccountMenuFrames(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		a := newTestApp()
 		a.settings = defaultSettings()
-		a.profile = &netease.Profile{UserID: 1, Nickname: "小明"}
+		a.account = &music.Account{ID: "1", Name: "小明"}
 		tt := ui.NewTester(a.view, 1000, 600)
 		tt.SetDark(dark)
 		tt.Frame()

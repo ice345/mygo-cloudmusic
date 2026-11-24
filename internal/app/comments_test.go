@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -82,7 +83,7 @@ func TestLikeComment(t *testing.T) {
 	likeComment = func(thread string, id int64, like bool) error { calls <- call{thread, id, like}; return nil }
 	defer func() { likeComment = netease.LikeComment }()
 	a, tt, _ := coverApp(t)
-	a.profile = &netease.Profile{UserID: 1}
+	a.account = &music.Account{ID: "1"}
 	cm := netease.Comment{ID: 9, Content: "好听", LikedCount: 41}
 	a.comments = commentState{track: 2, thread: "R_SO_4_2", loaded: true, total: 1, hot: []netease.Comment{cm}, latest: []netease.Comment{cm}}
 	a.npPane = paneComments

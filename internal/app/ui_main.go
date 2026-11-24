@@ -400,7 +400,7 @@ func (a *app) centered(c *ui.Context, err string, retry func()) {
 
 func (a *app) loadHome() {
 	a.homeLoading, a.homeErr = true, ""
-	signedIn := a.profile != nil
+	signedIn := a.account != nil
 	at := time.Now()
 	go func() {
 		featured, err1 := netease.FeaturedPlaylists(30)

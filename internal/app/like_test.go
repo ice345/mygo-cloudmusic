@@ -59,7 +59,7 @@ func TestLikeFromPlayerBar(t *testing.T) {
 	a := newTestApp()
 	likes(t, a, &likeSource{like: func(id string, like bool) error { calls <- like; return nil }})
 	a.settings = defaultSettings()
-	a.profile = &netease.Profile{UserID: 1, Nickname: "小明"}
+	a.account = &music.Account{ID: "1", Name: "小明"}
 	tr := netease.Track{ID: 7, Name: "宝船", Artists: []netease.Artist{{Name: "DOUDOU"}}, Duration: 200000}
 	a.cue([]netease.Track{tr})
 	a.pl.SetLyrics(nil)
@@ -104,7 +104,7 @@ func TestLikeEpisode(t *testing.T) {
 		like:        func(string, bool) error { t.Error("liked the episode's audio as a song"); return nil },
 	})
 	a.settings = defaultSettings()
-	a.profile = &netease.Profile{UserID: 1}
+	a.account = &music.Account{ID: "1"}
 	a.cue([]netease.Track{{ID: 13, Name: "第一期", ProgramID: 3, PodcastID: 5, Duration: 600000}})
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Advance(time.Second)
@@ -139,7 +139,7 @@ func TestLikeEpisode(t *testing.T) {
 func TestEpisodeLikeClickBeatsAnswer(t *testing.T) {
 	a := newTestApp()
 	likes(t, a, &likeSource{likeEpisode: func(string, bool) error { return nil }})
-	a.profile = &netease.Profile{UserID: 1}
+	a.account = &music.Account{ID: "1"}
 	three := netease.ToTrack(netease.Track{ID: 13, ProgramID: 3, PodcastID: 5})
 	four := netease.ToTrack(netease.Track{ID: 14, ProgramID: 4, PodcastID: 5})
 	a.askLikes([]music.Track{three, four})
@@ -149,7 +149,7 @@ func TestEpisodeLikeClickBeatsAnswer(t *testing.T) {
 		t.Fatalf("liked %v", a.liked)
 	}
 	a.signedIn(nil)
-	a.profile = &netease.Profile{UserID: 2}
+	a.account = &music.Account{ID: "2"}
 	a.askLikes([]music.Track{netease.ToTrack(netease.Track{ID: 15, ProgramID: 5, PodcastID: 5})})
 	a.likesAnswered(1, netease.SourceID, []string{"15@5"}, map[string]bool{"15@5": true})
 	if a.likedID("15@5") {
@@ -163,7 +163,7 @@ func TestLikeEpisodeRow(t *testing.T) {
 	liked := make(chan string, 4)
 	a := catalogApp()
 	likes(t, a, &likeSource{likeEpisode: func(id string, like bool) error { liked <- id; return nil }})
-	a.profile = &netease.Profile{UserID: 1}
+	a.account = &music.Account{ID: "1"}
 	a.setLiked(trackKey{netease.SourceID, "50@40"}, true)
 	a.open(nroute(pagePodcast, 5))
 	tt := ui.NewTester(a.view, 1200, 800)
@@ -198,7 +198,7 @@ func TestLikeBurstFrames(t *testing.T) {
 	a := newTestApp()
 	likes(t, a, &likeSource{like: func(string, bool) error { return nil }})
 	a.settings = defaultSettings()
-	a.profile = &netease.Profile{UserID: 1}
+	a.account = &music.Account{ID: "1"}
 	tr := netease.Track{ID: 7, Name: "宝船", Duration: 200000}
 	a.cue([]netease.Track{tr})
 	tt := ui.NewTester(a.view, 1200, 800)
@@ -503,7 +503,7 @@ func TestLikeCurrent(t *testing.T) {
 	a := newTestApp()
 	likes(t, a, &likeSource{like: func(string, bool) error { return nil }, likeEpisode: func(string, bool) error { return nil }})
 	a.cue([]netease.Track{{ID: 7, Name: "宝船"}})
-	a.profile = &netease.Profile{UserID: 1}
+	a.account = &music.Account{ID: "1"}
 	a.likeCurrent()
 	if !a.likedID("7") || a.toast != "已添加到我喜欢的音乐" {
 		t.Fatalf("liked %v, toast %q", a.likedID("7"), a.toast)
@@ -530,7 +530,7 @@ func TestLoadingLikedSongsKeepsWhatIsKnownOfEpisodes(t *testing.T) {
 	defer func() { likedSongs = prev }()
 	a := newTestApp()
 	a.onPost = func(fn func()) { landed <- fn }
-	a.profile = &netease.Profile{UserID: 1}
+	a.account = &music.Account{ID: "1"}
 	a.setLiked(trackKey{netease.SourceID, "13@3"}, true)
 	a.setLiked(trackKey{netease.SourceID, "14@4"}, false)
 	a.setLiked(trackKey{netease.SourceID, "9"}, true) // a song since unliked elsewhere

@@ -205,7 +205,7 @@ func init() {
 				// The listener's own page, and at its foot the podcasts they
 				// subscribe to and the artists they follow.
 				time.Sleep(4 * time.Second)
-				step(0, func() { a.open(nroute(pageUser, a.profile.UserID)) })
+				step(0, func() { a.open(nroute(pageUser, a.uid())) })
 				time.Sleep(4 * time.Second)
 				shot("p-profile", a.win)
 				step(0, func() { a.pageScroll.ScrollTo(0, 100000, ui.Smooth) })

@@ -57,7 +57,7 @@ func TestOwnPlaylistNotSavable(t *testing.T) {
 	a := editTestApp()
 	pl := a.playlists[nkey(10)]
 	rec := netease.PlaylistRecord(*pl)
-	rec.Creator.UserID = a.profile.UserID
+	rec.Creator.UserID = a.uid()
 	pl.Extra, _ = json.Marshal(rec)
 	tt := ui.NewTester(a.view, 1200, 800)
 	tt.Frame()

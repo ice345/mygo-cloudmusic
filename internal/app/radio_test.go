@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -33,7 +34,7 @@ func TestCommentTime(t *testing.T) {
 func TestExitHeartMode(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.profile = &netease.Profile{UserID: 1, Nickname: "听众"}
+	a.account = &music.Account{ID: "1", Name: "听众"}
 	a.cue([]netease.Track{{ID: 1, Name: "晚风"}, {ID: 2, Name: "推荐的歌"}})
 	a.attachRadio(heartRadio, func(got func([]netease.Track)) {})
 	a.route = route{page: pageFM}

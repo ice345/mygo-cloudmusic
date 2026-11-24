@@ -30,7 +30,7 @@ func (a *app) loadLiked(uid int64) {
 	go func() {
 		ids, err := likedSongs(uid)
 		a.post(func() {
-			if err != nil || a.profile == nil || a.profile.UserID != uid {
+			if err != nil || a.account == nil || a.uid() != uid {
 				return
 			}
 			liked := make(map[trackKey]bool, len(ids))
@@ -51,7 +51,7 @@ func (a *app) loadLiked(uid int64) {
 // and then with its source, which may refuse: the heart goes back then.
 // Signed out, it asks the listener to sign in.
 func (a *app) toggleLike(tr music.Track) {
-	if a.profile == nil {
+	if a.account == nil {
 		a.showMain()
 		a.openLogin()
 		return
@@ -108,7 +108,7 @@ func (a *app) likeCurrent() {
 	tr := *cur
 	a.toggleLike(tr)
 	switch {
-	case a.profile == nil:
+	case a.account == nil:
 		return // asked to sign in
 	case !a.isLiked(tr):
 		a.toast = "已取消喜欢"
@@ -133,7 +133,7 @@ func (a *app) setLiked(key trackKey, like bool) {
 // tracks, those not asked about yet: NetEase lists no episodes they like. An
 // episode it doesn't answer of shows not liked, and isn't asked again.
 func (a *app) askLikes(tracks []music.Track) {
-	if a.profile == nil {
+	if a.account == nil {
 		return
 	}
 	asks := map[string][]string{} // by source
@@ -157,7 +157,7 @@ func (a *app) askLikes(tracks []music.Track) {
 		for _, id := range ask {
 			a.likeAsked[trackKey{source, id}] = true
 		}
-		uid := a.profile.UserID
+		uid := a.uid()
 		go func() {
 			liked, _ := src.IsLiked(ask)
 			a.post(func() { a.likesAnswered(uid, source, ask, liked) })
@@ -168,7 +168,7 @@ func (a *app) askLikes(tracks []music.Track) {
 // likesAnswered takes the source's answer of whether uid likes the tracks
 // asked about.
 func (a *app) likesAnswered(uid int64, source string, asked []string, liked map[string]bool) {
-	if a.profile == nil || a.profile.UserID != uid {
+	if a.account == nil || a.uid() != uid {
 		return
 	}
 	for _, id := range asked {
@@ -201,7 +201,7 @@ func (a *app) likeButton(c *ui.Context, tr music.Track, size float32, color ui.C
 	burst := ui.Local(wrap, "burst", func() time.Time { return time.Time{} })
 	if b.Clicked() {
 		switch {
-		case a.profile == nil:
+		case a.account == nil:
 		case liked:
 			b.Jump("pop", 0.8)
 		default:

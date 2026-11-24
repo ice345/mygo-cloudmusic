@@ -147,7 +147,7 @@ func (a *app) trashFM() {
 // startHeartMode plays songs like one the listener likes: the one playing,
 // if they like it, or else one of their liked songs at random.
 func (a *app) startHeartMode() {
-	if a.profile == nil {
+	if a.account == nil {
 		a.showMain()
 		a.openLogin()
 		return
@@ -306,7 +306,7 @@ func (a *app) fmCard(c *ui.Context) {
 					a.artistLinks(c, musicOf(tr), white.Alpha(0.7), white, true).FontSize(14).SingleLine()
 				}
 				ui.Row(c).Gap(14).AlignItems(ui.Center).Margin(20, 0, 0, -8).Children(func() {
-					if a.profile != nil {
+					if a.account != nil {
 						if iconButton(c.Key("trash"), iconTrash, 20, white.Alpha(0.8), "不喜欢").Clicked() {
 							a.trashFM()
 						}
@@ -388,7 +388,7 @@ func (a *app) heartCard(c *ui.Context, p palette) {
 		}
 		label := "开启心动模式"
 		switch {
-		case a.profile == nil:
+		case a.account == nil:
 			label = "登录后开启"
 		case on:
 			label = "正在播放"

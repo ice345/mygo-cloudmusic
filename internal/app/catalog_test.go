@@ -302,7 +302,7 @@ func TestFollowArtist(t *testing.T) {
 	a := newTestApp()
 	a.sources[netease.SourceID] = &artistSource{id: netease.SourceID, follow: func(id string, follow bool) error { asked <- follow; return nil }}
 	a.settings = defaultSettings()
-	a.profile = &netease.Profile{UserID: 1}
+	a.account = &music.Account{ID: "1"}
 	a.artists[nkey(12)] = loadedArtist(netease.ArtistProfile{Artist: netease.Artist{ID: 12, Name: "乙"}})
 	a.open(nroute(pageArtist, 12))
 	tt := ui.NewTester(a.view, 1200, 800)

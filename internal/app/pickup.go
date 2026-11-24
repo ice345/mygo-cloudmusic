@@ -28,7 +28,7 @@ func (a *app) pickUp(uid int64) {
 	go func() {
 		plays, err := recentPlays(100)
 		a.post(func() {
-			if err != nil || a.profile == nil || a.profile.UserID != uid || a.current() != nil {
+			if err != nil || a.account == nil || a.uid() != uid || a.current() != nil {
 				return
 			}
 			songs, last, ok := lastStretch(plays, time.Now())

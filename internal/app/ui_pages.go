@@ -50,8 +50,8 @@ func (a *app) homePage(c *ui.Context) {
 		a.startMark(c)
 		defer a.endMark(c)
 		hello := greeting(now)
-		if a.profile != nil {
-			hello += "，" + a.profile.Nickname
+		if a.account != nil {
+			hello += "，" + a.account.Name
 		}
 		a.heading(c, hello, fmt.Sprintf("%d月%d日 %s", now.Month(), now.Day(), weekday(now)))
 		if loading {

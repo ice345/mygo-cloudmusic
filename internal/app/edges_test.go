@@ -9,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -56,7 +57,7 @@ func TestShortPageHasNoEdges(t *testing.T) {
 func TestAccountMenuKeepsPlayerEdge(t *testing.T) {
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.profile = &netease.Profile{UserID: 1, Nickname: "小明"}
+	a.account = &music.Account{ID: "1", Name: "小明"}
 	for i := range 40 {
 		a.featured = append(a.featured, netease.Playlist{ID: int64(i + 1), Name: "歌单"})
 	}

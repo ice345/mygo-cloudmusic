@@ -18,7 +18,7 @@ import (
 func editTestApp() *app {
 	a := newTestApp()
 	a.settings = defaultSettings()
-	a.profile = &netease.Profile{UserID: 1, Nickname: "小明"}
+	a.account = &music.Account{ID: "1", Name: "小明"}
 	a.mine = []netease.Playlist{
 		{ID: 5, Name: "小明喜欢的音乐", SpecialType: 5},
 		{ID: 10, Name: "通勤"},

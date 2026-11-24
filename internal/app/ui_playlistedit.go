@@ -70,14 +70,14 @@ func (a *app) isSaved(pl *music.Playlist) bool { return a.isSavedID(numericID(pl
 // savable reports whether the listener may save playlist pl: anyone's but
 // their own. Signed out, saving asks them to sign in.
 func (a *app) savable(pl *music.Playlist) bool {
-	return a.profile == nil || pl.Source != netease.SourceID || playlistRecord(pl).Creator.UserID != a.profile.UserID
+	return a.account == nil || pl.Source != netease.SourceID || playlistRecord(pl).Creator.UserID != a.uid()
 }
 
 // toggleSaved saves playlist pl for the listener, or unsaves it, at once
 // in the app and then with NetEase, going back if NetEase refuses. Signed
 // out, it asks the listener to sign in.
 func (a *app) toggleSaved(pl netease.Playlist) {
-	if a.profile == nil {
+	if a.account == nil {
 		a.showMain()
 		a.openLogin()
 		return
@@ -92,14 +92,14 @@ func (a *app) toggleSaved(pl netease.Playlist) {
 	a.savingPl[id] = true
 	save := !a.isSavedID(pl.ID, pl.Subscribed)
 	at := a.setSaved(pl, save, 0)
-	uid := a.profile.UserID
+	uid := a.uid()
 	src := a.editSource()
 	go func() {
 		err := a.editErr(src, func() error { return src.SavePlaylist(nid(id), save) })
 		a.post(func() {
 			delete(a.savingPl, id)
 			switch {
-			case a.profile == nil || a.profile.UserID != uid:
+			case a.account == nil || a.uid() != uid:
 				// Signed out or in as someone else meanwhile.
 			case err != nil:
 				a.setSaved(pl, !save, max(at, 0))
@@ -140,7 +140,7 @@ func (a *app) loadMine(uid int64) {
 	go func() {
 		made, saved, err := netease.UserPlaylists(uid)
 		a.post(func() {
-			if err == nil && a.profile != nil && a.profile.UserID == uid {
+			if err == nil && a.account != nil && a.uid() == uid {
 				a.mine, a.saved = made, saved
 			}
 		})
@@ -154,15 +154,15 @@ func (a *app) playlistChanged(id int64) {
 	if a.route.page == pagePlaylist && a.route.number() == id {
 		a.loadPlaylist(nkey(id), false)
 	}
-	if a.profile != nil {
-		a.loadMine(a.profile.UserID)
+	if a.account != nil {
+		a.loadMine(a.uid())
 	}
 }
 
 // newPlaylist asks for the name of a playlist to make, then adds tr to it
 // if set. Signed out, it asks the listener to sign in.
 func (a *app) newPlaylist(tr *netease.Track) {
-	if a.profile == nil {
+	if a.account == nil {
 		a.showMain()
 		a.openLogin()
 		return
@@ -330,8 +330,8 @@ func (a *app) removeFrom(pid int64, tr *netease.Track) {
 			}
 			// The songs listed are right: only the sidebar's covers may
 			// have changed.
-			if a.profile != nil {
-				a.loadMine(a.profile.UserID)
+			if a.account != nil {
+				a.loadMine(a.uid())
 			}
 		})
 	}()
@@ -341,7 +341,7 @@ func (a *app) removeFrom(pid int64, tr *netease.Track) {
 // listener's playlists, or take it out of pid, the one it is listed in, if
 // set.
 func (a *app) playlistItems(m *ui.Menu, tr *netease.Track, pid int64) {
-	if a.profile == nil {
+	if a.account == nil {
 		return
 	}
 	m.Separator()

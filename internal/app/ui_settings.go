@@ -239,7 +239,7 @@ func (a *app) settingsView(c *ui.Context) {
 		})
 
 		group("账号", func() {
-			if a.profile == nil {
+			if a.account == nil {
 				row("未登录", "登录后，每日推荐与歌单将根据你的口味生成", func() {
 					if ui.PrimaryButton(c.Key("login"), "扫码登录").Clicked() {
 						a.showMain()
@@ -249,11 +249,11 @@ func (a *app) settingsView(c *ui.Context) {
 				})
 				return
 			}
-			prof := a.profile
+			prof := a.account
 			ui.Row(c).Padding(12, 16).Gap(12).AlignItems(ui.Center).Children(func() {
-				a.avatar(c, prof.AvatarURL, 36, p.press)
+				a.avatar(c, prof.ImageURL, 36, p.press)
 				ui.Column(c).Grow(1).Gap(2).Children(func() {
-					ui.Text(c, prof.Nickname).FontSize(13.5).FontWeight(600)
+					ui.Text(c, prof.Name).FontSize(13.5).FontWeight(600)
 					ui.Text(c, "已登录网易云音乐").FontSize(12).TextColor(p.muted)
 				})
 				if ui.Button(c.Key("logout"), "退出登录").Clicked() {
