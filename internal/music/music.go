@@ -504,6 +504,10 @@ func Reason(err error) string {
 // first. A source may have others, or none, and answers what it has.
 var Qualities = []string{"standard", "high", "lossless"}
 
+// Lossless reports whether a quality of a stream is lossless: "lossless", or
+// "hires", which NetEase streams above it. (Added here.)
+func Lossless(quality string) bool { return quality == "lossless" || quality == "hires" }
+
 // A Leveler is a source whose levels of audio are not Qualities: it names
 // them, the worst first, as Stream is asked for them and answers them. The
 // cache keeps a song by its level, and looks for the one asked for or a

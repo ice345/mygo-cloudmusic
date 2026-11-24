@@ -82,3 +82,24 @@ func (Source) IsLiked(ids []string) (map[string]bool, error) {
 	}
 	return out, nil
 }
+
+// LikedSongIDs lists the songs the listener likes, all at once, in no order: the
+// hearts of a page need not be asked after one by one.
+func (Source) LikedSongIDs() ([]string, error) {
+	me, err := Account()
+	if err != nil {
+		return nil, err
+	}
+	if me == nil {
+		return nil, music.Fail(music.ErrSignIn, "")
+	}
+	liked, err := LikedIDs(me.UserID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(liked))
+	for i, l := range liked {
+		out[i] = strconv.FormatInt(l, 10)
+	}
+	return out, nil
+}
