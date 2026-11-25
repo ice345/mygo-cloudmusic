@@ -1,6 +1,7 @@
 package app
 
 import (
+	"net/url"
 	"runtime"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
 	"netease-music-mygo/internal/player"
+	"netease-music-mygo/internal/plugin"
 )
 
 type pageKind int
@@ -162,6 +164,10 @@ type app struct {
 
 	// sources are the sources of music there are, by ID.
 	sources map[string]music.Source
+	// plugins are those of the sources that are plugins, as found, and
+	// headers answers what their requestHeaders say for a picture.
+	plugins []*plugin.Plugin
+	headers *headerPlugins
 }
 
 // post runs fn on the main thread and redraws both windows. Without a
@@ -229,6 +235,13 @@ func Run() error {
 	moveOldData()
 	a.useUpdater()
 	mygo.App.WhenReady(func() {
+		// Before the player, which asks the sources for what it plays.
+		plugin.SetAppVersion(mygo.App.Version())
+		plugin.SetOpenURL(mygo.Shell.OpenExternal)
+		music.ImageHeaders = func(u *url.URL) map[string]string { return a.headers.image(u) }
+		if code, data, ok := pluginDirs(); ok {
+			a.usePlugins(code, data)
+		}
 		a.settings = loadSettings()
 		a.settings.applyAppearance()
 		a.npPane = a.lyricsPaneChosen()
@@ -304,6 +317,8 @@ func Run() error {
 		if write := a.transcriptWrite(); write != nil {
 			write()
 		}
+		// The programs a plugin started end with the app.
+		a.closePlugins()
 	})
 	// Windows leaves an icon in the notification area after its app until
 	// the pointer passes over it.
