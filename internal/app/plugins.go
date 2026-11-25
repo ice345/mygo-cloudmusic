@@ -28,17 +28,14 @@ func pluginDirs() (code, data string, ok bool) {
 // usePlugins makes each plugin found in code a source, beside those built in.
 // A plugin whose ID is one that is there already, NetEase's or that of another
 // found first, is left out: it can't stand in for a source, nor can two be
-// told apart. The registry is filled before the player or a window reads it,
-// and is read only after, so it needs no lock; a plugin installed while the
-// app runs will.
+// told apart. The registry is behind a lock (see sourcesMu), as a plugin
+// installed while the app runs changes it under those who read it.
 func (a *app) usePlugins(code, data string) {
 	for _, p := range plugin.Discover(code, data) {
-		id := p.Info().ID
-		if _, taken := a.sources[id]; taken {
-			log.Printf("plugin %s: there is a source with that ID already", id)
+		if !a.addSource(p) {
+			log.Printf("plugin %s: there is a source with that ID already", p.Info().ID)
 			continue
 		}
-		a.sources[id] = p
 		a.plugins = append(a.plugins, p)
 	}
 	if a.headers == nil {

@@ -28,6 +28,9 @@ const (
 	pageUser
 	pagePodcast
 	pagePodcasts
+	// pageBrowse is a page a plugin makes up: its Home where the route's id
+	// is empty, or the Browse page the id names.
+	pageBrowse
 )
 
 type route struct {
@@ -171,7 +174,13 @@ type app struct {
 	// settingEdits are the listener's edits of sources' settings, by source
 	// and key; granting asks whether a plugin may start programs; sourceErr
 	// says what went wrong with a plugin's own choices, by source.
-	states       map[string]*sourceState
+	states map[string]*sourceState
+	// active is the ID of the plugin whose music the app shows, or empty for
+	// NetEase's; sourcesOpen is the switcher's list showing; browses are the
+	// pages plugins make up, by source and page.
+	active       string
+	sourcesOpen  bool
+	browses      map[pageKey]*browseData
 	settingEdits map[string]*settingEdit
 	granting     grantDialog
 	sourceErr    map[string]string

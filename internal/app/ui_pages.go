@@ -341,8 +341,6 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 // trackRows lists tracks under a header, which scrolls with them; a click
 // plays the list from the track clicked.
 func (a *app) trackRows(c *ui.Context, tracks trackList, covers bool, header func(c *ui.Context), footer ...func(c *ui.Context)) {
-	p := a.pal
-	cur := a.pl.Current()
 	// A song's menu can take it out of the playlist it is listed in.
 	var pid string
 	if a.route.page == pagePlaylist && a.route.source == a.accountKey("").source {
@@ -372,78 +370,88 @@ func (a *app) trackRows(c *ui.Context, tracks trackList, covers bool, header fun
 			return
 		}
 		i--
-		tr := tracks.at(i)
-		playing := cur != nil && cur.Source == tr.Source && cur.ID == tr.ID
-		row := ui.ButtonBase(c.Key(tr.Source + "/" + tr.ID)).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
-			ContextMenu(a.songItems(tr, pid))
-		hovered := row.Hovered()
-		bg := ui.Transparent
-		switch {
-		case playing:
-			bg = p.accent.Alpha(0.09)
-		case hovered:
-			bg = p.hover
-		}
-		row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 100 * time.Millisecond}))
-		if tr.Unavailable {
-			row.Opacity(0.42)
-		}
-		row.Children(func() {
-			ui.Box(c).Width(26).Center().Children(func() {
-				switch {
-				case playing:
-					a.nowPlayingBars(c)
-				case hovered && !tr.Unavailable:
-					ui.Icon(c, iconPlay).Size(13, 13).TextColor(p.text)
-				default:
-					ui.Textf(c, "%d", i+1).FontSize(13).FontFeatures("tnum").TextColor(p.faint)
-				}
-			})
-			if covers {
-				a.cover(c, tr.Album.ImageURL, 96, 38, 6)
-			}
-			ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
-				name := p.text
-				if playing {
-					name = p.accent
-				}
-				spans := []ui.Span{{Text: tr.Name, Weight: 500, Color: name}}
-				if len(tr.Alias) > 0 {
-					spans = append(spans, ui.Span{Text: "（" + tr.Alias[0] + "）", Color: p.faint})
-				}
-				ui.RichText(c, spans...).FontSize(14).SingleLine()
-				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					if tr.Unavailable {
-						ui.Text(c, "VIP").FontSize(9).FontWeight(800).TextColor(p.accent).Padding(0, 4).Radius(3).Border(1, p.accent.Alpha(0.6))
-					}
-					a.artistLinks(c, tr, p.muted, p.text).FontSize(12.5).SingleLine().Shrink(1).MinWidth(0)
-					if tr.Reason != "" {
-						ui.Text(c, tr.Reason).FontSize(10.5).FontWeight(600).TextColor(p.accent).Padding(1, 6).Radius(999).Background(p.accent.Alpha(0.1)).SingleLine()
-					}
-				})
-			})
-			if wide {
-				album := ui.RichText(c).Grow(2).Basis(0).MinWidth(0).FontSize(12.5).TextColor(p.muted).SingleLine()
-				album.Children(func() {
-					if tr.Album.ID == "" {
-						ui.Text(c, tr.Album.Name)
-					} else {
-						a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, source: tr.Source, id: tr.Album.ID})
-					}
-				})
-			}
-			// A liked song's heart shows; the others' as the pointer is on them.
-			ui.Box(c).Size(32, 32).Center().Children(func() {
-				if a.isLiked(tr) || hovered {
-					a.likeButton(c.Key("like"), tr, 15, p.muted)
-				}
-			})
-			ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
-		})
-		if row.Clicked() && !tr.Unavailable {
-			a.pl.PlayQueue(tracks.all(), i)
-		}
+		a.songRow(c, tracks, i, covers, wide, pid)
 	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
+}
+
+// songRow is the row of the track at i of tracks: its number, cover, name and
+// artists, its album where the page is wide, its heart and its length. A click
+// plays the list from it; pid is the playlist it is listed in, for its menu to
+// take it out of.
+func (a *app) songRow(c *ui.Context, tracks trackList, i int, covers, wide bool, pid string) {
+	p := a.pal
+	cur := a.pl.Current()
+	tr := tracks.at(i)
+	playing := cur != nil && cur.Source == tr.Source && cur.ID == tr.ID
+	row := ui.ButtonBase(c.Key(tr.Source + "/" + tr.ID)).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
+		ContextMenu(a.songItems(tr, pid))
+	hovered := row.Hovered()
+	bg := ui.Transparent
+	switch {
+	case playing:
+		bg = p.accent.Alpha(0.09)
+	case hovered:
+		bg = p.hover
+	}
+	row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 100 * time.Millisecond}))
+	if tr.Unavailable {
+		row.Opacity(0.42)
+	}
+	row.Children(func() {
+		ui.Box(c).Width(26).Center().Children(func() {
+			switch {
+			case playing:
+				a.nowPlayingBars(c)
+			case hovered && !tr.Unavailable:
+				ui.Icon(c, iconPlay).Size(13, 13).TextColor(p.text)
+			default:
+				ui.Textf(c, "%d", i+1).FontSize(13).FontFeatures("tnum").TextColor(p.faint)
+			}
+		})
+		if covers {
+			a.cover(c, tr.Album.ImageURL, 96, 38, 6)
+		}
+		ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
+			name := p.text
+			if playing {
+				name = p.accent
+			}
+			spans := []ui.Span{{Text: tr.Name, Weight: 500, Color: name}}
+			if len(tr.Alias) > 0 {
+				spans = append(spans, ui.Span{Text: "（" + tr.Alias[0] + "）", Color: p.faint})
+			}
+			ui.RichText(c, spans...).FontSize(14).SingleLine()
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				if tr.Unavailable {
+					ui.Text(c, "VIP").FontSize(9).FontWeight(800).TextColor(p.accent).Padding(0, 4).Radius(3).Border(1, p.accent.Alpha(0.6))
+				}
+				a.artistLinks(c, tr, p.muted, p.text).FontSize(12.5).SingleLine().Shrink(1).MinWidth(0)
+				if tr.Reason != "" {
+					ui.Text(c, tr.Reason).FontSize(10.5).FontWeight(600).TextColor(p.accent).Padding(1, 6).Radius(999).Background(p.accent.Alpha(0.1)).SingleLine()
+				}
+			})
+		})
+		if wide {
+			album := ui.RichText(c).Grow(2).Basis(0).MinWidth(0).FontSize(12.5).TextColor(p.muted).SingleLine()
+			album.Children(func() {
+				if tr.Album.ID == "" {
+					ui.Text(c, tr.Album.Name)
+				} else {
+					a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, source: tr.Source, id: tr.Album.ID})
+				}
+			})
+		}
+		// A liked song's heart shows; the others' as the pointer is on them.
+		ui.Box(c).Size(32, 32).Center().Children(func() {
+			if a.isLiked(tr) || hovered {
+				a.likeButton(c.Key("like"), tr, 15, p.muted)
+			}
+		})
+		ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
+	})
+	if row.Clicked() && !tr.Unavailable {
+		a.pl.PlayQueue(tracks.all(), i)
+	}
 }
 
 // nowPlayingBars dance in the row of the track playing.

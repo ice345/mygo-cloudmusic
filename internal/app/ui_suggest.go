@@ -34,6 +34,10 @@ type suggestion struct {
 
 // suggest asks for suggestions for q, once typing pauses.
 func (a *app) suggest(q string) {
+	// What NetEase suggests is of NetEase's music.
+	if a.activeID() != netease.SourceID {
+		return
+	}
 	s := &a.suggestions
 	if q == s.query {
 		return

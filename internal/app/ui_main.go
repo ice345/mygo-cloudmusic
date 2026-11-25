@@ -138,6 +138,8 @@ func (a *app) load(r route) {
 		a.loadPodcast(r.key())
 	case pagePodcasts:
 		a.loadPodcastTab()
+	case pageBrowse:
+		a.loadBrowse(r.key(), false)
 	}
 }
 
@@ -180,9 +182,19 @@ func (a *app) sidebar(c *ui.Context) {
 	// Where nothing in it takes the press, the sidebar moves the window, as
 	// the title bar it reaches up into would.
 	ui.Column(c).Fill().Padding(top, 14, 14, 14).Gap(4).DragWindow().Children(func() {
+		a.sourceSwitcher(c)
 		a.searchField(c)
 
+		// Another source's music has its own sidebar; NetEase's is as it was.
+		plug := a.activeSource()
+		if a.activeID() == netease.SourceID {
+			plug = nil
+		}
 		ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(4).Children(func() {
+			if plug != nil {
+				a.pluginNav(c, plug)
+				return
+			}
 			a.navItem(c, iconHome, "为你推荐", route{page: pageHome})
 			a.navItem(c, iconDaily, "每日推荐", route{page: pageDaily})
 			a.navItem(c, iconRadio, "私人 FM", route{page: pageFM})
@@ -199,13 +211,17 @@ func (a *app) sidebar(c *ui.Context) {
 		if tr := a.current(); tr != nil {
 			a.sidebarNowPlaying(c, tr)
 		}
-		a.accountRow(c)
+		if plug != nil {
+			a.sidebarAccount(c, plug)
+		} else {
+			a.accountRow(c)
+		}
 	})
 }
 
 func (a *app) navItem(c *ui.Context, icon *ui.SVG, label string, r route) {
 	p := a.pal
-	selected := a.route.page == r.page && !a.nowPlaying
+	selected := a.route.page == r.page && (r.page != pageBrowse || a.route.key() == r.key()) && !a.nowPlaying
 	b := ui.ButtonBase(c.Key(label)).Height(34).PaddingX(10).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
 	bg := ui.Transparent
 	switch {
@@ -382,6 +398,8 @@ func (a *app) content(c *ui.Context) {
 		a.podcastPage(c)
 	case pagePodcasts:
 		a.podcastsPage(c)
+	case pageBrowse:
+		a.browsePage(c)
 	}
 }
 

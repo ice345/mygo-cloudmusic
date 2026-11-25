@@ -19,6 +19,12 @@ type sourceState struct {
 	// setupReason what it said it is for.
 	needsSetup  bool
 	setupReason string
+	// mine and saved are the listener's playlists at the plugin, made and
+	// saved; listsAsked says they were asked for, and the collapsed ones are
+	// shut in the sidebar.
+	mine, saved                   []music.Playlist
+	listsAsked, listsBusy         bool
+	mineCollapsed, savedCollapsed bool
 }
 
 // stateOf is the state of the source, made when it is first wanted.
@@ -78,6 +84,14 @@ func (a *app) askAccount(src music.Source) {
 func (a *app) pluginSignedIn(id string, who *music.Account) {
 	s := a.stateOf(id)
 	s.account, s.asked, s.needsSetup, s.setupReason = who, true, false, ""
+	// What the listener sees at the plugin is the account's: ask again.
+	delete(a.browses, pageKey{id, ""})
+	if src := a.source(id); src != nil {
+		a.loadPluginLists(src, true)
+		if a.route == homeRoute(id) {
+			a.loadBrowse(pageKey{id, ""}, true)
+		}
+	}
 }
 
 // signOutOf signs out of the plugin: at once for the listener, then with the
@@ -90,5 +104,45 @@ func (a *app) signOutOf(src music.Source) {
 	}
 	s := a.stateOf(id)
 	s.account, s.asked = nil, true
+	s.mine, s.saved, s.listsAsked = nil, nil, false
+	a.browses = map[pageKey]*browseData{}
 	go src.SignOut()
+	if a.route.page == pageBrowse && a.route.source == id {
+		a.loadBrowse(a.route.key(), true)
+	}
+}
+
+// enterPlugin asks a plugin just shown for what the sidebar shows of it: who
+// is signed in, and their playlists.
+func (a *app) enterPlugin(src music.Source) {
+	a.askAccount(src)
+	a.loadPluginLists(src, false)
+}
+
+// loadPluginLists loads the listener's playlists at the plugin, off the main
+// thread, unless they have been, or again. A plugin that wants a sign-in or a
+// setting first leaves them empty: it is said where the listener goes next.
+func (a *app) loadPluginLists(src music.Source, again bool) {
+	s := a.stateOf(src.Info().ID)
+	if !src.Can("playlists") || s.listsBusy || s.listsAsked && !again {
+		return
+	}
+	s.listsBusy = true
+	go func() {
+		lists, err := src.Playlists()
+		a.post(func() {
+			s.listsBusy, s.listsAsked = false, true
+			s.mine, s.saved = nil, nil
+			if err != nil {
+				return
+			}
+			for _, pl := range lists {
+				if pl.Saved {
+					s.saved = append(s.saved, pl)
+				} else {
+					s.mine = append(s.mine, pl)
+				}
+			}
+		})
+	}()
 }

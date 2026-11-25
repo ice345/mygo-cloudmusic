@@ -17,13 +17,6 @@ import (
 // app's and back, at the edge of those pages: a track's NetEase record travels
 // whole in its Extra, so nothing is lost either way.
 
-// source finds a source by its ID, or nil.
-func (a *app) source(id string) music.Source { return a.sources[id] }
-
-// searchSource is the source the search field searches: NetEase, until the
-// listener can switch between sources.
-func (a *app) searchSource() music.Source { return a.source(netease.SourceID) }
-
 // nroute is the page of kind of the NetEase item numbered id.
 func nroute(page pageKind, id int64) route {
 	return route{page: page, source: netease.SourceID, id: strconv.FormatInt(id, 10)}

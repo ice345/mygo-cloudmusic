@@ -28,11 +28,14 @@ const searchLimit = 60
 // own, beside those of music.SearchKind.
 const kindUsers music.SearchKind = "users"
 
-// searchKinds are the kinds of search, as their tabs show them.
-var searchKinds = []struct {
+// searchKindTab is a kind of search, as its tab shows it.
+type searchKindTab struct {
 	kind        music.SearchKind
 	label, unit string
-}{
+}
+
+// searchKinds are the kinds of search, as their tabs show them.
+var searchKinds = []searchKindTab{
 	{music.SearchTracks, "单曲", "首单曲"},
 	{music.SearchArtists, "歌手", "位歌手"},
 	{music.SearchAlbums, "专辑", "张专辑"},
@@ -63,7 +66,41 @@ func (a *app) search(q string) {
 	if kind == "" {
 		kind = music.SearchTracks
 	}
-	a.searchFor(route{page: pageSearch, query: q, kind: kind})
+	a.searchFor(a.searchRoute(q, kind))
+}
+
+// searchRoute is the route of a search of the source shown: NetEase's names no
+// source, as it never did.
+func (a *app) searchRoute(q string, kind music.SearchKind) route {
+	r := route{page: pageSearch, query: q, kind: kind}
+	if a.activeID() != netease.SourceID {
+		r.source = a.activeID()
+	}
+	return r
+}
+
+// searchSourceID is the source a search page searched: the one its route names,
+// or NetEase.
+func searchSourceID(r route) string {
+	if r.source == "" {
+		return netease.SourceID
+	}
+	return r.source
+}
+
+// kindsOf are the kinds a search of the source may look for: users are
+// NetEase's alone.
+func kindsOf(r route) []searchKindTab {
+	if r.source == "" {
+		return searchKinds
+	}
+	var kinds []searchKindTab
+	for _, k := range searchKinds {
+		if k.kind != kindUsers {
+			kinds = append(kinds, k)
+		}
+	}
+	return kinds
 }
 
 // searchFor opens the page of a search, remembering its query. Searched
@@ -97,14 +134,14 @@ func (a *app) moreResults(r route, d *searchData) {
 	}
 	d.page.loading, d.page.err = true, ""
 	offset := d.len()
-	src := a.searchSource()
+	src := a.source(searchSourceID(r))
 	go func() {
 		var res *music.SearchResult
 		var users []netease.User
 		var total int
 		var err error
 		switch {
-		case r.kind == kindUsers:
+		case r.kind == kindUsers && r.source == "":
 			users, total, err = searchUsers(r.query, offset)
 		case src == nil:
 			err = music.ErrUnsupported
@@ -214,7 +251,8 @@ func (a *app) searchHeader(c *ui.Context, d *searchData) {
 	r := a.route
 	sub := "搜索"
 	at := 0
-	for i, k := range searchKinds {
+	kinds := kindsOf(r)
+	for i, k := range kinds {
 		if k.kind == r.kind {
 			at = i
 			if d.page.loaded {
@@ -224,12 +262,12 @@ func (a *app) searchHeader(c *ui.Context, d *searchData) {
 	}
 	a.heading(c, "“"+r.query+"”", sub)
 	ui.Row(c).Margin(0, 0, 18, 0).Children(func() {
-		labels := make([]string, len(searchKinds))
-		for i, k := range searchKinds {
+		labels := make([]string, len(kinds))
+		for i, k := range kinds {
 			labels[i] = k.label
 		}
 		if segmented(c.Key("kind"), &at, labels...) {
-			r.kind = searchKinds[at].kind
+			r.kind = kinds[at].kind
 			a.show(r)
 		}
 	})
