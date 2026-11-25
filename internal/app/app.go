@@ -171,6 +171,7 @@ type app struct {
 	// settingEdits are the listener's edits of sources' settings, by source
 	// and key; granting asks whether a plugin may start programs; sourceErr
 	// says what went wrong with a plugin's own choices, by source.
+	states       map[string]*sourceState
 	settingEdits map[string]*settingEdit
 	granting     grantDialog
 	sourceErr    map[string]string
@@ -248,6 +249,7 @@ func Run() error {
 		// Before the player, which asks the sources for what it plays.
 		plugin.SetAppVersion(mygo.App.Version())
 		plugin.SetOpenURL(mygo.Shell.OpenExternal)
+		plugin.SetWebSignIn(a.showWebSignIn)
 		music.ImageHeaders = func(u *url.URL) map[string]string { return a.headers.image(u) }
 		if code, data, ok := pluginDirs(); ok {
 			a.usePlugins(code, data)

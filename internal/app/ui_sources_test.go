@@ -19,12 +19,18 @@ import (
 // off the main thread waits in landed, for the test to let it in.
 func pluginSettings(t *testing.T, manifest, data string) (*app, *plugin.Plugin, *ui.Tester, chan func()) {
 	t.Helper()
+	return pluginSettingsJS(t, manifest, `export function search() { return { tracks: [] }; }`, data)
+}
+
+// pluginSettingsJS is pluginSettings of a plugin whose module is js.
+func pluginSettingsJS(t *testing.T, manifest, js, data string) (*app, *plugin.Plugin, *ui.Tester, chan func()) {
+	t.Helper()
 	a := newTestApp()
 	a.settings = defaultSettings()
 	landed := make(chan func(), 4)
 	a.onPost = func(fn func()) { landed <- fn }
 	code := t.TempDir()
-	putPlugin(t, code, "x", manifest, `export function search() { return { tracks: [] }; }`)
+	putPlugin(t, code, "x", manifest, js)
 	a.usePlugins(code, data)
 	t.Cleanup(a.closePlugins)
 	if len(a.plugins) != 1 {

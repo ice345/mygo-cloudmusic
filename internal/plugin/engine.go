@@ -4,6 +4,7 @@
 package plugin
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -94,6 +95,7 @@ func (p *Plugin) Grant(on bool) error {
 
 // Close stops the plugin, and the programs it started.
 func (p *Plugin) Close() {
+	p.CancelSignIn()
 	p.starting.Lock()
 	defer p.starting.Unlock()
 	p.mu.Lock()
@@ -311,10 +313,12 @@ func (v *vm) ask(method string, params []byte, got func(answer)) {
 
 // call asks the plugin and decodes its answer into out, unless out is nil.
 func (p *Plugin) call(method string, params, out any) error {
-	return p.callWithin(callTimeout, method, params, out)
+	return p.callWithin(context.Background(), callTimeout, method, params, out)
 }
 
-func (p *Plugin) callWithin(timeout time.Duration, method string, params, out any) error {
+// callWithin is call that gives up when ctx ends, with its error, or after
+// timeout.
+func (p *Plugin) callWithin(ctx context.Context, timeout time.Duration, method string, params, out any) error {
 	if !p.exports[method] {
 		return music.ErrUnsupported
 	}
@@ -346,6 +350,9 @@ func (p *Plugin) callWithin(timeout time.Duration, method string, params, out an
 			return nil
 		}
 		return json.Unmarshal(a.json, out)
+	case <-ctx.Done():
+		// The plugin's answer, when it comes, has nowhere to go: ch holds it.
+		return ctx.Err()
 	case <-timer.C:
 		p.dropIfStuck(v)
 		return fmt.Errorf("the plugin didn't answer %s in time", method)
@@ -396,4 +403,5 @@ var (
 	_ music.Source   = (*Plugin)(nil)
 	_ music.Recorder = (*Plugin)(nil)
 	_ music.Prompter = (*Plugin)(nil)
+	_ music.Canceler = (*Plugin)(nil)
 )

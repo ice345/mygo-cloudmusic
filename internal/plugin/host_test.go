@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/md5"
 	"encoding/hex"
@@ -142,7 +143,7 @@ export function search() { return new Promise((resolve) => setTimeout(() => reso
 	if got, err := p.Suggest("a"); err != nil || got[0] != "a:1" {
 		t.Fatalf("%v, %v", got, err)
 	}
-	err := p.callWithin(200*time.Millisecond, "suggest", map[string]string{"query": "spin"}, nil)
+	err := p.callWithin(context.Background(), 200*time.Millisecond, "suggest", map[string]string{"query": "spin"}, nil)
 	if err == nil || !strings.Contains(err.Error(), "didn't answer suggest in time") {
 		t.Fatalf("a plugin that spins: %v", err)
 	}
@@ -150,7 +151,7 @@ export function search() { return new Promise((resolve) => setTimeout(() => reso
 		t.Errorf("after it spun, the plugin starts over: %v, %v", got, err)
 	}
 	// Slow, not stuck: it goes on, and is not restarted.
-	if err := p.callWithin(100*time.Millisecond, "search", map[string]any{"query": "q"}, nil); err == nil {
+	if err := p.callWithin(context.Background(), 100*time.Millisecond, "search", map[string]any{"query": "q"}, nil); err == nil {
 		t.Error("a slow answer arrived in time")
 	}
 	if got, _ := p.Suggest("c"); got[0] != "c:2" {
@@ -279,8 +280,10 @@ export async function signIn() {
 // with a Cookie header.
 func TestPluginWebSignInIsChecked(t *testing.T) {
 	var asked WebSignIn
-	SetWebSignIn(func(w WebSignIn) (string, error) { asked = w; return "sid=1; uid=2", nil })
-	defer SetWebSignIn(func(WebSignIn) (string, error) { return "", errors.New("can't show a sign-in page here") })
+	SetWebSignIn(func(_ context.Context, w WebSignIn) (string, error) { asked = w; return "sid=1; uid=2", nil })
+	defer SetWebSignIn(func(context.Context, WebSignIn) (string, error) {
+		return "", errors.New("can't show a sign-in page here")
+	})
 	p := inline(t, `{"id":"w","name":"Web","permissions":{"network":["*.example.com"]}}`, `
 export async function suggest({ query }) {
   const [url, cookiesOf, until] = query.split("|");
@@ -403,5 +406,126 @@ func TestDiscoverLeavesOutWhatDoesNotLoad(t *testing.T) {
 	}
 	if !found[0].Can("suggest") || found[0].Can("search") {
 		t.Error("what it can is not what it exports")
+	}
+}
+
+// freePort is a port on this machine nothing listens on.
+func freePort(t *testing.T) int {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
+}
+
+// A sign-in the listener gives up ends at once with context.Canceled, though
+// the plugin goes on waiting; and one started while another waits gives that
+// one up, so that two don't both hold what a sign-in holds.
+func TestPluginSignInCanBeGivenUp(t *testing.T) {
+	p := inline(t, `{"id":"g"}`, `
+export async function signIn() {
+  host.signInPrompt({ text: "waiting" });
+  await new Promise(() => {});
+}`)
+	prompts := make(chan music.SignInPrompt, 4)
+	p.OnSignInPrompt(func(sp music.SignInPrompt) { prompts <- sp })
+	start := func() chan error {
+		done := make(chan error, 1)
+		go func() {
+			_, err := p.SignIn()
+			done <- err
+		}()
+		<-prompts // it is waiting on the plugin
+		return done
+	}
+
+	first := start()
+	p.CancelSignIn()
+	if err := <-first; !errors.Is(err, context.Canceled) {
+		t.Fatalf("given up: %v", err)
+	}
+
+	first = start()
+	second := start()
+	if err := <-first; !errors.Is(err, context.Canceled) {
+		t.Fatalf("the sign-in before another: %v", err)
+	}
+	// The one that gave up the first is the one under way.
+	p.CancelSignIn()
+	if err := <-second; !errors.Is(err, context.Canceled) {
+		t.Fatalf("the second given up: %v", err)
+	}
+}
+
+// A browser sign-in given up lets its port go, which another try needs to
+// listen on; it was held until it timed out.
+func TestRedirectWaitGivenUpFreesItsPort(t *testing.T) {
+	port := freePort(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := awaitRedirect(ctx, port, "/callback", "done", 3*time.Second); !errors.Is(err, context.Canceled) {
+		t.Fatalf("given up: %v", err)
+	}
+	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("the port is still held: %v", err)
+	}
+	l.Close()
+}
+
+// The page a plugin signs in on is told when the sign-in is given up, to
+// close; it stayed open, with nothing waiting for what it would bring.
+func TestWebSignInPageEndsWithTheSignIn(t *testing.T) {
+	p := inline(t, `{"id":"w","permissions":{"network":["accounts.example.com"]}}`, `
+export async function signIn() {
+  const r = await host.webSignIn({ url: "https://accounts.example.com/login", cookiesOf: "https://accounts.example.com/", until: ["sid"] });
+  return { id: r.cookie, name: "x" };
+}`)
+	shown := make(chan struct{}, 1)
+	closed := make(chan struct{})
+	SetWebSignIn(func(ctx context.Context, w WebSignIn) (string, error) {
+		shown <- struct{}{}
+		<-ctx.Done()
+		close(closed)
+		return "", ctx.Err()
+	})
+	defer SetWebSignIn(func(context.Context, WebSignIn) (string, error) {
+		return "", errors.New("can't show a sign-in page here")
+	})
+	done := make(chan error, 1)
+	go func() {
+		_, err := p.SignIn()
+		done <- err
+	}()
+	<-shown
+	p.CancelSignIn()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("given up: %v", err)
+	}
+	<-closed // the page was told
+}
+
+// Closing a plugin, as the app does as it quits or the listener takes back
+// what it was allowed, gives up the sign-in it was in, instead of leaving the
+// listener's dialog waiting on a plugin that is gone.
+func TestClosingAPluginGivesUpItsSignIn(t *testing.T) {
+	p := inline(t, `{"id":"c"}`, `
+export async function signIn() {
+  host.signInPrompt({ text: "waiting" });
+  await new Promise(() => {});
+}`)
+	prompts := make(chan music.SignInPrompt, 1)
+	p.OnSignInPrompt(func(sp music.SignInPrompt) { prompts <- sp })
+	done := make(chan error, 1)
+	go func() {
+		_, err := p.SignIn()
+		done <- err
+	}()
+	<-prompts
+	p.Close()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("closed: %v", err)
 	}
 }

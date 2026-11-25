@@ -38,6 +38,10 @@ type loginState struct {
 	finished bool
 	// running says a sign-in is waiting, to be given up if the dialog closes.
 	running bool
+	// source is the ID of the source being signed in to, and text what it says
+	// of how it goes, which a source of no QR code has only that to show.
+	source string
+	text   string
 }
 
 // uid is the NetEase number of who is signed in, or 0.
@@ -92,12 +96,19 @@ func (a *app) signedIn(who *music.Account) {
 	a.loadMine(a.uid())
 }
 
-// openLogin starts a sign-in, giving up the one under way: the source shows
-// the code and who scanned it through the prompt, and returns who confirmed.
-func (a *app) openLogin() {
-	src := a.accountSource()
+// openLogin starts a sign-in to the source whose account the app shows.
+func (a *app) openLogin() { a.openLoginFor(a.accountSource()) }
+
+// openLoginFor starts a sign-in to src, giving up the one under way: the source
+// shows the code, or says what to do, and who scanned it, through the prompt,
+// and returns who confirmed.
+func (a *app) openLoginFor(src music.Source) {
 	a.giveUpLogin()
-	a.login = loginState{open: true, gen: a.login.gen + 1, running: src != nil}
+	id := netease.SourceID
+	if src != nil {
+		id = src.Info().ID
+	}
+	a.login = loginState{open: true, gen: a.login.gen + 1, running: src != nil, source: id}
 	gen := a.login.gen
 	if src == nil {
 		a.login.err = "无法登录"
@@ -120,7 +131,7 @@ func (a *app) giveUpLogin() {
 		return
 	}
 	a.login.running = false
-	if c, ok := a.accountSource().(music.Canceler); ok {
+	if c, ok := a.source(a.login.source).(music.Canceler); ok {
 		go c.CancelSignIn()
 	}
 }
@@ -139,6 +150,9 @@ func (a *app) loginPrompt(gen int, p music.SignInPrompt) {
 			return
 		}
 		l.code, l.qrText = code, p.QR
+	}
+	if p.Text != "" {
+		l.text = p.Text
 	}
 	l.stage = loginWaiting
 	if p.Name != "" {
@@ -161,13 +175,17 @@ func (a *app) loginEnded(gen int, who *music.Account, err error) {
 		l.stage = loginExpired
 	case err != nil:
 		switch {
-		case l.code == nil:
+		case l.code == nil && l.source == netease.SourceID:
 			l.err = "无法获取二维码，请检查网络"
 		case music.Reason(err) != "":
 			l.err = music.Reason(err)
 		default:
 			l.err = "登录失败，请稍后再试"
 		}
+	case l.source != netease.SourceID:
+		l.finished = true
+		a.pluginSignedIn(l.source, who)
+		a.closeLoginSoon(gen)
 	default:
 		l.finished = true
 		a.signedIn(who)
@@ -211,9 +229,23 @@ func (a *app) loginDialog(c *ui.Context) {
 			Background(p.bg).Border(1, p.hairline).Shadow(0, 24, 60, -12, ui.RGBA(0, 0, 0, 0.4)).
 			Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.94}, Exit: &ui.Motion{Scale: 0.96}})
 		title, sub := "扫码登录", "打开网易云音乐 App，扫一扫登录"
+		// Another source's own words: it says what to do through the prompt.
+		other := l.source != "" && l.source != netease.SourceID
+		if other {
+			title, sub = "登录 "+a.sourceName(l.source), "请按提示完成登录"
+			if l.text != "" {
+				sub = l.text
+			}
+		}
 		switch {
 		case l.finished:
-			title, sub = "登录成功", "欢迎回来，"+a.profileName()
+			who := a.profileName()
+			if other {
+				if acc := a.accountOf(l.source); acc != nil {
+					who = acc.Name
+				}
+			}
+			title, sub = "登录成功", "欢迎回来，"+who
 		case l.err != "":
 			sub = l.err
 		case l.stage == loginScanned:
@@ -223,6 +255,23 @@ func (a *app) loginDialog(c *ui.Context) {
 		}
 		ui.Text(c, title).FontSize(20).FontWeight(700)
 		ui.Text(c, sub).FontSize(13).TextColor(p.muted).TextAlign(ui.Center).Margin(0, 0, 14, 0)
+
+		// With no code to show, as a source that signs in on a page of its
+		// own has none, there is only what to do, and a way out of it.
+		if other && l.code == nil {
+			switch {
+			case l.finished:
+			case l.err != "":
+				if pillButton(c.Key("retry"), iconRepeat, "重试", p.accent, p.onAccent).Clicked() {
+					a.openLoginFor(a.source(l.source))
+				}
+			default:
+				if pillButton(c.Key("cancel"), nil, "取消", p.hover.Over(p.bg), p.text).Clicked() {
+					l.open = false
+				}
+			}
+			return
+		}
 
 		ui.Box(c).Size(212, 212).Radius(16).Background(ui.RGB(255, 255, 255)).Border(1, p.hairline).Children(func() {
 			if l.code != nil {
@@ -251,12 +300,14 @@ func (a *app) loginDialog(c *ui.Context) {
 					}
 				case l.stage == loginExpired || l.err != "":
 					if pillButton(c.Key("refresh"), iconRepeat, "刷新二维码", p.accent, p.onAccent).Clicked() {
-						a.openLogin()
+						a.openLoginFor(a.source(l.source))
 					}
 				}
 			})
 		})
-		ui.Text(c, "登录后，每日推荐与歌单将根据你的口味生成").FontSize(11.5).TextColor(p.faint).Margin(16, 0, 0, 0)
+		if !other {
+			ui.Text(c, "登录后，每日推荐与歌单将根据你的口味生成").FontSize(11.5).TextColor(p.faint).Margin(16, 0, 0, 0)
+		}
 	})
 }
 

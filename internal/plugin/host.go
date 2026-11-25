@@ -61,10 +61,15 @@ type WebSignIn struct {
 
 // webSignIn shows a sign-in page and answers its cookies as a Cookie header.
 // The app sets it.
-var webSignIn = func(WebSignIn) (string, error) { return "", errors.New("can't show a sign-in page here") }
+//
+// It is to give the page up, and close it, once ctx ends: the listener gave the
+// sign-in up.
+var webSignIn = func(context.Context, WebSignIn) (string, error) {
+	return "", errors.New("can't show a sign-in page here")
+}
 
 // SetWebSignIn says how to show a sign-in page, and get its cookies.
-func SetWebSignIn(show func(WebSignIn) (string, error)) { webSignIn = show }
+func SetWebSignIn(show func(context.Context, WebSignIn) (string, error)) { webSignIn = show }
 
 type native = func(*moejs.Realm, moejs.Value, []moejs.Value) (moejs.Value, error)
 
@@ -214,9 +219,10 @@ func (p *Plugin) waitForRedirect(v *vm) native {
 		if wait <= 0 {
 			wait = signInTimeout
 		}
+		ctx := p.signInContext()
 		promise, settle := v.loop.NewPromise()
 		go func() {
-			query, err := awaitRedirect(o.Port, o.Path, o.Page, wait)
+			query, err := awaitRedirect(ctx, o.Port, o.Path, o.Page, wait)
 			settle(func(rt *moejs.Runtime) (moejs.Value, error) {
 				if err != nil {
 					return moejs.Undefined(), err
@@ -228,7 +234,9 @@ func (p *Plugin) waitForRedirect(v *vm) native {
 	}
 }
 
-func awaitRedirect(port int, path, page string, wait time.Duration) (map[string]any, error) {
+// awaitRedirect listens for the redirect until it comes, or until wait, or ctx
+// ends, and has let the port go when it returns.
+func awaitRedirect(ctx context.Context, port int, path, page string, wait time.Duration) (map[string]any, error) {
 	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		return nil, err
@@ -255,10 +263,16 @@ func awaitRedirect(port int, path, page string, wait time.Duration) (map[string]
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 		srv.Shutdown(ctx)
+		// A wait that ends before Serve has begun leaves Shutdown nothing to
+		// close, and Serve lets the port go only when it gets to it: close it
+		// here, so that it is free once this returns.
+		l.Close()
 	}()
 	select {
 	case q := <-got:
 		return q, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	case <-time.After(wait):
 		return nil, errors.New("timed out waiting for the sign-in to come back")
 	}
@@ -277,9 +291,10 @@ func (p *Plugin) webSignIn(v *vm) native {
 			return moejs.Undefined(), err
 		}
 		o.Plugin, o.Name = p.manifest.ID, p.manifest.Name
+		ctx := p.signInContext()
 		promise, settle := v.loop.NewPromise()
 		go func() {
-			cookie, err := webSignIn(o)
+			cookie, err := webSignIn(ctx, o)
 			settle(func(rt *moejs.Runtime) (moejs.Value, error) {
 				if err != nil {
 					return moejs.Undefined(), err

@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -32,6 +33,10 @@ type Plugin struct {
 	granted  bool // the listener let it start programs
 	vm       *vm
 	prompt   func(music.SignInPrompt)
+	// signCtx ends when the listener gives the sign-in under way up: what
+	// it waits on, a redirect or a page, ends with it. signCancel is that.
+	signCtx    context.Context
+	signCancel context.CancelFunc
 }
 
 // newPlugin reads the plugin in dir, keeping its data in dataDir, without

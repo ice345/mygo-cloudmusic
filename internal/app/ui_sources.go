@@ -75,6 +75,9 @@ func (a *app) pluginRows(c *ui.Context, p palette, pl *plugin.Plugin, info music
 	if err := a.sourceErr[id]; err != "" {
 		settingRow(c, p, err, "", nil, nil)
 	}
+	if pl.Can("signIn") || pl.Can("account") {
+		a.pluginAccountRow(c, p, pl, info)
+	}
 	if len(pl.Permissions().Process) > 0 {
 		settingRow(c, p, "允许启动程序", "开启后，这个音源可以运行："+programsText(pl.Permissions().Process)+"。这些程序能做你能做的一切，只允许你信任的音源。", nil, func() {
 			on := pl.Granted()
@@ -289,4 +292,33 @@ func (a *app) grantDialogView(c *ui.Context, p palette) {
 			}
 		})
 	})
+}
+
+// pluginAccountRow shows who is signed in to the plugin, with a way to sign out,
+// or to sign in, or says the plugin needs setting up first.
+func (a *app) pluginAccountRow(c *ui.Context, p palette, pl *plugin.Plugin, info music.Info) {
+	a.askAccount(pl)
+	st := a.stateOf(info.ID)
+	switch {
+	case st.account != nil:
+		settingRow(c, p, st.account.Name, "已登录 "+info.Name, nil, func() {
+			if pl.Can("signOut") && ui.Button(c.Key(info.ID+"/signout"), "退出登录").Clicked() {
+				a.signOutOf(pl)
+			}
+		})
+	case st.needsSetup:
+		reason := st.setupReason
+		if reason == "" {
+			reason = "先填写下面的设置，才能登录"
+		}
+		settingRow(c, p, "需要先设置", reason, nil, nil)
+	default:
+		settingRow(c, p, "未登录", "登录后，可以使用你在 "+info.Name+" 的歌单与收藏", nil, func() {
+			if pl.Can("signIn") && ui.PrimaryButton(c.Key(info.ID+"/signin"), "登录").Clicked() {
+				a.showMain()
+				a.openLoginFor(pl)
+				a.redraw()
+			}
+		})
+	}
 }

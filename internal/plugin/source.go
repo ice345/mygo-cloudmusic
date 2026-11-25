@@ -4,6 +4,7 @@
 package plugin
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/url"
@@ -76,12 +77,52 @@ func (p *Plugin) stampBrowse(b *music.Browse) {
 	}
 }
 
+// SignIn signs the listener in, as the plugin does it: a code or a page it has
+// shown through the prompt, a redirect or a page it waits on. One sign-in is
+// under way at a time: another gives it up. CancelSignIn gives it up too, and
+// SignIn then returns context.Canceled.
 func (p *Plugin) SignIn() (*music.Account, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	p.mu.Lock()
+	if p.signCancel != nil {
+		p.signCancel()
+	}
+	p.signCtx, p.signCancel = ctx, cancel
+	p.mu.Unlock()
+	defer func() {
+		cancel()
+		p.mu.Lock()
+		if p.signCtx == ctx {
+			p.signCtx, p.signCancel = nil, nil
+		}
+		p.mu.Unlock()
+	}()
 	var a music.Account
-	if err := p.callWithin(signInTimeout, "signIn", nil, &a); err != nil {
+	if err := p.callWithin(ctx, signInTimeout, "signIn", nil, &a); err != nil {
 		return nil, err
 	}
 	return &a, nil
+}
+
+// CancelSignIn gives up the sign-in under way, if there is one, and what it
+// waits on: the port it listens on, the page it shows.
+func (p *Plugin) CancelSignIn() {
+	p.mu.Lock()
+	cancel := p.signCancel
+	p.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// signInContext ends with the sign-in under way, and never with none.
+func (p *Plugin) signInContext() context.Context {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.signCtx != nil {
+		return p.signCtx
+	}
+	return context.Background()
 }
 
 func (p *Plugin) SignOut() error { return p.call("signOut", nil, nil) }
