@@ -5,6 +5,7 @@ package app
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -40,6 +41,11 @@ func (a *app) installMenu(c *ui.Context, p palette) {
 			a.installFromDisk(false)
 		}
 		m.Separator()
+		if m.Item("浏览插件…").Chosen() {
+			if err := openWebPage(pluginsPage); err != nil {
+				log.Printf("opening %s: %v", pluginsPage, err)
+			}
+		}
 		if m.Item("显示插件文件夹").Chosen() {
 			if code, _, ok := pluginDirs(); ok {
 				revealFolder(code)

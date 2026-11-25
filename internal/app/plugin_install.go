@@ -29,12 +29,17 @@ var (
 	latestPlugin = plugin.Latest
 	openPlugin   = plugin.Open
 	trashItem    = mygo.Shell.TrashItem
+	openWebPage  = mygo.Shell.OpenExternal
 	revealFolder = func(path string) {
 		if err := mygo.Shell.OpenPath(path); err != nil {
 			log.Printf("showing %s: %v", path, err)
 		}
 	}
 )
+
+// pluginsPage lists plugins to install: repositories with the topic
+// mygo-music-plugin, as upstream's page does.
+const pluginsPage = "https://mygo-music.egoist.dev/plugins"
 
 // pickPlugin asks the listener for a plugin's folder, or a zip of one, with a
 // native dialog, on a goroutine, for it blocks; tests replace it.

@@ -27,6 +27,7 @@ type installEnv struct {
 	data    string
 	trashed []string
 	repos   []string // what was asked of GitHub, in order
+	pages   []string // the web pages opened
 	picks   string   // what the file dialog is to choose
 	removed bool     // the listener says yes to removing
 }
@@ -50,7 +51,10 @@ func newInstallEnv(t *testing.T) *installEnv {
 	}
 	trashItem = func(path string) error { e.trashed = append(e.trashed, path); return os.RemoveAll(path) }
 	revealFolder = func(string) {}
+	wasOpen := openWebPage
+	openWebPage = func(url string) error { e.pages = append(e.pages, url); return nil }
 	t.Cleanup(func() {
+		openWebPage = wasOpen
 		pluginDirs, fetchPlugin, fetchRelease = was[0].(func() (string, string, bool)), was[1].(func(string, string) (*plugin.Pending, error)), was[2].(func(*plugin.Release, string) (*plugin.Pending, error))
 		latestPlugin, openPlugin, pickPlugin = was[3].(func(string) (*plugin.Release, error)), was[4].(func(string, string) (*plugin.Pending, error)), was[5].(func(*app, bool, func(string)))
 		confirmRemovePlugin, trashItem, revealFolder = was[6].(func(*app, string, func())), was[7].(func(string) error), was[8].(func(string))
@@ -467,7 +471,7 @@ func TestSettingsOfferToInstallPlugins(t *testing.T) {
 	if err := e.tt.Click("安装插件"); err != nil {
 		t.Fatal(err)
 	}
-	for _, item := range []string{"从 GitHub 安装…", "从文件夹安装…", "从 Zip 安装…", "显示插件文件夹"} {
+	for _, item := range []string{"从 GitHub 安装…", "从文件夹安装…", "从 Zip 安装…", "浏览插件…", "显示插件文件夹"} {
 		if !contains(e.tt.Menu(), item) {
 			t.Errorf("no %q in %q", item, e.tt.Menu())
 		}
@@ -477,6 +481,17 @@ func TestSettingsOfferToInstallPlugins(t *testing.T) {
 	}
 	if shown != e.code {
 		t.Errorf("showed %q, want %q", shown, e.code)
+	}
+	e.tt.Frame()
+	// The page that lists plugins is the browser's, not a window of the app's.
+	if err := e.tt.Click("安装插件"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.tt.ChooseMenuItem("浏览插件…"); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.pages) != 1 || e.pages[0] != "https://mygo-music.egoist.dev/plugins" {
+		t.Errorf("opened %v", e.pages)
 	}
 	e.tt.Frame()
 	if err := e.tt.Click("安装插件"); err != nil {
