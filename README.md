@@ -36,6 +36,9 @@ go test ./...        # 运行测试
 - [folia-major](https://github.com/chthollyphile/folia-major)：歌词动画效果的参考
 - [BudouX](https://github.com/google/budoux)：日文与中文歌词的断行（模型以 Apache-2.0 授权，见 `internal/linebreak/models`）
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)、[Qwen3-ASR](https://github.com/QwenLM/Qwen3-ASR) 与 [Silero VAD](https://github.com/snakers4/silero-vad)：本机语音识别
+- [moejs](https://github.com/MoeForge/moejs)：运行音源插件的 JavaScript 引擎（Apache-2.0）
+- [go-aac](https://github.com/tphakala/go-aac)：AAC 解码（LGPL-2.1 或更新版本，移植自 FFmpeg；本项目以 AGPL-3.0 公开全部源码，可自行重新编译）
+- [oggvorbis](https://github.com/jfreymuth/oggvorbis)：Ogg Vorbis 解码（MIT）
 
 本项目与网易云音乐官方无关，音乐版权归各权利人所有。
 

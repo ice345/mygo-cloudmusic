@@ -15,8 +15,8 @@ import (
 )
 
 // Cache keeps the songs played on disk, so that they play again at once,
-// and without the network: each as <key>-<level>.mp3 or .flac, named for its
-// source and its ID at the source (see cacheKey), with what its stream was
+// and without the network: each as <key>-<level>.<type>, of one of songTypes,
+// named for its source and its ID at the source (see cacheKey), with what its stream was
 // beside it in <key>-<level>.json. Once they take more than the limit, those
 // played longest ago go first.
 type Cache struct {
@@ -57,8 +57,9 @@ func cacheKey(source, id, level string) string {
 	return hex.EncodeToString(sum[:16]) + "-" + level
 }
 
-// songTypes are the formats that are kept.
-var songTypes = []string{"mp3", "flac"}
+// songTypes are the formats that are kept: the types a stream may say it is
+// of, which name its file.
+var songTypes = []string{"mp3", "flac", "ogg", "wav", "m4a", "aac"}
 
 // keepable reports whether a song of level and type ext may be kept: they
 // name its file, so only those known, which keep it in the cache's folder.
@@ -120,9 +121,9 @@ func (c *Cache) lookup(source, id, level string, levels []string) (*download, *m
 func (c *Cache) download(source, id string, st *music.Stream, levels []string) *download {
 	part := c.part(st)
 	if part == nil {
-		return startDownload(st.URL, st.Size, nil, nil)
+		return startDownload(st.URL, st.Size, st.Headers, nil, nil)
 	}
-	return startDownload(st.URL, st.Size, part, func(path string, n int64) (string, bool) {
+	return startDownload(st.URL, st.Size, st.Headers, part, func(path string, n int64) (string, bool) {
 		return c.keep(source, id, st, levels, path, n)
 	})
 }
@@ -161,7 +162,7 @@ func (c *Cache) keep(source, id string, st *music.Stream, levels []string, part 
 	if n > limit/4 {
 		return part, false
 	}
-	kept := keptMeta{Size: n, Type: st.Type, Level: st.Quality, Gain: st.Gain, Peak: st.Peak}
+	kept := keptMeta{Size: n, Type: strings.ToLower(st.Type), Level: st.Quality, Gain: st.Gain, Peak: st.Peak}
 	if kept.Type == "" {
 		kept.Type = "mp3"
 	}
@@ -205,8 +206,7 @@ func (c *Cache) songs() []cachedSong {
 	entries, _ := os.ReadDir(c.dir)
 	var out []cachedSong
 	for _, e := range entries {
-		ext := filepath.Ext(e.Name())
-		if ext != ".mp3" && ext != ".flac" {
+		if !slices.Contains(songTypes, strings.TrimPrefix(filepath.Ext(e.Name()), ".")) {
 			continue
 		}
 		info, err := e.Info()

@@ -44,11 +44,14 @@ type download struct {
 	// closes the file, and removes it unless the cache kept it.
 	users  int
 	closed bool
+	// onDisk says the song is a whole file, to walk through at will.
+	onDisk bool
 }
 
-// startDownload fetches url, of size bytes if known, into part, a file
-// that keep keeps once it has all come in: or into memory, without one.
-func startDownload(url string, size int64, part *os.File, keep func(string, int64) (string, bool)) *download {
+// startDownload fetches url, of size bytes if known and with headers, into
+// part, a file that keep keeps once it has all come in: or into memory,
+// without one.
+func startDownload(url string, size int64, headers map[string]string, part *os.File, keep func(string, int64) (string, bool)) *download {
 	ctx, cancel := context.WithCancel(context.Background())
 	d := &download{size: size, cancel: cancel, users: 2}
 	d.cond.L = &d.mu
@@ -58,7 +61,7 @@ func startDownload(url string, size int64, part *os.File, keep func(string, int6
 	case size > 0:
 		d.data = make([]byte, 0, prealloc(size))
 	}
-	go d.run(ctx, url)
+	go d.run(ctx, url, headers)
 	return d
 }
 
@@ -82,12 +85,12 @@ func downloaded(b []byte) *download {
 // opened returns a download that has all of the file f in already, of
 // size bytes, as a song from the cache.
 func opened(f *os.File, size int64) *download {
-	d := &download{file: f, n: size, size: size, done: true, cancel: func() {}, users: 1}
+	d := &download{file: f, n: size, size: size, done: true, cancel: func() {}, users: 1, onDisk: true}
 	d.cond.L = &d.mu
 	return d
 }
 
-func (d *download) run(ctx context.Context, url string) {
+func (d *download) run(ctx context.Context, url string, headers map[string]string) {
 	defer d.release()
 	finish := func(err error) {
 		d.mu.Lock()
@@ -101,7 +104,12 @@ func (d *download) run(ctx context.Context, url string) {
 		return
 	}
 	req.Header.Set("User-Agent", music.Agent)
-	res, err := http.DefaultClient.Do(req)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	// The headers are the source's own, such as its token: a redirect to
+	// another host goes without them.
+	res, err := music.HeadersStay(http.DefaultClient, req.URL.Hostname(), headers).Do(req)
 	if err != nil {
 		finish(err)
 		return
@@ -342,7 +350,8 @@ func (r *downloadReader) Read(p []byte) (int, error) {
 }
 
 // A stream decodes a download for package audio, and measures the
-// spectrum of what it decodes, for the visualizers: an MP3's or a FLAC's.
+// spectrum of what it decodes, for the visualizers: an MP3's, a FLAC's, an
+// Ogg Vorbis', a WAV's, or an AAC or ALAC's.
 type stream interface {
 	audio.Decoder
 	Close() error
@@ -350,12 +359,31 @@ type stream interface {
 	source() (*download, *spectrum)
 }
 
-// openStream opens the song dl fetches, MP3 or FLAC, as its first bytes
-// say. An MP3 says nothing of its length: durationMs is it.
+// openStream opens the song dl fetches, MP3, FLAC, Ogg Vorbis, WAV, AAC, or
+// ALAC, FLAC or AAC in an MP4, as its first bytes say. An MP3 says nothing
+// of its length, nor does AAC still coming in: durationMs is it.
 func openStream(dl *download, durationMs int64) (stream, error) {
+	dl.waitFor(12)
+	if head := dl.peek(0, 12); len(head) == 12 {
+		switch {
+		case string(head[4:8]) == "ftyp":
+			return openMP4Stream(dl)
+		case (string(head[:4]) == "RIFF" || string(head[:4]) == "RF64") && string(head[8:12]) == "WAVE":
+			return openWAVStream(dl)
+		}
+	}
 	off := id3Size(dl)
-	if dl.waitFor(off+4) >= off+4 && string(dl.peek(off, 4)) == "fLaC" {
-		return openFLACStream(dl)
+	if dl.waitFor(off+7) >= off+4 {
+		head := dl.peek(off, 7)
+		switch string(head[:4]) {
+		case "fLaC":
+			return openFLACStream(dl)
+		case "OggS":
+			return openOggStream(dl, durationMs)
+		}
+		if _, _, ok := adtsHeader(head); ok {
+			return openADTSStream(dl, off, durationMs)
+		}
 	}
 	return openMP3Stream(dl, durationMs)
 }
@@ -376,6 +404,14 @@ func openShared(dl *download, durationMs int64) (stream, error) {
 	case *mp3Stream:
 		s.spec, s.drop = nil, dl.release
 	case *flacStream:
+		s.spec, s.drop = nil, dl.release
+	case *oggStream:
+		s.spec, s.drop = nil, dl.release
+	case *wavStream:
+		s.spec, s.drop = nil, dl.release
+	case *decodedStream:
+		s.spec, s.drop = nil, dl.release
+	case *adtsStream:
 		s.spec, s.drop = nil, dl.release
 	}
 	return s, nil
@@ -407,7 +443,7 @@ func openMP3Stream(dl *download, durationMs int64) (*mp3Stream, error) {
 	s.dec, s.rate = dec, dec.SampleRate()
 	s.frames = durationMs * int64(s.rate) / 1000
 	s.start = id3Size(dl)
-	s.spec = newSpectrum(s.rate, s.frames)
+	s.spec = newSpectrum(s.rate)
 	return s, nil
 }
 
@@ -550,18 +586,22 @@ func frameSize(b []byte) int {
 
 // The spectrum of a song, measured in chunks of fftSize frames as it
 // decodes, a second ahead of what plays: the visualizers look up the
-// chunk playing.
+// chunk playing. It keeps only the chunks of the last spectrumKeep
+// decoded, in a ring, so that an audiobook of hours holds no more than
+// a song does, and a stream that says nothing of its length is measured
+// all the way through; a seek decodes, and so measures, again from where
+// it lands.
 
 const (
-	fftSize = 1024
-	Bands   = 24
+	fftSize      = 1024
+	Bands        = 24
+	spectrumKeep = 10 * time.Second
 )
 
 type spectrum struct {
 	mu     sync.RWMutex
 	rate   int
-	chunks [][Bands]float32
-	have   []bool
+	ring   []measured // chunk c in ring[c%len(ring)], if it's still there
 	window [fftSize]float32
 	acc    []float32 // mono samples of the chunk being filled
 	accAt  int64     // its first frame
@@ -569,9 +609,18 @@ type spectrum struct {
 	fft    []complex128
 }
 
-func newSpectrum(rate int, frames int64) *spectrum {
-	n := int(frames/fftSize) + 2
-	s := &spectrum{rate: rate, chunks: make([][Bands]float32, n), have: make([]bool, n), accAt: -1}
+// measured is the bands of a chunk, and which chunk: -1 for none yet.
+type measured struct {
+	chunk int64
+	bands [Bands]float32
+}
+
+func newSpectrum(rate int) *spectrum {
+	n := max(16, int(int64(rate)*int64(spectrumKeep/time.Second)/fftSize)+1)
+	s := &spectrum{rate: rate, ring: make([]measured, n), accAt: -1}
+	for i := range s.ring {
+		s.ring[i].chunk = -1
+	}
 	for i := range s.window {
 		s.window[i] = float32(0.5 - 0.5*math.Cos(2*math.Pi*float64(i)/float64(fftSize-1)))
 	}
@@ -617,7 +666,7 @@ func (s *spectrum) feed(at int64, stereo []float32) {
 }
 
 func (s *spectrum) analyze(chunk int64) {
-	if chunk < 0 || chunk >= int64(len(s.chunks)) {
+	if chunk < 0 {
 		return
 	}
 	for i, v := range s.acc {
@@ -637,8 +686,7 @@ func (s *spectrum) analyze(chunk int64) {
 		bands[b] = float32(math.Max(0, math.Min(1, (db+60)/52)))
 	}
 	s.mu.Lock()
-	s.chunks[chunk] = bands
-	s.have[chunk] = true
+	s.ring[chunk%int64(len(s.ring))] = measured{chunk, bands}
 	s.mu.Unlock()
 }
 
@@ -647,10 +695,14 @@ func (s *spectrum) at(frame int64) ([Bands]float32, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	c := frame / fftSize
-	if c < 0 || c >= int64(len(s.chunks)) || !s.have[c] {
+	if c < 0 {
 		return [Bands]float32{}, false
 	}
-	return s.chunks[c], true
+	m := s.ring[c%int64(len(s.ring))]
+	if m.chunk != c {
+		return [Bands]float32{}, false
+	}
+	return m.bands, true
 }
 
 // fft transforms x in place; len(x) is a power of two.

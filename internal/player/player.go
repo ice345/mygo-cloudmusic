@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
+	"os"
 	"slices"
 	"time"
 
@@ -825,12 +826,23 @@ func (p *Player) open(src music.Source, t music.Track, quality string) (*music.S
 		if err != nil {
 			return nil, nil, err
 		}
+		if info == nil {
+			return nil, nil, music.ErrUnavailable
+		}
 		// The level names the song's file in the cache: one the source does
 		// not have is taken for the one asked for.
 		if !slices.Contains(levels, info.Quality) {
 			info.Quality = quality
 		}
-		dl = p.Cache.download(t.Source, t.ID, info, levels)
+		if path, isFile := music.PathOf(info.URL); isFile {
+			// A song on this machine, which a source may point to, plays from
+			// where it is, and is not copied into the cache.
+			if dl, err = openFile(path); err != nil {
+				return nil, nil, err
+			}
+		} else {
+			dl = p.Cache.download(t.Source, t.ID, info, levels)
+		}
 	}
 	s, err := openStream(dl, t.Duration)
 	if err != nil {
@@ -843,6 +855,20 @@ func (p *Player) open(src music.Source, t music.Track, quality string) (*music.S
 		return nil, nil, err
 	}
 	return info, s, nil
+}
+
+// openFile opens a song on disk as a download that has all of it in.
+func openFile(path string) (*download, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	info, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	return opened(f, info.Size()), nil
 }
 
 // stays reports whether a track that failed to load with err stays, to
