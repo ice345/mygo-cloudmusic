@@ -108,7 +108,7 @@ func (a *app) searchField(c *ui.Context) {
 		ui.Icon(c, iconSearch).Size(14, 14).TextColor(p.muted)
 		cb := ui.ComboboxBase(c.Key("search"), &a.query)
 		in := cb.Input.Bind(&a.searchBox).Grow(1).MinWidth(0).
-			Placeholder("搜索歌曲、歌手、播客").FontSize(13).Label("搜索")
+			Placeholder(a.searchPlaceholder()).FontSize(13).Label("搜索")
 		q := strings.TrimSpace(a.query)
 		s := &a.suggestions
 		switch {
@@ -202,4 +202,13 @@ func (a *app) choose(key, q string) {
 		a.open(sg.route)
 		return
 	}
+}
+
+// searchPlaceholder says what the field searches: NetEase's songs, artists and
+// podcasts, or the music of the plugin shown, which may have no podcasts.
+func (a *app) searchPlaceholder() string {
+	if a.activeID() == netease.SourceID {
+		return "搜索歌曲、歌手、播客"
+	}
+	return "在 " + a.sourceName(a.activeID()) + " 中搜索"
 }

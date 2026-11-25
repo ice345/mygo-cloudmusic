@@ -1,6 +1,8 @@
 package player
 
 import (
+	"errors"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -98,5 +100,62 @@ func TestAPluginsSongPlays(t *testing.T) {
 	}
 	if n := cache.Size(); n != int64(len(wav)) {
 		t.Errorf("the cache keeps %d bytes of a song of %d", n, len(wav))
+	}
+}
+
+// copyDir copies the folder src, and everything in it, to dst.
+func copyDir(t *testing.T, src, dst string) {
+	t.Helper()
+	err := filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, path)
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, b, 0o644)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Upstream's demo plugin, copied into the folder of an app named as this one
+// is when it runs from source, plays its song through the player: its stream
+// is a file:// URL its code joins from the folder it is in, spaces and Chinese
+// in the path, and the song is the tone its folder holds.
+func TestDemoPluginSongPlaysFromAFolderNamedAsTheAppsIs(t *testing.T) {
+	folder := filepath.Join(t.TempDir(), "Application Support", "MyGo 云音乐 Dev", "plugins", "demo")
+	copyDir(t, filepath.Join("..", "plugin", "testdata", "demo"), folder)
+	src, err := plugin.Load(folder, filepath.Join(filepath.Dir(folder), "..", "plugin-data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer src.Close()
+	p := &Player{Cache: NewCache(filepath.Join(t.TempDir(), "cache"), 1<<30)}
+	// An MP3 says nothing of its length: the track's duration is it.
+	_, s, err := p.open(src, music.Track{ID: "t1", Source: "demo", Duration: 3000}, "high")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if s.SampleRate() != 44100 || s.Len() != 3*44100 {
+		t.Errorf("%d Hz, %d frames", s.SampleRate(), s.Len())
+	}
+
+	// Without the tone, as the demo was copied before it was bundled, it
+	// says what is missing, not that the network failed.
+	if err := os.Remove(filepath.Join(folder, "tone.mp3")); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = p.open(src, music.Track{ID: "t1", Source: "demo"}, "high")
+	if !errors.Is(err, fs.ErrNotExist) || stays(err) {
+		t.Errorf("a missing tone: %v (stays %v)", err, stays(err))
 	}
 }

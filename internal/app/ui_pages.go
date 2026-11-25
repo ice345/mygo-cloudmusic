@@ -184,7 +184,17 @@ func (a *app) coverFill(c *ui.Context, url string, px int, radius float32) {
 	if in < 1 {
 		box.Background(a.pal.hover)
 	}
-	box.Children(func() { artImage(c, bmp, radius, in) })
+	// With no picture to come, as a source that has none gives, the cover holds
+	// a note, as the small covers of the rows do while theirs load.
+	if url == "" {
+		box.Center()
+	}
+	box.Children(func() {
+		if url == "" {
+			ui.Icon(c, iconNote).WidthPercent(30).AspectRatio(1).TextColor(a.pal.faint)
+		}
+		artImage(c, bmp, radius, in)
+	})
 }
 
 // coverPlayButton plays a playlist or a podcast from its card, without

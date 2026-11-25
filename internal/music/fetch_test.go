@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -87,6 +89,45 @@ func TestSizedImageFillsItsPlaceholder(t *testing.T) {
 	} {
 		if got := SizedImage(c.in, c.px); got != c.want {
 			t.Errorf("SizedImage(%q, %d) = %q, want %q", c.in, c.px, got, c.want)
+		}
+	}
+}
+
+// A file:// URL names the path after it, as a plugin that joins the folder it
+// is in to a file's name makes it, raw, and as FileURL makes it, escaped: both
+// give the same path, whatever the folders are called. A # or ? in a folder's
+// name ended the path there, and a % that began no escape failed the URL, which
+// then went to the network as a request, and its failure was called the
+// network's.
+func TestPathOfTakesWhatFollowsFileAsThePath(t *testing.T) {
+	dir := "/Users/小明/Library/Application Support/MyGo 云音乐 Dev/plugins/demo"
+	for _, name := range []string{"tone.mp3", "C# demos/100% 真的?/a b.mp3", "a%20b/x.mp3"} {
+		path := dir + "/" + name
+		for how, u := range map[string]string{"raw": "file://" + path, "escaped": FileURL(path)} {
+			if how == "raw" && strings.Contains(name, "%20") {
+				// What reads as an escape is one.
+				continue
+			}
+			if got, ok := PathOf(u); !ok || got != filepath.FromSlash(path) {
+				t.Errorf("%s %q: %q, %v", how, u, got, ok)
+			}
+		}
+	}
+	for u, want := range map[string]string{
+		"file:///a/b.mp3":               "/a/b.mp3",
+		"file:/a/b.mp3":                 "/a/b.mp3",
+		"file://localhost/a/b.mp3":      "/a/b.mp3",
+		"file:///a/b%20c.mp3":           "/a/b c.mp3",
+		"file:///a/%E4%BA%91.mp3":       "/a/云.mp3",
+		`file://C:\Music\demo/tone.mp3`: `C:\Music\demo/tone.mp3`,
+	} {
+		if got, ok := PathOf(u); !ok || got != filepath.FromSlash(want) && got != want {
+			t.Errorf("%q: %q, %v", u, got, ok)
+		}
+	}
+	for _, u := range []string{"https://a/b.mp3", "file:", "file://host", "file:relative/a.mp3", "/a/b.mp3"} {
+		if got, ok := PathOf(u); ok {
+			t.Errorf("%q is no file URL, but was %q", u, got)
 		}
 	}
 }

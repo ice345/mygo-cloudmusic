@@ -24,6 +24,16 @@ var navIcons = map[string]*ui.SVG{
 	"star":     iconHeart,
 }
 
+// builtinTitles are the titles of the entries the app has, for a manifest that
+// names one and gives it none.
+var builtinTitles = map[string]string{
+	"home":        "首页",
+	"liked":       "喜欢的音乐",
+	"savedAlbums": "收藏的专辑",
+	"stations":    "电台",
+	"shows":       "播客",
+}
+
 // pluginNav draws the sidebar of the plugin shown: the entries its manifest
 // gives, or its home where it gives none and has one, then the last search
 // and the listener's playlists at the plugin.
@@ -37,6 +47,13 @@ func (a *app) pluginNav(c *ui.Context, src music.Source) {
 		icon := navIcons[it.Icon]
 		if icon == nil {
 			icon = iconHome
+		}
+		// A builtin that names no title has the app's.
+		if it.Title == "" {
+			it.Title = builtinTitles[it.Builtin]
+			if it.Title == "" {
+				it.Title = it.Page
+			}
 		}
 		switch {
 		case it.Page != "":

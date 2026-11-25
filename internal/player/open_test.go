@@ -136,3 +136,32 @@ func TestCacheKeepsEveryTypeItPlays(t *testing.T) {
 		t.Errorf("takes %d bytes, though %d songs of 100 are kept", n, len(types))
 	}
 }
+
+// A song a plugin points to by joining its folder to a file's name, which is
+// how it makes the URL, plays whatever the folders are called: spaces, other
+// scripts, a # and a %, which ended the path or failed the URL as it was parsed.
+func TestOpenPlaysAFileInFoldersOfAnyName(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "MyGo 云音乐 Dev", "C# 100%", "demo")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "tone.wav")
+	if err := os.WriteFile(path, wavFile(1, 2, 16, 44100, make([]byte, 4410*4)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for how, u := range map[string]string{"joined raw": "file://" + filepath.ToSlash(path), "escaped": music.FileURL(path)} {
+		p := &Player{}
+		src := &fakeSource{stream: func(id, quality string) (*music.Stream, error) {
+			return &music.Stream{URL: u, Type: "wav", Quality: quality}, nil
+		}}
+		_, s, err := p.open(src, music.Track{ID: "1", Source: "fake"}, "high")
+		if err != nil {
+			t.Errorf("%s %q: %v", how, u, err)
+			continue
+		}
+		if s.Len() != 4410 {
+			t.Errorf("%s: %d frames", how, s.Len())
+		}
+		s.Close()
+	}
+}

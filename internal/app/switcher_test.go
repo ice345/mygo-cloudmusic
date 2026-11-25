@@ -377,3 +377,57 @@ export function playlists() { return [{ id: "m1", name: "通勤路上", mine: tr
 		save("plugin-search")
 	}
 }
+
+// With NM_FRAMES set, saves upstream's demo plugin as it shows: its home, its
+// playlist and an album, where there are no pictures, light and dark.
+func TestDemoPluginFrames(t *testing.T) {
+	dir := os.Getenv("NM_FRAMES")
+	if dir == "" {
+		t.Skip()
+	}
+	for _, dark := range []bool{false, true} {
+		suffix := ""
+		if dark {
+			suffix = "-dark"
+		}
+		a := newTestApp()
+		a.settings = defaultSettings()
+		landed := make(chan func(), 16)
+		a.onPost = func(fn func()) { landed <- fn }
+		a.usePlugins(filepath.Join("..", "plugin", "testdata"), t.TempDir())
+		t.Cleanup(a.closePlugins)
+		tt := ui.NewTester(a.view, 1200, 800)
+		tt.SetDark(dark)
+		tt.Frame()
+		save := func(name string) {
+			f, err := os.Create(filepath.Join(dir, name+suffix+".png"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			png.Encode(f, tt.Image())
+		}
+		a.switchSource("demo")
+		// Whatever it asks, answered.
+		for range 4 {
+			select {
+			case fn := <-landed:
+				fn()
+			case <-time.After(2 * time.Second):
+			}
+		}
+		tt.Advance(400 * time.Millisecond)
+		tt.Frame()
+		save("demo-home")
+		a.open(route{page: pagePlaylist, source: "demo", id: "p1"})
+		for range 2 {
+			select {
+			case fn := <-landed:
+				fn()
+			case <-time.After(2 * time.Second):
+			}
+		}
+		tt.Frame()
+		save("demo-playlist")
+	}
+}

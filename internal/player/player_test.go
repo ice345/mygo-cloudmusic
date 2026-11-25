@@ -1,6 +1,7 @@
 package player
 
 import (
+	"io/fs"
 	"math"
 	"net"
 	"net/http"
@@ -524,5 +525,27 @@ func TestRestoredTrackIsNotAskedForAfterARefusal(t *testing.T) {
 	runFor(ch, 40*time.Millisecond)
 	if asked.Load() != 1 || p.Playing() {
 		t.Fatalf("asked %d times, playing %v", asked.Load(), p.Playing())
+	}
+}
+
+// A file a source points to that isn't there says so, and is skipped as a
+// song that can't play, not kept as the network's failure, which said to check
+// the network for a song that would never play.
+func TestMissingFileIsNotTheNetwork(t *testing.T) {
+	gone := filepath.Join(t.TempDir(), "不在这里", "tone.mp3")
+	p, settle, _ := offline(t, func(string, string) (*music.Stream, error) {
+		return &music.Stream{URL: music.FileURL(gone), Type: "mp3"}, nil
+	})
+	p.queue, p.order = p.queue[:1], p.order[:1]
+	p.load(0)
+	settle()
+	if p.Err() != "找不到这首歌的音频文件" || p.Playing() {
+		t.Errorf("err %q, playing %v", p.Err(), p.Playing())
+	}
+	if stays(&fs.PathError{Op: "open", Path: gone, Err: fs.ErrNotExist}) {
+		t.Error("a file that isn't there stays, as a network failure does")
+	}
+	if !stays(dialError()) {
+		t.Error("the network's failure no longer stays")
 	}
 }

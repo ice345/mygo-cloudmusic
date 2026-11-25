@@ -3,6 +3,7 @@ package player
 import (
 	"errors"
 	"io"
+	"io/fs"
 	"math"
 	"math/rand/v2"
 	"net"
@@ -751,6 +752,10 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 				switch {
 				case errors.Is(err, errNoSource):
 					p.err = "找不到这首歌的音源"
+				case errors.Is(err, fs.ErrNotExist):
+					p.err = "找不到这首歌的音频文件"
+				case errors.Is(err, fs.ErrPermission):
+					p.err = "没有权限读取这首歌的音频文件"
 				case errors.Is(err, music.ErrUnavailable):
 					// As the source says why: a song for VIPs, an episode to buy.
 					p.err = "这首歌无法播放"
@@ -880,6 +885,13 @@ func stays(err error) bool {
 	var status *statusError
 	if errors.As(err, &status) {
 		return status.code >= 500 || status.code == http.StatusTooManyRequests
+	}
+	// A file that isn't there, or can't be read, is the song's failure and no
+	// network's, though a *fs.PathError answers as a net.Error does: it would
+	// stay as "check the network" for a song that will never play.
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return false
 	}
 	var nerr net.Error
 	return errors.Is(err, music.ErrRefused) || errors.As(err, &nerr) || errors.Is(err, io.ErrUnexpectedEOF)

@@ -117,17 +117,43 @@ func FileURL(path string) string {
 }
 
 // PathOf returns the path a file:// URL names, and whether u is one.
+//
+// A plugin often makes one by joining strings, file://${dir}/a.mp3, which leaves
+// in it what a URL would have escaped: spaces, other scripts, and a # or ? or %
+// in the name of a folder. So what follows file:// is the path, whole, and its
+// escapes are decoded where they decode, as they do in what FileURL makes; a %
+// that is no escape stays one. (Parsed as a URL, a # ended the path there, a ?
+// began a query, and a % that began no escape failed the whole.)
 func PathOf(u string) (string, bool) {
-	if !strings.HasPrefix(u, "file:") {
+	rest, ok := strings.CutPrefix(u, "file:")
+	if !ok {
 		return "", false
 	}
-	parsed, err := url.Parse(u)
-	if err != nil || parsed.Path == "" {
+	if after, ok := strings.CutPrefix(rest, "//"); ok {
+		switch {
+		case len(after) >= 2 && after[1] == ':' && (after[0]|0x20 >= 'a' && after[0]|0x20 <= 'z'):
+			// file://C:\Music\a.mp3, a Windows path joined on as it is.
+			return filepath.FromSlash(after), true
+		case !strings.HasPrefix(after, "/"):
+			// file://host/path: the host is this machine's, whatever it says.
+			slash := strings.IndexByte(after, '/')
+			if slash < 0 {
+				return "", false
+			}
+			after = after[slash:]
+		}
+		rest = after
+	}
+	if !strings.HasPrefix(rest, "/") {
 		return "", false
 	}
-	path := parsed.Path
+	if strings.Contains(rest, "%") {
+		if decoded, err := url.PathUnescape(rest); err == nil {
+			rest = decoded
+		}
+	}
 	if runtime.GOOS == "windows" {
-		path = strings.TrimPrefix(path, "/")
+		rest = strings.TrimPrefix(rest, "/")
 	}
-	return filepath.FromSlash(path), true
+	return filepath.FromSlash(rest), true
 }
