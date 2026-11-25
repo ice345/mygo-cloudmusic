@@ -170,6 +170,39 @@ func TestPluginKeepsItsState(t *testing.T) {
 	}
 }
 
+// A setting that could not be written is not the plugin's either: it keeps the
+// one it had, as the listener was told, instead of reading what was never kept
+// for the rest of the run.
+func TestPluginSettingThatCannotBeWrittenIsNotKept(t *testing.T) {
+	data := t.TempDir()
+	p, err := newPlugin(writePlugin(t, `{"id":"demo"}`, nil), data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.keepSetting("server", "first"); err != nil {
+		t.Fatal(err)
+	}
+	// A file where the plugin's folder is, so nothing more can be written.
+	if err := os.RemoveAll(filepath.Join(data, "demo")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(data, "demo"), []byte("not a folder"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.keepSetting("server", "second"); err == nil {
+		t.Fatal("wrote into a file")
+	}
+	if got := p.Setting("server"); got != "first" {
+		t.Errorf("reads %q of a setting that was not kept", got)
+	}
+	if err := p.keepSetting("token", "x"); err == nil {
+		t.Fatal("wrote into a file")
+	}
+	if got := p.Setting("token"); got != "" {
+		t.Errorf("reads %q of a setting that was never kept", got)
+	}
+}
+
 // A plugin that translated itself shows its name, settings and sidebar in the
 // listener's language, and as it is where it did not; a locale that is not
 // JSON fails the plugin, rather than going unread.

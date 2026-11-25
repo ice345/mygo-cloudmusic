@@ -178,6 +178,8 @@ func (a *app) settingsView(c *ui.Context) {
 			})
 		})
 
+		a.pluginGroups(c, p, group)
+
 		if a.captionsShown() {
 			group("播客", func() { a.captionSettings(row, c) })
 		}
@@ -288,4 +290,5 @@ func (a *app) settingsView(c *ui.Context) {
 			})
 		}
 	})
+	a.grantDialogView(c, p)
 }

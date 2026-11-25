@@ -168,6 +168,12 @@ type app struct {
 	// headers answers what their requestHeaders say for a picture.
 	plugins []*plugin.Plugin
 	headers *headerPlugins
+	// settingEdits are the listener's edits of sources' settings, by source
+	// and key; granting asks whether a plugin may start programs; sourceErr
+	// says what went wrong with a plugin's own choices, by source.
+	settingEdits map[string]*settingEdit
+	granting     grantDialog
+	sourceErr    map[string]string
 }
 
 // post runs fn on the main thread and redraws both windows. Without a
@@ -188,6 +194,10 @@ func (a *app) post(fn func()) {
 func (a *app) redraw() {
 	if a.win != nil {
 		a.win.Invalidate()
+	}
+	// What lands off the main thread may be what the settings show.
+	if a.settingsWin != nil {
+		a.settingsWin.Invalidate()
 	}
 	if a.notch != nil && a.notch.win != nil {
 		a.notch.win.Invalidate()

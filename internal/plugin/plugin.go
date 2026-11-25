@@ -151,11 +151,27 @@ func (p *Plugin) Setting(key string) string {
 // plugin to be told of.
 func (p *Plugin) keepSetting(key, value string) error {
 	p.mu.Lock()
+	before, had := p.settings[key]
 	p.settings[key] = value
 	settings := make(map[string]string, len(p.settings))
 	for k, s := range p.settings {
 		settings[k] = s
 	}
 	p.mu.Unlock()
-	return p.writeJSON("settings.json", settings)
+	err := p.writeJSON("settings.json", settings)
+	if err != nil {
+		// A setting that could not be kept is not the plugin's either: it
+		// would read it for this run, and the listener has been told it was
+		// not saved. Unless it was changed again meanwhile.
+		p.mu.Lock()
+		if p.settings[key] == value {
+			if had {
+				p.settings[key] = before
+			} else {
+				delete(p.settings, key)
+			}
+		}
+		p.mu.Unlock()
+	}
+	return err
 }
