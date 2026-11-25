@@ -303,6 +303,13 @@ func (a *app) removePlugin(p *plugin.Plugin) {
 	a.redraw()
 }
 
+// windowUp does what waits for the window: the links that came before it, and
+// the plugins' check for new versions, which then goes on as the days come.
+func (a *app) windowUp() {
+	a.linksReady()
+	a.keepCheckingPlugins()
+}
+
 // keepCheckingPlugins checks for new versions now if it's time, and from then
 // on as the day comes round, for as long as the app runs.
 func (a *app) keepCheckingPlugins() {

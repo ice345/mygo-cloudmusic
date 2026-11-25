@@ -553,3 +553,32 @@ func TestInstallFrames(t *testing.T) {
 		save("plugins-install-ask")
 	}
 }
+
+// As the window comes up the app opens the links that came before it and checks
+// the plugins from GitHub for new versions, which it had never done by itself:
+// the check was only made when the listener asked of one plugin.
+func TestWindowUpChecksPluginsAndOpensLinks(t *testing.T) {
+	e := newInstallEnv(t)
+	e.fromGitHub(t, "o/tone", "v1.0.0", folder(t, "tone", "1.0.0", "", "x"))
+	e.a.installer.pending, _ = fetchPlugin("o/tone", e.code)
+	e.a.confirmInstall()
+	e.land(t)
+	var asked []string
+	latestPlugin = func(repo string) (*plugin.Release, error) {
+		asked = append(asked, repo)
+		return &plugin.Release{Repo: repo, Version: "v1.1.0"}, nil
+	}
+	wasShow := showSettings
+	showSettings = func(*app) {}
+	defer func() { showSettings = wasShow }()
+	e.a.linkOpened(linkScheme + "://install-plugin?repo=o/waiting")
+
+	e.a.windowUp()
+	e.land(t)
+	if len(asked) != 1 || asked[0] != "o/tone" || e.a.settings.PluginUpdates["tone"] != "v1.1.0" {
+		t.Errorf("asked %v, found %v", asked, e.a.settings.PluginUpdates)
+	}
+	if !e.a.installer.open || e.a.installer.repo != "o/waiting" {
+		t.Errorf("the link that came first was not opened: %+v", e.a.installer)
+	}
+}

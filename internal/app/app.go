@@ -319,7 +319,7 @@ func Run() error {
 		if shotHook != nil {
 			shotHook(a)
 		}
-		a.linksReady()
+		a.windowUp()
 		// Closing the window hides it: music plays on, and the Dock icon
 		// or the tray's brings it back. A Linux desktop without a tray
 		// has neither, so there closing it quits.
