@@ -72,6 +72,7 @@ func (a *app) pluginRows(c *ui.Context, p palette, pl *plugin.Plugin, info music
 		name += " " + info.Version
 	}
 	settingRow(c, p, name, permissionText(pl.Permissions()), nil, nil)
+	a.pluginManageRow(c, p, pl, id)
 	if err := a.sourceErr[id]; err != "" {
 		settingRow(c, p, err, "", nil, nil)
 	}

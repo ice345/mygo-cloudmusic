@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/egoist/mygo"
 )
@@ -74,6 +75,10 @@ type settings struct {
 	CacheMB int `json:"cacheMB"`
 	// SearchHistory keeps submitted keywords, most recent first.
 	SearchHistory []string `json:"searchHistory,omitempty"`
+	// PluginUpdates are the new versions found of installed plugins, by ID,
+	// and PluginsChecked is when they were last looked for.
+	PluginUpdates  map[string]string `json:"pluginUpdates,omitempty"`
+	PluginsChecked time.Time         `json:"pluginsChecked,omitzero"`
 
 	path string // where they were loaded from, and are saved to
 }

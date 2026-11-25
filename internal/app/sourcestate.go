@@ -2,9 +2,11 @@ package app
 
 import (
 	"errors"
+	"strings"
 
 	"netease-music-mygo/internal/music"
 	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/plugin"
 )
 
 // sourceState is what the app holds of a source that is a plugin: who is signed
@@ -232,4 +234,59 @@ func (a *app) signInNeeded(src string, err error) bool {
 	}
 	a.signInTo(src)
 	return true
+}
+
+// pluginByID finds the installed plugin of the ID, or nil.
+func (a *app) pluginByID(id string) *plugin.Plugin {
+	for _, p := range a.plugins {
+		if p.Info().ID == id {
+			return p
+		}
+	}
+	return nil
+}
+
+// forgetSource drops what the app holds of a source's answers, its account, the
+// pages it made and the pages of its songs, albums, artists and shows: the
+// source was replaced or taken away, and what it said may be so no longer.
+func (a *app) forgetSource(id string) {
+	delete(a.states, id)
+	for k := range a.settingEdits {
+		if strings.HasPrefix(k, id+"\x00") {
+			delete(a.settingEdits, k)
+		}
+	}
+	for k := range a.browses {
+		if k.source == id {
+			delete(a.browses, k)
+		}
+	}
+	for k := range a.playlists {
+		if k.source == id {
+			delete(a.playlists, k)
+		}
+	}
+	for k := range a.artists {
+		if k.source == id {
+			delete(a.artists, k)
+		}
+	}
+	for k := range a.albums {
+		if k.source == id {
+			delete(a.albums, k)
+		}
+	}
+	for k := range a.podcasts {
+		if k.source == id {
+			delete(a.podcasts, k)
+		}
+	}
+	for r := range a.searches {
+		if r.source == id {
+			delete(a.searches, r)
+		}
+	}
+	if a.searched.source == id {
+		a.searched = route{}
+	}
 }

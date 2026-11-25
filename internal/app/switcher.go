@@ -34,6 +34,21 @@ func (a *app) addSource(src music.Source) bool {
 	return true
 }
 
+// replaceSource puts src in the place of the source that has its ID, as a plugin
+// updated while the app runs is, and registers it if there is none.
+func (a *app) replaceSource(src music.Source) {
+	sourcesMu.Lock()
+	defer sourcesMu.Unlock()
+	a.sources[src.Info().ID] = src
+}
+
+// removeSource takes the source of the ID out of the registry.
+func (a *app) removeSource(id string) {
+	sourcesMu.Lock()
+	defer sourcesMu.Unlock()
+	delete(a.sources, id)
+}
+
 // activeID is the ID of the source whose music the app shows: NetEase's, until
 // the listener switches to another's.
 func (a *app) activeID() string {

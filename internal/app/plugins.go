@@ -17,7 +17,7 @@ import (
 // pluginDirs are where the plugins are, a folder to each, and where each keeps
 // its settings and what it stores, beside them. Both are in the user data
 // directory.
-func pluginDirs() (code, data string, ok bool) {
+var pluginDirs = func() (code, data string, ok bool) {
 	dir, err := mygo.App.Path(mygo.PathUserData)
 	if err != nil {
 		return "", "", false
@@ -38,6 +38,12 @@ func (a *app) usePlugins(code, data string) {
 		}
 		a.plugins = append(a.plugins, p)
 	}
+	a.syncHeaders()
+}
+
+// syncHeaders gives the pictures loading off the main thread the plugins there
+// are now, to ask for their requestHeaders.
+func (a *app) syncHeaders() {
 	if a.headers == nil {
 		a.headers = &headerPlugins{}
 	}

@@ -178,6 +178,7 @@ func (a *app) settingsView(c *ui.Context) {
 			})
 		})
 
+		a.pluginsGroup(c, p, group)
 		a.pluginGroups(c, p, group)
 
 		if a.captionsShown() {
@@ -291,4 +292,5 @@ func (a *app) settingsView(c *ui.Context) {
 		}
 	})
 	a.grantDialogView(c, p)
+	a.installDialog(c, p)
 }

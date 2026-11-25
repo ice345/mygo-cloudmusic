@@ -174,7 +174,8 @@ type app struct {
 	// settingEdits are the listener's edits of sources' settings, by source
 	// and key; granting asks whether a plugin may start programs; sourceErr
 	// says what went wrong with a plugin's own choices, by source.
-	states map[string]*sourceState
+	installer pluginInstaller
+	states    map[string]*sourceState
 	// active is the ID of the plugin whose music the app shows, or empty for
 	// NetEase's; sourcesOpen is the switcher's list showing; browses are the
 	// pages plugins make up, by source and page.

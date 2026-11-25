@@ -13,7 +13,7 @@ func TestUntitledNavigationEntriesHaveTitles(t *testing.T) {
 	_, tt, landed := switcherApp(t, `{"id":"x","name":"测试音源","navigation":[
 		{"builtin":"home"},{"builtin":"stations"},{"page":"discover","icon":"star"}]}`,
 		`export function home() { return { title: "欢迎", sections: [] }; }`)
-	pickPlugin(t, tt, "网易云音乐", "测试音源")
+	chooseInSwitcher(t, tt, "网易云音乐", "测试音源")
 	landN(t, tt, landed, 1)
 	for _, want := range []string{"首页", "discover"} {
 		if !tt.HasText(want) {
@@ -30,7 +30,7 @@ func TestSearchPlaceholderNamesTheSourceShown(t *testing.T) {
 	if got := a.searchPlaceholder(); got != "搜索歌曲、歌手、播客" {
 		t.Errorf("NetEase: %q", got)
 	}
-	pickPlugin(t, tt, "网易云音乐", "测试音源")
+	chooseInSwitcher(t, tt, "网易云音乐", "测试音源")
 	landN(t, tt, landed, 1)
 	if got := a.searchPlaceholder(); got != "在 测试音源 中搜索" {
 		t.Errorf("plugin: %q", got)

@@ -44,8 +44,8 @@ func landN(t *testing.T, tt *ui.Tester, landed chan func(), n int) {
 	tt.Frame()
 }
 
-// pickPlugin chooses the plugin in the switcher, as the listener does.
-func pickPlugin(t *testing.T, tt *ui.Tester, from, plugin string) {
+// chooseInSwitcher chooses the source in the switcher, as the listener does.
+func chooseInSwitcher(t *testing.T, tt *ui.Tester, from, plugin string) {
 	t.Helper()
 	if err := tt.Click("音源：" + from); err != nil {
 		t.Fatal(err)
@@ -90,7 +90,7 @@ func TestSwitcherSwitchesSourcesAndTheirSidebars(t *testing.T) {
 	if !tt.HasText("每日推荐") {
 		t.Fatal("NetEase's sidebar is not shown at first")
 	}
-	pickPlugin(t, tt, "网易云音乐", "测试音源")
+	chooseInSwitcher(t, tt, "网易云音乐", "测试音源")
 	if a.activeID() != "x" || a.route != homeRoute("x") {
 		t.Fatalf("active %q, page %+v", a.activeID(), a.route)
 	}
@@ -106,7 +106,7 @@ func TestSwitcherSwitchesSourcesAndTheirSidebars(t *testing.T) {
 		}
 	}
 
-	pickPlugin(t, tt, "测试音源", "网易云音乐")
+	chooseInSwitcher(t, tt, "测试音源", "网易云音乐")
 	if a.activeID() != netease.SourceID || a.route != homeRoute(netease.SourceID) {
 		t.Fatalf("back: active %q, page %+v", a.activeID(), a.route)
 	}
@@ -119,7 +119,7 @@ func TestSwitcherSwitchesSourcesAndTheirSidebars(t *testing.T) {
 // by a card, and goes back to where it was.
 func TestPluginPagesLinkToEachOther(t *testing.T) {
 	a, tt, landed := switcherApp(t, siteManifest, siteJS)
-	pickPlugin(t, tt, "网易云音乐", "测试音源")
+	chooseInSwitcher(t, tt, "网易云音乐", "测试音源")
 	landN(t, tt, landed, 1)
 
 	if err := tt.Click("更多"); err != nil {
@@ -171,7 +171,7 @@ func TestSearchFollowsTheSourceShown(t *testing.T) {
 		t.Fatalf("NetEase's search: %+v", a.route)
 	}
 
-	pickPlugin(t, tt, "网易云音乐", "测试音源")
+	chooseInSwitcher(t, tt, "网易云音乐", "测试音源")
 	landN(t, tt, landed, 1)
 	if a.searched.query != "" {
 		t.Errorf("the last search of another source is %q", a.searched.query)
@@ -214,7 +214,7 @@ func TestPluginPageThatCannotBeHad(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			a, tt, landed := switcherApp(t, `{"id":"x","name":"测试音源"}`, c.js+`
 export function signIn() { return { id: "1", name: "x" }; }`)
-			pickPlugin(t, tt, "网易云音乐", "测试音源")
+			chooseInSwitcher(t, tt, "网易云音乐", "测试音源")
 			landN(t, tt, landed, 1)
 			for _, want := range c.texts {
 				if !tt.HasText(want) {
@@ -257,7 +257,7 @@ export function playlists() {
   return who ? [{ id: "m1", name: "通勤路上", mine: true }, { id: "s1", name: "别人的歌单", saved: true }] : [];
 }
 `)
-	pickPlugin(t, tt, "网易云音乐", "测试音源")
+	chooseInSwitcher(t, tt, "网易云音乐", "测试音源")
 	landN(t, tt, landed, 3) // account, playlists, home
 	if !tt.HasText("登录 测试音源") || tt.HasText("通勤路上") {
 		t.Fatalf("signed out: %v", tt.Texts())
