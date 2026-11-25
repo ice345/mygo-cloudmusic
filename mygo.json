@@ -3,6 +3,7 @@
   "slug": "mygo-cloudmusic",
   "version": "0.1.28",
   "out": "build",
+  "urlSchemes": ["mygo-music", "mygo-music-dev"],
   "updates": {
     "publicKey": "P0YkA2Buj/yiKkXYSzETdvWRlifUV4Rmld7uDrnfIv0=",
     "github": "ice345/mygo-cloudmusic"

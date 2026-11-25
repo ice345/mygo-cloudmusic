@@ -175,7 +175,10 @@ type app struct {
 	// and key; granting asks whether a plugin may start programs; sourceErr
 	// says what went wrong with a plugin's own choices, by source.
 	installer pluginInstaller
-	states    map[string]*sourceState
+	// ready says the window is up for links, and links are those that came before.
+	ready  bool
+	links  []string
+	states map[string]*sourceState
 	// active is the ID of the plugin whose music the app shows, or empty for
 	// NetEase's; sourcesOpen is the switcher's list showing; browses are the
 	// pages plugins make up, by source and page.
@@ -316,6 +319,7 @@ func Run() error {
 		if shotHook != nil {
 			shotHook(a)
 		}
+		a.linksReady()
 		// Closing the window hides it: music plays on, and the Dock icon
 		// or the tray's brings it back. A Linux desktop without a tray
 		// has neither, so there closing it quits.
@@ -344,6 +348,8 @@ func Run() error {
 	})
 	// Windows leaves an icon in the notification area after its app until
 	// the pointer passes over it.
+	// Before Run, so that it gets the link the app was started with.
+	mygo.App.OnOpenURL(a.linkOpened)
 	mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
 		if a.tray != nil {
 			a.tray.Destroy()
