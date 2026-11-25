@@ -1,9 +1,12 @@
 {
   "name": "MyGo 云音乐",
   "slug": "mygo-cloudmusic",
-  "version": "0.1.28",
+  "version": "0.2.0",
   "out": "build",
-  "urlSchemes": ["mygo-music", "mygo-music-dev"],
+  "urlSchemes": [
+    "mygo-music",
+    "mygo-music-dev"
+  ],
   "updates": {
     "publicKey": "P0YkA2Buj/yiKkXYSzETdvWRlifUV4Rmld7uDrnfIv0=",
     "github": "ice345/mygo-cloudmusic"
@@ -14,7 +17,11 @@
   },
   "linux": {
     "comment": "第三方网易云音乐桌面客户端",
-    "categories": ["AudioVideo", "Audio", "Player"],
+    "categories": [
+      "AudioVideo",
+      "Audio",
+      "Player"
+    ],
     "webview": false
   }
 }
