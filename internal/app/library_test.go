@@ -220,11 +220,12 @@ type showSource struct {
 	id        string
 	show      func(id string, offset int) (*music.ShowPage, error)
 	subscribe func(id string, on bool) error
+	signIn    bool // it has accounts to sign in to
 }
 
 func (s *showSource) Info() music.Info { return music.Info{ID: s.id, Name: "播客音源"} }
 func (s *showSource) Can(what string) bool {
-	return what == "show" || what == "subscribeShow" && s.subscribe != nil
+	return what == "show" || what == "subscribeShow" && s.subscribe != nil || what == "signIn" && s.signIn
 }
 func (s *showSource) Show(id string, offset int) (*music.ShowPage, error) { return s.show(id, offset) }
 func (s *showSource) SubscribeShow(id string, on bool) error              { return s.subscribe(id, on) }
@@ -302,7 +303,7 @@ func TestSubscribeToPodcast(t *testing.T) {
 	a.settings = defaultSettings()
 	landed := make(chan func(), 4)
 	a.onPost = func(fn func()) { landed <- fn }
-	a.sources["plug"] = &showSource{id: "plug",
+	a.sources["plug"] = &showSource{id: "plug", signIn: true,
 		show: func(id string, offset int) (*music.ShowPage, error) {
 			return &music.ShowPage{Show: music.Show{ID: "p1", Name: "别处的播客", Subscribers: 10}}, nil
 		},
@@ -314,6 +315,8 @@ func TestSubscribeToPodcast(t *testing.T) {
 			return nil
 		},
 	}
+	// Known to be signed out of the plugin, as it said so when asked.
+	a.stateOf("plug").asked = true
 	a.open(route{page: pagePodcast, source: "plug", id: "p1"})
 	wait(t, landed, "the podcast")()
 	tt := ui.NewTester(a.view, 1200, 800)
@@ -327,8 +330,13 @@ func TestSubscribeToPodcast(t *testing.T) {
 	if !a.login.open || d.show.Subscribed {
 		t.Fatalf("signed out: dialog %v, subscribed %v", a.login.open, d.show.Subscribed)
 	}
+	if a.login.source != "plug" {
+		t.Errorf("asked to sign in to %q", a.login.source)
+	}
+	// The sign-in under way ends, this plugin having none to offer.
+	wait(t, landed, "the sign-in's end")()
 	a.login.open = false
-	a.account = &music.Account{ID: "1"}
+	a.stateOf("plug").account = &music.Account{ID: "1"}
 	a.podcastTab.hotPage.loaded = true
 	tt.Frame()
 	if err := tt.Click("订阅"); err != nil {

@@ -15,13 +15,6 @@ import (
 // The listener's own playlists: making them, renaming them, deleting them,
 // and adding songs to them or taking songs out.
 
-// editSource is the source whose playlists the listener edits: NetEase, whose
-// sidebar lists them.
-func (a *app) editSource() music.Source { return a.source(netease.SourceID) }
-
-// accountKey names a playlist of the account's source, as its page is held.
-func (a *app) accountKey(id string) pageKey { return pageKey{netease.SourceID, id} }
-
 // editErr does an edit with the source, or fails as unsupported if there is
 // none.
 func (a *app) editErr(src music.Source, do func() error) error {
@@ -41,48 +34,56 @@ type nameDialog struct {
 	rename string       // the playlist renamed, or "" to make one
 	add    *music.Track // the song to add to the playlist made, if any
 	busy   bool         // the source is making the playlist
+	src    string       // the source whose playlist it is
 }
 
 // deleteDialog asks whether to delete one of the listener's playlists.
 type deleteDialog struct {
 	open bool
+	src  string // the source whose playlist it is
 	id   string
 	name string
 }
 
-// editable returns the listener's playlist id if they may edit its songs
-// and name, or nil: the liked songs' are their hearts'.
-func (a *app) editable(id string) *music.Playlist {
-	for i := range a.mine {
-		if a.mine[i].ID == id && !a.mine[i].Fixed {
-			return &a.mine[i]
+// editable returns the listener's playlist id at the source if they may edit its
+// songs and name, or nil: the liked songs' are their hearts'.
+func (a *app) editable(src, id string) *music.Playlist {
+	mine, _ := a.listsOf(src)
+	for i := range *mine {
+		if (*mine)[i].ID == id && !(*mine)[i].Fixed {
+			return &(*mine)[i]
 		}
 	}
 	return nil
 }
 
-// isSavedID reports whether the listener saved the playlist id, as
-// its page or the sidebar says.
-func (a *app) isSavedID(id string, saved bool) bool {
-	return saved || slices.ContainsFunc(a.saved, func(s music.Playlist) bool { return s.ID == id })
+// isSavedID reports whether the listener saved the playlist id at the source,
+// as its page or the sidebar says.
+func (a *app) isSavedID(src, id string, saved bool) bool {
+	_, list := a.listsOf(src)
+	return saved || slices.ContainsFunc(*list, func(s music.Playlist) bool { return s.ID == id })
 }
 
 // isSaved reports whether the listener saved the playlist pl shows.
-func (a *app) isSaved(pl *music.Playlist) bool { return a.isSavedID(pl.ID, pl.Saved) }
+func (a *app) isSaved(pl *music.Playlist) bool { return a.isSavedID(pl.Source, pl.ID, pl.Saved) }
 
 // savable reports whether the listener may save playlist pl: anyone's but
-// their own. Signed out, saving asks them to sign in.
+// their own, which NetEase's record says and a plugin marks. Signed out,
+// saving asks them to sign in.
 func (a *app) savable(pl *music.Playlist) bool {
-	return a.account == nil || pl.Source != netease.SourceID || playlistRecord(pl).Creator.UserID != a.uid()
+	if pl.Source != netease.SourceID {
+		return !pl.Mine
+	}
+	return a.account == nil || playlistRecord(pl).Creator.UserID != a.uid()
 }
 
 // toggleSaved saves playlist pl for the listener, or unsaves it, at once
-// in the app and then with NetEase, going back if NetEase refuses. Signed
-// out, it asks the listener to sign in.
+// in the app and then with its source, going back if the source refuses.
+// Signed out, it asks the listener to sign in.
 func (a *app) toggleSaved(pl music.Playlist) {
-	if a.account == nil {
-		a.showMain()
-		a.openLogin()
+	srcID := pl.Source
+	if !a.signedInTo(srcID) {
+		a.signInTo(srcID)
 		return
 	}
 	id := pl.ID
@@ -93,20 +94,22 @@ func (a *app) toggleSaved(pl music.Playlist) {
 		a.savingPl = map[string]bool{}
 	}
 	a.savingPl[id] = true
-	save := !a.isSavedID(id, pl.Saved)
+	save := !a.isSavedID(srcID, id, pl.Saved)
 	at := a.setSaved(pl, save, 0)
-	uid := a.uid()
-	src := a.editSource()
+	who := a.accountID(srcID)
+	src := a.source(srcID)
 	go func() {
 		err := a.editErr(src, func() error { return src.SavePlaylist(id, save) })
 		a.post(func() {
 			delete(a.savingPl, id)
 			switch {
-			case a.account == nil || a.uid() != uid:
+			case srcID == netease.SourceID && a.accountID(srcID) != who:
 				// Signed out or in as someone else meanwhile.
 			case err != nil:
 				a.setSaved(pl, !save, max(at, 0))
-				a.toast = "操作失败，请稍后再试"
+				if !a.signInNeeded(srcID, err) {
+					a.toast = "操作失败，请稍后再试"
+				}
 			case save:
 				a.toast = "已收藏"
 			default:
@@ -123,8 +126,9 @@ func (a *app) setSaved(pl music.Playlist, save bool, at int) int {
 	if loaded := a.playlists[pageKey{pl.Source, pl.ID}]; loaded != nil {
 		loaded.Saved = save
 	}
+	_, list := a.listsOf(pl.Source)
 	// A new slice, not shifting the one the sidebar may be listing.
-	saved := slices.Clone(a.saved)
+	saved := slices.Clone(*list)
 	was := slices.IndexFunc(saved, func(s music.Playlist) bool { return s.ID == pl.ID })
 	if was >= 0 {
 		saved = slices.Delete(saved, was, was+1)
@@ -134,7 +138,7 @@ func (a *app) setSaved(pl music.Playlist, save bool, at int) int {
 		pl.Tracks = nil
 		saved = slices.Insert(saved, min(at, len(saved)), pl)
 	}
-	a.saved = saved
+	*list = saved
 	return was
 }
 
@@ -163,59 +167,64 @@ func (a *app) loadMine(uid int64) {
 	}()
 }
 
-// playlistChanged forgets what was loaded of playlist id, which NetEase
-// changed: loaded anew if shown, and the sidebar's covers with it.
-func (a *app) playlistChanged(id string) {
-	k := a.accountKey(id)
+// playlistChanged forgets what was loaded of playlist id at the source, which
+// it changed: loaded anew if shown, and the sidebar's covers with it.
+func (a *app) playlistChanged(src, id string) {
+	k := pageKey{src, id}
 	delete(a.playlists, k)
 	if a.route.page == pagePlaylist && a.route.key() == k {
 		a.loadPlaylist(k, false)
 	}
-	if a.account != nil {
-		a.loadMine(a.uid())
-	}
+	a.reloadLists(src)
 }
 
-// newPlaylist asks for the name of a playlist to make, then adds tr to it
-// if set. Signed out, it asks the listener to sign in.
+// newPlaylist asks for the name of a playlist to make, at the source of tr, which
+// it adds to it, or at the source shown if there is none. Signed out, it asks
+// the listener to sign in.
 func (a *app) newPlaylist(tr *music.Track) {
-	if a.account == nil {
-		a.showMain()
-		a.openLogin()
+	src := a.activeID()
+	if tr != nil {
+		src = tr.Source
+	}
+	if !a.signedInTo(src) {
+		a.signInTo(src)
 		return
 	}
-	a.naming = nameDialog{open: true, add: tr}
+	a.naming = nameDialog{open: true, add: tr, src: src}
 }
 
 // startRename asks for a new name for the listener's playlist pl.
 func (a *app) startRename(pl *music.Playlist) {
-	a.naming = nameDialog{open: true, name: pl.Name, rename: pl.ID}
+	a.naming = nameDialog{open: true, name: pl.Name, rename: pl.ID, src: pl.Source}
 }
 
 // submitName makes the playlist named, or renames one: at once in the app,
-// as NetEase may refuse, when renaming.
+// as its source may refuse, when renaming.
 func (a *app) submitName() {
 	d := &a.naming
 	name := strings.TrimSpace(d.name)
 	if name == "" || d.busy {
 		return
 	}
+	srcID := d.src
 	if d.rename != "" {
 		id := d.rename
 		d.open = false
-		pl := a.editable(id)
+		pl := a.editable(srcID, id)
 		if pl == nil || pl.Name == name {
 			return
 		}
 		old := pl.Name
-		a.setPlaylistName(id, name)
-		src := a.editSource()
+		a.setPlaylistName(srcID, id, name)
+		src := a.source(srcID)
 		go func() {
 			err := a.editErr(src, func() error { return src.RenamePlaylist(id, name) })
 			a.post(func() {
 				if err != nil {
-					a.setPlaylistName(id, old)
-					a.toast = "重命名失败，请稍后再试"
+					a.setPlaylistName(srcID, id, old)
+					if !a.signInNeeded(srcID, err) {
+						a.toast = "重命名失败，请稍后再试"
+					}
 				}
 			})
 		}()
@@ -223,28 +232,31 @@ func (a *app) submitName() {
 	}
 	d.busy = true
 	add := d.add
-	src := a.editSource()
+	src := a.source(srcID)
 	go func() {
 		var pl *music.Playlist
 		err := a.editErr(src, func() (err error) { pl, err = src.CreatePlaylist(name); return })
 		a.post(func() {
 			a.naming.busy = false
 			if err != nil {
-				a.toast = "创建歌单失败，请稍后再试"
+				if !a.signInNeeded(srcID, err) {
+					a.toast = "创建歌单失败，请稍后再试"
+				}
 				return
 			}
 			a.naming.open = false
 			// Under the liked songs, as NetEase lists the newest.
+			mine, _ := a.listsOf(srcID)
 			at := 0
-			if len(a.mine) > 0 && a.mine[0].Fixed {
+			if len(*mine) > 0 && (*mine)[0].Fixed {
 				at = 1
 			}
-			a.mine = slices.Insert(a.mine, at, *pl)
+			*mine = slices.Insert(*mine, at, *pl)
 			pl.Tracks = nil
 			a.playlists[pageKey{pl.Source, pl.ID}] = pl
 			a.open(route{page: pagePlaylist, source: pl.Source, id: pl.ID})
 			if add != nil {
-				a.addTo(pl.ID, *add)
+				a.addTo(*add, pl.ID)
 			}
 		})
 	}()
@@ -252,125 +264,147 @@ func (a *app) submitName() {
 
 // confirmDelete asks whether to delete the listener's playlist pl.
 func (a *app) confirmDelete(pl *music.Playlist) {
-	a.deleting = deleteDialog{open: true, id: pl.ID, name: pl.Name}
+	a.deleting = deleteDialog{open: true, src: pl.Source, id: pl.ID, name: pl.Name}
 }
 
 // deleteChosen deletes the playlist the dialog asked about: at once from
-// the sidebar, leaving its page, and then with NetEase, which may refuse:
+// the sidebar, leaving its page, and then with its source, which may refuse:
 // it comes back then.
 func (a *app) deleteChosen() {
-	id := a.deleting.id
+	srcID, id := a.deleting.src, a.deleting.id
 	a.deleting.open = false
-	i := slices.IndexFunc(a.mine, func(pl music.Playlist) bool { return pl.ID == id })
-	if i < 0 || a.mine[i].Fixed {
+	mine, _ := a.listsOf(srcID)
+	i := slices.IndexFunc(*mine, func(pl music.Playlist) bool { return pl.ID == id })
+	if i < 0 || (*mine)[i].Fixed {
 		return
 	}
-	pl := a.mine[i]
-	a.mine = slices.Delete(slices.Clone(a.mine), i, i+1)
+	pl := (*mine)[i]
+	*mine = slices.Delete(slices.Clone(*mine), i, i+1)
 	// Leave no way back to its page, and leave it for the page before.
-	gone := func(r route) bool { return r.page == pagePlaylist && r.key() == a.accountKey(id) }
+	k := pageKey{srcID, id}
+	gone := func(r route) bool { return r.page == pagePlaylist && r.key() == k }
 	a.history = slices.DeleteFunc(a.history, gone)
 	a.forward = slices.DeleteFunc(a.forward, gone)
 	if gone(a.route) {
-		r := route{page: pageHome}
+		r := homeRoute(srcID)
 		if n := len(a.history); n > 0 {
 			r, a.history = a.history[n-1], a.history[:n-1]
 		}
 		a.show(r)
 	}
-	src := a.editSource()
+	src := a.source(srcID)
 	go func() {
 		err := a.editErr(src, func() error { return src.DeletePlaylist(id) })
 		a.post(func() {
 			if err != nil {
-				a.mine = slices.Insert(a.mine, min(i, len(a.mine)), pl)
-				a.toast = "删除失败，请稍后再试"
+				mine, _ := a.listsOf(srcID)
+				*mine = slices.Insert(*mine, min(i, len(*mine)), pl)
+				if !a.signInNeeded(srcID, err) {
+					a.toast = "删除失败，请稍后再试"
+				}
 				return
 			}
-			delete(a.playlists, a.accountKey(id))
+			delete(a.playlists, k)
 			a.toast = "已删除歌单"
 		})
 	}()
 }
 
-func (a *app) setPlaylistName(id string, name string) {
-	if pl := a.editable(id); pl != nil {
+func (a *app) setPlaylistName(src, id, name string) {
+	if pl := a.editable(src, id); pl != nil {
 		pl.Name = name
 	}
-	if pl := a.playlists[a.accountKey(id)]; pl != nil {
+	if pl := a.playlists[pageKey{src, id}]; pl != nil {
 		pl.Name = name
 	}
 }
 
-// addTo adds tr to the listener's playlist pid; a toast says how it went.
-func (a *app) addTo(pid string, tr music.Track) {
+// addTo adds tr to the listener's playlist pid at its source; a toast says how
+// it went.
+func (a *app) addTo(tr music.Track, pid string) {
 	song := tr.ID
-	src := a.editSource()
+	srcID := tr.Source
+	src := a.source(srcID)
 	go func() {
 		err := a.editErr(src, func() error { return src.AddToPlaylist(pid, []string{song}) })
 		a.post(func() {
 			switch {
 			case errors.Is(err, music.ErrDuplicate):
 				a.toast = "歌曲已在歌单中"
+			case a.signInNeeded(srcID, err):
 			case err != nil:
 				a.toast = "添加失败，请稍后再试"
 			default:
 				a.toast = "已添加到歌单"
-				a.playlistChanged(pid)
+				a.playlistChanged(srcID, pid)
 			}
 		})
 	}()
 }
 
-// removeFrom takes tr out of the listener's playlist pid, at once in the
-// app and then with NetEase, which may refuse: the song comes back then.
+// removeFrom takes tr out of the listener's playlist pid at its source, at once
+// in the app and then with the source, which may refuse: the song comes back
+// then.
 func (a *app) removeFrom(pid string, tr music.Track) {
 	song := tr.ID
-	pl := a.playlists[a.accountKey(pid)]
+	srcID := tr.Source
+	k := pageKey{srcID, pid}
+	pl := a.playlists[k]
 	var before []music.Track
 	if pl != nil {
 		// A new list: the player may be playing the old one.
 		before = pl.Tracks
 		pl.Tracks = slices.DeleteFunc(slices.Clone(before), func(t music.Track) bool { return t.ID == song })
 	}
-	src := a.editSource()
+	src := a.source(srcID)
 	go func() {
 		err := a.editErr(src, func() error { return src.RemoveFromPlaylist(pid, []string{song}) })
 		a.post(func() {
 			if err != nil {
-				if pl != nil && a.playlists[a.accountKey(pid)] == pl {
+				if pl != nil && a.playlists[k] == pl {
 					pl.Tracks = before
 				}
-				a.toast = "移除失败，请稍后再试"
+				if !a.signInNeeded(srcID, err) {
+					a.toast = "移除失败，请稍后再试"
+				}
 				return
 			}
 			// The songs listed are right: only the sidebar's covers may
 			// have changed.
-			if a.account != nil {
-				a.loadMine(a.uid())
-			}
+			a.reloadLists(srcID)
 		})
 	}()
 }
 
 // playlistItems are the items of a song's menu that put it in the
 // listener's playlists, or take it out of pid, the one it is listed in, if
-// set.
+// set. The playlists are those of the song's own source: NetEase's, or a
+// plugin's that makes them.
 func (a *app) playlistItems(m *ui.Menu, tr music.Track, pid string) {
-	// The listener's playlists are the account's source's: a song of another
-	// source is not put in them.
-	if a.account == nil || tr.Source != a.accountKey("").source {
+	src := tr.Source
+	if !a.signedInTo(src) || !a.canDo(src, "addToPlaylist") && !a.canDo(src, "createPlaylist") {
 		return
 	}
+	// A plugin's playlists are asked for as its songs' menus first want them.
+	if s := a.source(src); s != nil && src != netease.SourceID {
+		a.loadPluginLists(s, false)
+	}
+	// The playlist listed is of the source the page is of.
+	if a.route.source != src {
+		pid = ""
+	}
+	mine, _ := a.listsOf(src)
 	m.Separator()
 	m.Submenu("添加到歌单", func(m *ui.Menu) {
-		if m.Item("新建歌单…").Chosen() {
+		if a.canDo(src, "createPlaylist") && m.Item("新建歌单…").Chosen() {
 			a.newPlaylist(&tr)
 		}
 		var to []*music.Playlist
-		for i := range a.mine {
-			if pl := &a.mine[i]; !pl.Fixed && pl.ID != pid {
-				to = append(to, pl)
+		if a.canDo(src, "addToPlaylist") {
+			for i := range *mine {
+				if pl := &(*mine)[i]; !pl.Fixed && pl.ID != pid {
+					to = append(to, pl)
+				}
 			}
 		}
 		if len(to) > 0 {
@@ -378,11 +412,11 @@ func (a *app) playlistItems(m *ui.Menu, tr music.Track, pid string) {
 		}
 		for _, pl := range to {
 			if m.Item(pl.Name).Chosen() {
-				a.addTo(pl.ID, tr)
+				a.addTo(tr, pl.ID)
 			}
 		}
 	})
-	if a.editable(pid) != nil && m.Item("从歌单中移除").Chosen() {
+	if a.editable(src, pid) != nil && a.canDo(src, "removeFromPlaylist") && m.Item("从歌单中移除").Chosen() {
 		a.removeFrom(pid, tr)
 	}
 }

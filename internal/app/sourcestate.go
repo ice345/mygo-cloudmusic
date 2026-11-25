@@ -132,10 +132,11 @@ func (a *app) loadPluginLists(src music.Source, again bool) {
 		lists, err := src.Playlists()
 		a.post(func() {
 			s.listsBusy, s.listsAsked = false, true
-			s.mine, s.saved = nil, nil
+			// What was had stays when the plugin can't say, as NetEase's does.
 			if err != nil {
 				return
 			}
+			s.mine, s.saved = nil, nil
 			for _, pl := range lists {
 				if pl.Saved {
 					s.saved = append(s.saved, pl)
@@ -145,4 +146,90 @@ func (a *app) loadPluginLists(src music.Source, again bool) {
 			}
 		})
 	}()
+}
+
+// listsOf are the playlists the listener made and saved at the source: NetEase's
+// are the app's own, a plugin's are in its state.
+func (a *app) listsOf(src string) (mine, saved *[]music.Playlist) {
+	if src == netease.SourceID {
+		return &a.mine, &a.saved
+	}
+	st := a.stateOf(src)
+	return &st.mine, &st.saved
+}
+
+// signedInTo reports whether to go on with what needs the listener's account at
+// the source. A plugin that has no sign-in has no account to need, and one
+// whose account was not asked yet is gone on with: it says if the listener has
+// to sign in (music.ErrSignIn), which is what asks them to.
+func (a *app) signedInTo(src string) bool {
+	if src == netease.SourceID {
+		return a.account != nil
+	}
+	s := a.source(src)
+	if s == nil {
+		return false
+	}
+	if !s.Can("signIn") {
+		return true
+	}
+	st := a.stateOf(src)
+	if !st.asked {
+		a.askAccount(s)
+		return true
+	}
+	return st.account != nil
+}
+
+// signInTo asks the listener to sign in to the source.
+func (a *app) signInTo(src string) {
+	a.showMain()
+	if src == netease.SourceID {
+		a.openLogin()
+		return
+	}
+	a.openLoginFor(a.source(src))
+}
+
+// canDo reports whether the source does what is named. NetEase's always did:
+// it is the one whose menus were made for it.
+func (a *app) canDo(src, what string) bool {
+	if src == netease.SourceID {
+		return true
+	}
+	s := a.source(src)
+	return s != nil && s.Can(what)
+}
+
+// accountID is who is signed in at the source, to tell them from another, or
+// empty.
+func (a *app) accountID(src string) string {
+	if who := a.accountOf(src); who != nil {
+		return who.ID
+	}
+	return ""
+}
+
+// reloadLists asks the source again for the listener's playlists, which an
+// edit changed.
+func (a *app) reloadLists(src string) {
+	if src == netease.SourceID {
+		if a.account != nil {
+			a.loadMine(a.uid())
+		}
+		return
+	}
+	if s := a.source(src); s != nil {
+		a.loadPluginLists(s, true)
+	}
+}
+
+// signInNeeded takes an error of the source, and asks the listener to sign
+// in if that is what it says, as a plugin does of a listener it does not know.
+func (a *app) signInNeeded(src string, err error) bool {
+	if src == netease.SourceID || !errors.Is(err, music.ErrSignIn) {
+		return false
+	}
+	a.signInTo(src)
+	return true
 }

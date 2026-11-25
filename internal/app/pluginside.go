@@ -52,57 +52,8 @@ func (a *app) pluginNav(c *ui.Context, src music.Source) {
 		a.navItem(c, iconSearch, "搜索结果", a.searched)
 	}
 	st := a.stateOf(info.ID)
-	a.sourceLists(c, "我的歌单", st.mine, &st.mineCollapsed)
-	a.sourceLists(c, "收藏的歌单", st.saved, &st.savedCollapsed)
-}
-
-// sourceLists lists the listener's playlists at a plugin under a header that
-// opens and closes them, each opening its page.
-func (a *app) sourceLists(c *ui.Context, title string, lists []music.Playlist, collapsed *bool) {
-	if len(lists) == 0 {
-		return
-	}
-	p := a.pal
-	ui.Row(c.Key(title)).AlignItems(ui.Center).Margin(18, 4, 6, 6).Children(func() {
-		b := ui.ButtonBase(c.Key("toggle")).Grow(1).Height(26).PaddingX(4).Gap(6).Radius(6).
-			AlignItems(ui.Center).Justify(ui.Start).Role(ui.RoleDisclosure).Label(title)
-		if b.Clicked() {
-			*collapsed = !*collapsed
-		}
-		b.Expanded(!*collapsed)
-		if b.Hovered() {
-			b.Background(p.hover)
-		}
-		b.Children(func() {
-			ui.Text(c, title).FontSize(11.5).FontWeight(600).TextColor(p.faint).Grow(1)
-			arrow := iconDown
-			if *collapsed {
-				arrow = iconForward
-			}
-			ui.Icon(c, arrow).Size(12, 12).TextColor(p.faint)
-		})
-	})
-	if *collapsed {
-		return
-	}
-	for i := range lists {
-		pl := &lists[i]
-		selected := a.route.page == pagePlaylist && a.route.key() == (pageKey{pl.Source, pl.ID}) && !a.nowPlaying
-		b := ui.ButtonBase(c.Key(pl.ID)).Height(34).PaddingX(8).Gap(10).Radius(8).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(pl.Name)
-		switch {
-		case selected:
-			b.Background(p.press)
-		case b.Hovered():
-			b.Background(p.hover)
-		}
-		b.Children(func() {
-			a.cover(c, pl.ImageURL, 80, 22, 5)
-			ui.Text(c, pl.Name).FontSize(13).SingleLine().Shrink(1).MinWidth(0)
-		})
-		if b.Clicked() {
-			a.open(route{page: pagePlaylist, source: pl.Source, id: pl.ID})
-		}
-	}
+	a.myPlaylists(c, "我的歌单", st.mine, true, &st.mineCollapsed)
+	a.myPlaylists(c, "收藏的歌单", st.saved, false, &st.savedCollapsed)
 }
 
 // sidebarAccount sits at the foot of the sidebar while a plugin is shown: who

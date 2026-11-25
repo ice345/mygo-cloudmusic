@@ -329,8 +329,8 @@ func (a *app) commentLike(c *ui.Context, cm *music.Comment) {
 // then with NetEase, which may refuse: it goes back then. Signed out, it
 // asks the listener to sign in.
 func (a *app) toggleCommentLike(id string) {
-	if a.account == nil {
-		a.openLogin()
+	if !a.signedInTo(a.comments.track.source) {
+		a.signInTo(a.comments.track.source)
 		return
 	}
 	cs := &a.comments
@@ -348,7 +348,9 @@ func (a *app) toggleCommentLike(id string) {
 		a.post(func() {
 			if err != nil && cs.track == key {
 				cs.setLiked(id, !like)
-				a.toast = "操作失败，请稍后再试"
+				if !a.signInNeeded(key.source, err) {
+					a.toast = "操作失败，请稍后再试"
+				}
 			}
 		})
 	}()

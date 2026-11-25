@@ -132,8 +132,8 @@ func (a *app) toggleSubscribe(d *podcastData) {
 	if d.show == nil || d.subscribing {
 		return
 	}
-	if a.account == nil {
-		a.openLogin()
+	if !a.signedInTo(d.show.Source) {
+		a.signInTo(d.show.Source)
 		return
 	}
 	show := d.show
@@ -161,7 +161,9 @@ func (a *app) toggleSubscribe(d *podcastData) {
 				} else {
 					show.Subscribers++
 				}
-				a.toast = "操作失败，请稍后再试"
+				if !a.signInNeeded(show.Source, err) {
+					a.toast = "操作失败，请稍后再试"
+				}
 			case sub:
 				tab.subscribed(show)
 				a.toast = "已订阅"

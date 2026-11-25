@@ -230,7 +230,7 @@ func TestDeletePlaylist(t *testing.T) {
 	if got := <-ids; got != 10 {
 		t.Errorf("deleted playlist %d, want 10", got)
 	}
-	if a.editable("10") != nil {
+	if a.editable(netease.SourceID, "10") != nil {
 		t.Error("the sidebar still lists it")
 	}
 	if a.route.page != pageCharts || len(a.history) != 0 || len(a.forward) != 0 {
@@ -258,7 +258,7 @@ func TestCancelDeletingPlaylist(t *testing.T) {
 	}
 	tt.Advance(300 * time.Millisecond)
 	tt.Frame()
-	if a.editable("11") == nil {
+	if a.editable(netease.SourceID, "11") == nil {
 		t.Error("the playlist left the sidebar")
 	}
 }
@@ -289,10 +289,10 @@ func TestPlaylistEditFrames(t *testing.T) {
 		a.newPlaylist(nil)
 		save("create" + suffix)
 		a.naming.open = false
-		a.startRename(a.editable("11"))
+		a.startRename(a.editable(netease.SourceID, "11"))
 		save("rename" + suffix)
 		a.naming.open = false
-		a.confirmDelete(a.editable("11"))
+		a.confirmDelete(a.editable(netease.SourceID, "11"))
 		save("delete" + suffix)
 		a.deleting.open = false
 	}
@@ -333,8 +333,8 @@ func TestSidebarListsWhatTheSourceSays(t *testing.T) {
 	if len(a.mine) != 2 || a.mine[0].Name != "小明喜欢的音乐" || len(a.saved) != 1 || a.saved[0].ID != "20" {
 		t.Fatalf("mine %+v, saved %+v", a.mine, a.saved)
 	}
-	if a.editable("5") != nil || a.editable("10") == nil || a.likedPlaylist() != "5" {
-		t.Errorf("editable liked %v, own %v, liked songs %s", a.editable("5"), a.editable("10"), a.likedPlaylist())
+	if a.editable(netease.SourceID, "5") != nil || a.editable(netease.SourceID, "10") == nil || a.likedPlaylist() != "5" {
+		t.Errorf("editable liked %v, own %v, liked songs %s", a.editable(netease.SourceID, "5"), a.editable(netease.SourceID, "10"), a.likedPlaylist())
 	}
 
 	src.err = music.Fail(music.ErrSignIn, "")

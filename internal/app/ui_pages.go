@@ -297,7 +297,7 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 					}
 					a.pl.PlayQueue(pl.Tracks, firstAvailable(pl.Tracks))
 				}
-				if a.savable(pl) {
+				if a.savable(pl) && a.canDo(pl.Source, "savePlaylist") {
 					icon, label := iconPlus, "收藏"
 					if a.isSaved(pl) {
 						icon, label = iconCheck, "已收藏"
@@ -306,14 +306,16 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 						a.toggleSaved(*pl)
 					}
 				}
-				if mine := a.editable(pl.ID); mine != nil {
+				if mine := a.editable(pl.Source, pl.ID); mine != nil && (a.canDo(pl.Source, "renamePlaylist") || a.canDo(pl.Source, "deletePlaylist")) {
 					more := iconButton(c.Key("more"), iconMore, 18, p.muted, "更多")
 					more.Menu(func(m *ui.Menu) {
-						if m.Item("重命名…").Chosen() {
+						if a.canDo(pl.Source, "renamePlaylist") && m.Item("重命名…").Chosen() {
 							a.startRename(mine)
 						}
-						m.Separator()
-						if m.Item("删除歌单…").Chosen() {
+						if a.canDo(pl.Source, "renamePlaylist") && a.canDo(pl.Source, "deletePlaylist") {
+							m.Separator()
+						}
+						if a.canDo(pl.Source, "deletePlaylist") && m.Item("删除歌单…").Chosen() {
 							a.confirmDelete(mine)
 						}
 					})
@@ -343,7 +345,7 @@ func (a *app) playlistHeader(c *ui.Context, pl *music.Playlist) {
 func (a *app) trackRows(c *ui.Context, tracks trackList, covers bool, header func(c *ui.Context), footer ...func(c *ui.Context)) {
 	// A song's menu can take it out of the playlist it is listed in.
 	var pid string
-	if a.route.page == pagePlaylist && a.route.source == a.accountKey("").source {
+	if a.route.page == pagePlaylist {
 		pid = a.route.id
 	}
 	w, _ := c.Size()

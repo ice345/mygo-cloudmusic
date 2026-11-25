@@ -58,9 +58,8 @@ func (a *app) loadLiked(uid int64) {
 // and then with its source, which may refuse: the heart goes back then.
 // Signed out, it asks the listener to sign in.
 func (a *app) toggleLike(tr music.Track) {
-	if a.account == nil {
-		a.showMain()
-		a.openLogin()
+	if !a.signedInTo(tr.Source) {
+		a.signInTo(tr.Source)
 		return
 	}
 	key := likeKey(tr)
@@ -81,14 +80,17 @@ func (a *app) toggleLike(tr music.Track) {
 		a.post(func() {
 			if err != nil {
 				a.setLiked(key, !like)
-				a.toast = "操作失败，请稍后再试"
+				if !a.signInNeeded(key.source, err) {
+					a.toast = "操作失败，请稍后再试"
+				}
 				return
 			}
 			if episode {
 				return
 			}
 			// The liked songs' playlist changed: load it anew when shown.
-			for _, pl := range a.mine {
+			mine, _ := a.listsOf(key.source)
+			for _, pl := range *mine {
 				if k := (pageKey{pl.Source, pl.ID}); pl.Fixed {
 					delete(a.playlists, k)
 					if a.route.page == pagePlaylist && a.route.key() == k {

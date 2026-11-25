@@ -52,7 +52,11 @@ func (a *app) uid() int64 {
 	return numericID(a.account.ID)
 }
 
-// accountSource is the source whose account the app shows: NetEase, so far.
+// accountSource is NetEase's, whose account the app keeps in its own fields
+// (account, mine, saved, liked) and the pages and features of its own read:
+// signing in at start, the liked songs listed at once, the personal FM and the
+// picks. Another source's account is in its sourceState, and what needs it asks
+// by the source of what it concerns (signedInTo, listsOf, canDo).
 func (a *app) accountSource() music.Source { return a.source(netease.SourceID) }
 
 // boot signs in with the session in the keychain, if any, then loads the
@@ -448,7 +452,7 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []music.Playlist, m
 			}
 			ui.Icon(c, arrow).Size(12, 12).TextColor(p.faint)
 		})
-		if mine && iconButton(c.Key("new"), iconPlus, 13, p.faint, "新建歌单").Size(26, 26).Radius(6).Clicked() {
+		if mine && a.canDo(a.activeID(), "createPlaylist") && iconButton(c.Key("new"), iconPlus, 13, p.faint, "新建歌单").Size(26, 26).Radius(6).Clicked() {
 			a.newPlaylist(nil)
 		}
 	})
@@ -469,18 +473,21 @@ func (a *app) myPlaylists(c *ui.Context, title string, lists []music.Playlist, m
 			a.cover(c, pl.ImageURL, 80, 22, 5)
 			ui.Text(c, pl.Name).FontSize(13).SingleLine().Shrink(1).MinWidth(0)
 		})
+		rename, remove := a.canDo(pl.Source, "renamePlaylist"), a.canDo(pl.Source, "deletePlaylist")
 		switch {
-		case mine && !pl.Fixed:
+		case mine && !pl.Fixed && (rename || remove):
 			b.ContextMenu(func(m *ui.Menu) {
-				if m.Item("重命名…").Chosen() {
+				if rename && m.Item("重命名…").Chosen() {
 					a.startRename(pl)
 				}
-				m.Separator()
-				if m.Item("删除歌单…").Chosen() {
+				if rename && remove {
+					m.Separator()
+				}
+				if remove && m.Item("删除歌单…").Chosen() {
 					a.confirmDelete(pl)
 				}
 			})
-		case !mine:
+		case !mine && a.canDo(pl.Source, "savePlaylist"):
 			b.ContextMenu(func(m *ui.Menu) {
 				if m.Item("取消收藏").Chosen() {
 					a.toggleSaved(*pl)

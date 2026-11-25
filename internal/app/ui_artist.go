@@ -258,8 +258,8 @@ func (a *app) toggleFollow(k pageKey) {
 	if d.page == nil || d.following || src == nil {
 		return
 	}
-	if a.account == nil {
-		a.openLogin()
+	if !a.signedInTo(k.source) {
+		a.signInTo(k.source)
 		return
 	}
 	ar := &d.page.Artist
@@ -272,7 +272,9 @@ func (a *app) toggleFollow(k pageKey) {
 			switch {
 			case err != nil:
 				ar.Following = !follow
-				a.toast = "操作失败，请稍后再试"
+				if !a.signInNeeded(k.source, err) {
+					a.toast = "操作失败，请稍后再试"
+				}
 			case follow:
 				a.toast = "已关注"
 			default:
